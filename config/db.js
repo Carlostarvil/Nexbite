@@ -20,6 +20,12 @@ pool.connect()
 
 export default pool;
 
+// Migración idempotente: no modifica los horarios de los locales existentes.
+// Se espera antes de aceptar peticiones para evitar consultas a una columna aún no creada.
+export const horariosRecogidaListos = pool.query(`
+  ALTER TABLE Restaurantes ADD COLUMN IF NOT EXISTS horarios_recogida JSONB;
+`);
+
 // Esto fuerza a Node a crear la tabla en la base de datos correcta si no existe
 pool.query(`
   CREATE TABLE IF NOT EXISTS Platos_Favoritos (

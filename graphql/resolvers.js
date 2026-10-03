@@ -8,6 +8,7 @@ import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
 import Stripe from 'stripe';
 import crypto from 'crypto';
+import { validarHorariosRecogida, validarFechaRecogida } from '../shared/horariosRecogida.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -413,11 +414,16 @@ export const resolvers = {
         }
 
         const resRestaurante = await pool.query(
-          'SELECT aceptando_pedidos, tiempo_reactivacion, latitud, longitud, radio_cobertura_km FROM Restaurantes WHERE id_restaurante = $1',
+          'SELECT aceptando_pedidos, tiempo_reactivacion, latitud, longitud, radio_cobertura_km, horarios_recogida FROM Restaurantes WHERE id_restaurante = $1',
           [id_restaurante]
         );
 
         const restaurante = resRestaurante.rows[0];
+        if (!restaurante) throw new Error('El restaurante no existe.');
+
+        if (direccion_envio === 'Recogida en el local') {
+          validarFechaRecogida(restaurante.horarios_recogida, fecha_programada);
+        }
 
         if (!restaurante.aceptando_pedidos && !fecha_programada) {
           throw new Error('⛔ El restaurante está pausado temporalmente.');
@@ -506,13 +512,16 @@ export const resolvers = {
       imagen_url,
       radio_cobertura_km,
       telefono,
-      direccion
+      direccion,
+      horarios_recogida
     }, contexto) => {
+      if (!contexto.usuario) throw new Error('Inicia sesión para registrar un negocio.');
+      const horarios = horarios_recogida == null ? null : validarHorariosRecogida(horarios_recogida);
       const radioFinal = radio_cobertura_km || 10.0;
 
       const res = await pool.query(
-        'INSERT INTO Restaurantes (nombre, tipo, latitud, longitud, id_usuario_dueño, imagen_url, radio_cobertura_km, telefono, direccion) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-        [nombre, tipo, latitud, longitud, contexto.usuario.id_usuario, imagen_url, radioFinal, telefono, direccion]
+        'INSERT INTO Restaurantes (nombre, tipo, latitud, longitud, id_usuario_dueño, imagen_url, radio_cobertura_km, telefono, direccion, horarios_recogida) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb) RETURNING *',
+        [nombre, tipo, latitud, longitud, contexto.usuario.id_usuario, imagen_url, radioFinal, telefono, direccion, horarios === null ? null : JSON.stringify(horarios)]
       );
 
       await pool.query(

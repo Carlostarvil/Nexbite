@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
+import { generarOpcionesRecogida, recogidaDisponible, validarFechaRecogida } from '../../shared/horariosRecogida.js';
 
 // Importaciones de Stripe
 import { loadStripe } from '@stripe/stripe-js';
@@ -38,6 +39,7 @@ const OBTENER_ESTADO_RESTAURANTE = gql`
       direccion
       latitud
       longitud 
+      horarios_recogida { dia inicio fin }
     }
   }
 `;
@@ -93,11 +95,25 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const [idCartActivo, setIdCartActivo] = useState(null); 
   const [tipoEntrega, setTipoEntrega] = useState('DOMICILIO');
   
-  const [mostrarModalProgramar, setMostrarModalProgramar] = useState(false);
-  const [modoRecogida, setModoRecogida] = useState('AHORA'); 
-  const [diaProgramado, setDiaProgramado] = useState(0); 
-  const [horaProgramada, setHoraProgramada] = useState('');
-  const [horaSeleccionadaTemp, setHoraSeleccionadaTemp] = useState('');
+  // Cada carrito mantiene su selección; nunca se aplica la hora de otro restaurante.
+  const [seleccionesRecogida, setSeleccionesRecogida] = useState({});
+  const {
+    mostrarModalProgramar = false, modoRecogida = 'AHORA', diaProgramado = '',
+    horaProgramada = '', horaSeleccionadaTemp = '',
+  } = seleccionesRecogida[idCartActivo] || {};
+  const actualizarRecogida = cambios => setSeleccionesRecogida(anterior => ({
+    ...anterior, [idCartActivo]: { ...anterior[idCartActivo], ...cambios },
+  }));
+  const setMostrarModalProgramar = valor => actualizarRecogida({ mostrarModalProgramar: valor });
+  const setModoRecogida = valor => actualizarRecogida({ modoRecogida: valor });
+  const setDiaProgramado = valor => actualizarRecogida({ diaProgramado: valor });
+  const setHoraProgramada = valor => actualizarRecogida({ horaProgramada: valor });
+  const setHoraSeleccionadaTemp = valor => actualizarRecogida({ horaSeleccionadaTemp: valor });
+  const [ahora, setAhora] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setAhora(new Date()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const [direccion, setDireccion] = useState('');
   const [detallesDireccion, setDetallesDireccion] = useState('');
@@ -116,56 +132,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const [guardandoTarjeta, setGuardandoTarjeta] = useState(false);
 
   const [direccionRestaurante, setDireccionRestaurante] = useState('Obteniendo dirección del local...');
-
-  const generarDias = () => {
-    const dias = [];
-    const nombresDias = ['dom.', 'lun.', 'mar.', 'mié.', 'jue.', 'vie.', 'sáb.'];
-    const meses = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.'];
-    
-    for (let i = 0; i < 5; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      const diaSemana = nombresDias[d.getDay()];
-      const diaNum = d.getDate();
-      const mes = meses[d.getMonth()];
-      
-      let etiqueta = `${diaSemana} ${diaNum} ${mes}`;
-      if (i === 0) etiqueta = `Hoy, ${diaSemana} ${diaNum}`;
-      else if (i === 1) etiqueta = `Mañana, ${diaSemana} ${diaNum}`;
-      
-      dias.push({ valor: i, etiqueta });
-    }
-    return dias;
-  };
-
-  const generarHoras = (offsetDias) => {
-    const horas = [];
-    let d = new Date();
-    let horaActual = d.getHours();
-    let minutoActual = d.getMinutes();
-    
-    let inicioH = 12; 
-    let finH = 23;    
-
-    if (offsetDias === 0) {
-      if (horaActual >= finH) return []; 
-      inicioH = Math.max(12, horaActual);
-    }
-
-    for (let h = inicioH; h <= finH; h++) {
-      for (let m of [0, 30]) {
-        if (offsetDias === 0 && h === horaActual && m <= minutoActual + 15) continue;
-        
-        const fHora = (hx, mx) => `${hx.toString().padStart(2, '0')}:${mx.toString().padStart(2, '0')}`;
-        let hFin = h;
-        let mFin = m + 30;
-        if (mFin >= 60) { hFin++; mFin = 0; }
-        
-        horas.push(`${fHora(h, m)} - ${fHora(hFin, mFin)}`);
-      }
-    }
-    return horas;
-  };
 
   const handleGuardarTarjeta = async () => {
     if (!nuevoTitular.trim()) return alert("Ingresa el nombre del titular de la tarjeta.");
@@ -212,6 +178,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   };
 
   const [procesandoStripe, setProcesandoStripe] = useState(false);
+  const [comprobandoHorario, setComprobandoHorario] = useState(false);
   const [crearPedido, { loading: procesandoPago }] = useMutation(CREAR_PEDIDO);
   const [crearIntencion] = useMutation(CREAR_INTENCION_PAGO);
   const [pedirAviso] = useMutation(SOLICITAR_AVISO);
@@ -241,8 +208,15 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const disminuirCantidad = (id_plato) => setCarrito(carrito.map(p => (String(p.id_plato) === String(id_plato) && p.cantidad > 1) ? { ...p, cantidad: p.cantidad - 1 } : p));
   const eliminarPlato = (id_plato) => setCarrito(carrito.filter(p => p.id_plato !== id_plato));
 
-  const { data: dataRest } = useQuery(OBTENER_ESTADO_RESTAURANTE, { variables: { id: idRestauranteCarrito }, skip: !idRestauranteCarrito });
+  const { data: dataRest, loading: cargandoRestaurante, error: errorRestaurante, refetch: refrescarRestaurante } = useQuery(OBTENER_ESTADO_RESTAURANTE, { variables: { id: idRestauranteCarrito }, skip: !idRestauranteCarrito });
   const restaurante = dataRest?.obtenerRestaurantePorId;
+  const opcionesRecogida = useMemo(() => restaurante ? generarOpcionesRecogida(restaurante.horarios_recogida, ahora) : [], [restaurante, ahora]);
+  const diasDisponibles = opcionesRecogida;
+  const horasDisponiblesList = diasDisponibles.find(dia => dia.valor === diaProgramado)?.horas || [];
+  const opcionProgramada = diasDisponibles.flatMap(dia => dia.horas).find(hora => hora.valor === horaProgramada);
+  const diaConfirmado = diasDisponibles.find(dia => dia.horas.some(hora => hora.valor === horaProgramada));
+  const recogidaAhoraDisponible = restaurante && restaurante.aceptando_pedidos && recogidaDisponible(restaurante.horarios_recogida, ahora, 15);
+
   const total = carritoEnUso.reduce((suma, plato) => suma + (plato.precio * (plato.cantidad || 1)), 0);
 
   const restauranteCerrado = restaurante ? !restaurante.aceptando_pedidos : false;
@@ -313,6 +287,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   };
 
   const handlePagar = async (fechaParaProgramar = null) => {
+    if (procesandoPago || procesandoStripe || comprobandoHorario) return;
     if (carritoEnUso.length === 0) return alert("Tu carrito está vacío.");
     
     if (tipoEntrega === 'DOMICILIO') {
@@ -327,13 +302,20 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
       : (detallesDireccion.trim() ? `${direccion} - Detalles: ${detallesDireccion}` : direccion);
 
     let fechaFinalBackend = fechaParaProgramar;
-    if (tipoEntrega === 'RECOGIDA' && modoRecogida === 'PROGRAMADO' && horaProgramada) {
-      const d = new Date();
-      d.setDate(d.getDate() + diaProgramado);
-      const horaStr = horaProgramada.split(' - ')[0].split(':')[0];
-      const minStr = horaProgramada.split(' - ')[0].split(':')[1];
-      d.setHours(parseInt(horaStr, 10), parseInt(minStr, 10), 0, 0);
-      fechaFinalBackend = d.getTime().toString();
+    if (tipoEntrega === 'RECOGIDA') {
+      setComprobandoHorario(true);
+      try {
+        const { data } = await refrescarRestaurante();
+        const local = data?.obtenerRestaurantePorId;
+        if (!local) throw new Error('No se ha podido comprobar el horario del restaurante.');
+        if (modoRecogida === 'PROGRAMADO' && !opcionProgramada) throw new Error('Vuelve a seleccionar una hora de recogida disponible.');
+        if (modoRecogida === 'AHORA' && !local.aceptando_pedidos) throw new Error('El local no acepta pedidos inmediatos.');
+        fechaFinalBackend = validarFechaRecogida(local.horarios_recogida, modoRecogida === 'PROGRAMADO' ? horaProgramada : fechaParaProgramar);
+      } catch (error) {
+        return alert(error.message);
+      } finally {
+        setComprobandoHorario(false);
+      }
     }
 
     if (metodoPago === 'TARJETA') {
@@ -406,9 +388,9 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     );
   }
 
-  const bloqueado = procesandoPago || procesandoStripe;
+  const recogidaBloqueada = tipoEntrega === 'RECOGIDA' && (cargandoRestaurante || errorRestaurante || !restaurante || (modoRecogida === 'AHORA' ? !recogidaAhoraDisponible : !opcionProgramada));
+  const bloqueado = procesandoPago || procesandoStripe || comprobandoHorario || recogidaBloqueada;
   const urlMapaRestaurante = (restaurante?.latitud && restaurante?.longitud) ? `https://static-maps.yandex.ru/1.x/?ll=${restaurante.longitud},${restaurante.latitud}&size=600,150&z=16&l=map&pt=${restaurante.longitud},${restaurante.latitud},pm2rdm` : null;
-  const horasDisponiblesList = generarHoras(diaProgramado);
 
   return (
     <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '800px', margin: '0 auto', position: 'relative' }}>
@@ -524,8 +506,9 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                   <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#333' }}>Opciones de recogida</h4>
                   <div 
                     onClick={() => { 
-                      setDiaProgramado(0);
-                      setHoraSeleccionadaTemp(horasDisponiblesList[0] || ''); 
+                      const dia = diaConfirmado || diasDisponibles[0];
+                      setDiaProgramado(dia?.valor || '');
+                      setHoraSeleccionadaTemp(opcionProgramada?.valor || dia?.horas[0]?.valor || '');
                       setMostrarModalProgramar(true); 
                     }}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f5f5', padding: '15px', borderRadius: '8px', cursor: 'pointer', transition: 'background 0.2s' }}
@@ -536,12 +519,15 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                       <span style={{ fontSize: '1.2rem' }}>🕒</span>
                       <span style={{ fontWeight: 'bold', color: '#333', fontSize: '14px' }}>
                         {modoRecogida === 'AHORA' 
-                          ? 'Lo antes posible' 
-                          : `${generarDias().find(d => d.valor === diaProgramado)?.etiqueta}, ${horaProgramada}`}
+                          ? (recogidaAhoraDisponible ? 'Lo antes posible' : 'Selecciona una hora de recogida')
+                          : (opcionProgramada ? `${diaConfirmado.etiqueta}, ${opcionProgramada.etiqueta}` : 'Vuelve a seleccionar una hora disponible')}
                       </span>
                     </div>
                     <span style={{ color: '#0066cc', fontWeight: 'bold', fontSize: '14px' }}>Editar</span>
                   </div>
+                  {!recogidaAhoraDisponible && modoRecogida === 'AHORA' && <p style={{ fontSize: '13px', color: '#b45309', marginBottom: 0 }}>
+                    {cargandoRestaurante ? 'Consultando el horario…' : errorRestaurante ? 'No se ha podido cargar el horario. Inténtalo de nuevo.' : 'La recogida inmediata no está disponible. Programa una hora dentro del horario del local.'}
+                  </p>}
                 </div>
               </div>
             )}
@@ -616,6 +602,9 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             <button onClick={() => setMostrarModalProgramar(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#666' }}>×</button>
             
             <h3 style={{ margin: '0 0 20px 0', fontSize: '1.3rem', color: '#333' }}>Programar la recogida</h3>
+            <p style={{ fontSize: '13px', color: '#666' }}>Horas disponibles del local, en hora peninsular. Cada franja de recogida dura 30 minutos.</p>
+            {recogidaAhoraDisponible && <button type="button" onClick={() => { setModoRecogida('AHORA'); setHoraProgramada(''); setMostrarModalProgramar(false); }}
+              style={{ marginBottom: '15px', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer' }}>Recoger lo antes posible</button>}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
@@ -625,16 +614,15 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                 <select 
                   value={diaProgramado} 
                   onChange={(e) => {
-                    const nuevoDia = Number(e.target.value);
+                    const nuevoDia = e.target.value;
                     setDiaProgramado(nuevoDia);
-                    const nuevasHoras = generarHoras(nuevoDia);
-                    if (nuevasHoras.length > 0) {
-                      setHoraSeleccionadaTemp(nuevasHoras[0]);
-                    }
+                    const nuevasHoras = diasDisponibles.find(dia => dia.valor === nuevoDia)?.horas || [];
+                    setHoraSeleccionadaTemp(nuevasHoras[0]?.valor || '');
                   }}
                   style={{ padding: '14px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '15px', outline: 'none', cursor: 'pointer', backgroundColor: '#fff', appearance: 'auto' }}
                 >
-                  {generarDias().map(dia => (
+                  {diasDisponibles.length === 0 && <option value="">Sin fechas disponibles</option>}
+                  {diasDisponibles.map(dia => (
                     <option key={dia.valor} value={dia.valor}>{dia.etiqueta}</option>
                   ))}
                 </select>
@@ -649,7 +637,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                   style={{ padding: '14px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '15px', outline: 'none', cursor: 'pointer', backgroundColor: '#fff', appearance: 'auto' }}
                 >
                   {horasDisponiblesList.map(hora => (
-                    <option key={hora} value={hora}>{hora}</option>
+                    <option key={hora.valor} value={hora.valor}>{hora.etiqueta}</option>
                   ))}
                 </select>
                 {horasDisponiblesList.length === 0 && (
@@ -661,13 +649,13 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
             <button 
               onClick={() => {
-                if (horaSeleccionadaTemp !== '') { 
+                if (horasDisponiblesList.some(hora => hora.valor === horaSeleccionadaTemp)) {
                   setModoRecogida('PROGRAMADO'); 
                   setHoraProgramada(horaSeleccionadaTemp); 
                 }
                 setMostrarModalProgramar(false);
               }}
-              disabled={horasDisponiblesList.length === 0}
+              disabled={!horasDisponiblesList.some(hora => hora.valor === horaSeleccionadaTemp)}
               style={{ marginTop: '25px', width: '100%', padding: '15px', background: '#000', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 'bold', fontSize: '1.1rem', cursor: horasDisponiblesList.length === 0 ? 'not-allowed' : 'pointer', opacity: horasDisponiblesList.length === 0 ? 0.6 : 1, transition: 'background 0.2s' }}
             >
               Programar

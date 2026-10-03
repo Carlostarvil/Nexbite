@@ -1,6 +1,8 @@
 export const typeDefs = `#graphql
   type Tag { id_tag: ID!, nombre: String!, categoria: String! }
   type UsuarioAuth { id_usuario: ID!, nombre: String!, email: String!, rol: String!, puntos_acumulados: Int!, token: String! }
+  type FranjaRecogida { dia: Int!, inicio: String!, fin: String! }
+  input FranjaRecogidaInput { dia: Int!, inicio: String!, fin: String! }
   
   type Restaurante { 
     id_restaurante: ID!
@@ -10,6 +12,7 @@ export const typeDefs = `#graphql
     longitud: Float
     imagen_url: String 
     aceptando_pedidos: Boolean 
+    horarios_recogida: [FranjaRecogida!]
     tiempo_reactivacion: String 
     radio_cobertura_km: Float
     telefono: String
@@ -128,7 +131,8 @@ export const typeDefs = `#graphql
       imagen_url: String,
       radio_cobertura_km: Float,
       telefono: String,
-      direccion: String
+      direccion: String,
+      horarios_recogida: [FranjaRecogidaInput!]
     ): Restaurante
     
     crearPlato(

@@ -4,6 +4,7 @@ import { gql } from '@apollo/client/core/index.js';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { DIAS_RECOGIDA, validarHorariosRecogida } from '../../shared/horariosRecogida.js';
 
 // Arreglo para los iconos de Leaflet en React
 delete L.Icon.Default.prototype._getIconUrl;
@@ -15,8 +16,8 @@ L.Icon.Default.mergeOptions({
 
 // AÑADIDOS teléfono y dirección a la mutación
 const REGISTRAR_NEGOCIO = gql`
-  mutation RegistrarNegocio($nombre: String!, $tipo: String!, $latitud: Float, $longitud: Float, $imagen_url: String, $radio_cobertura_km: Float, $telefono: String, $direccion: String) {
-    registrarNegocio(nombre: $nombre, tipo: $tipo, latitud: $latitud, longitud: $longitud, imagen_url: $imagen_url, radio_cobertura_km: $radio_cobertura_km, telefono: $telefono, direccion: $direccion) {
+  mutation RegistrarNegocio($nombre: String!, $tipo: String!, $latitud: Float, $longitud: Float, $imagen_url: String, $radio_cobertura_km: Float, $telefono: String, $direccion: String, $horarios_recogida: [FranjaRecogidaInput!]!) {
+    registrarNegocio(nombre: $nombre, tipo: $tipo, latitud: $latitud, longitud: $longitud, imagen_url: $imagen_url, radio_cobertura_km: $radio_cobertura_km, telefono: $telefono, direccion: $direccion, horarios_recogida: $horarios_recogida) {
       id_restaurante
       nombre
     }
@@ -27,6 +28,7 @@ function CapturadorUbicacion({ posicion, setPosicion }) {
   useMapEvents({
     click(e) { setPosicion({ lat: e.latlng.lat, lng: e.latlng.lng }); },
   });
+
   return posicion ? <Marker position={[posicion.lat, posicion.lng]} /> : null;
 }
 
@@ -49,6 +51,12 @@ export default function RegistroRestaurante() {
   });
 
   const [radioSeleccion, setRadioSeleccion] = useState("10"); 
+  const [horariosRecogida, setHorariosRecogida] = useState(() =>
+    DIAS_RECOGIDA.map(() => ({ activo: true, franjas: [{ inicio: '12:00', fin: '23:00' }] }))
+  );
+  const actualizarDia = (dia, actualizar) => setHorariosRecogida(anterior =>
+    anterior.map((horario, indice) => indice === dia ? actualizar(horario) : horario)
+  );
   const [radioPersonalizado, setRadioPersonalizado] = useState(""); 
 
   const [posicion, setPosicion] = useState(null); 
@@ -148,9 +156,13 @@ export default function RegistroRestaurante() {
     }
 
     try {
+      const horarios = validarHorariosRecogida(horariosRecogida.flatMap((horario, dia) =>
+        horario.activo ? horario.franjas.map(franja => ({ dia, ...franja })) : []
+      ));
       await registrar({
         variables: { 
           ...formData, 
+          horarios_recogida: horarios,
           latitud: posicion.lat, 
           longitud: posicion.lng
         }
@@ -183,6 +195,47 @@ export default function RegistroRestaurante() {
             <option value="FARMACIA">Farmacia 💊</option>
           </select>
         </div>
+
+        <fieldset style={{ margin: 0, padding: '15px', border: '1px solid #e5e5e5', borderRadius: '8px', minWidth: 0 }}>
+          <legend style={{ fontWeight: 'bold', color: '#555' }}>Horarios de recogida</legend>
+          <p style={{ margin: '0 0 15px', fontSize: '13px', color: '#666' }}>
+            Selecciona los días y las horas en que los clientes pueden recoger sus pedidos (hora peninsular).
+            Puedes añadir varias franjas para separar comida y cena. Si la hora de cierre es anterior a la de apertura, termina al día siguiente.
+          </p>
+          {horariosRecogida.map((horario, dia) => (
+            <div key={dia} style={{ padding: '10px 0', borderTop: dia ? '1px solid #eee' : 'none' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#444', marginBottom: '8px' }}>
+                <input type="checkbox" checked={horario.activo} onChange={e => actualizarDia(dia, h => ({ ...h, activo: e.target.checked }))} />
+                {DIAS_RECOGIDA[dia]}
+                {!horario.activo && <span style={{ fontWeight: 'normal', color: '#888', fontSize: '13px' }}>Sin recogida</span>}
+              </label>
+              {horario.activo && <>
+                {horario.franjas.map((franja, indice) => (
+                  <div key={indice} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ flex: '1 1 130px', fontSize: '13px', color: '#555' }}>
+                      Desde
+                      <input type="time" required aria-label={`${DIAS_RECOGIDA[dia]}, inicio de franja ${indice + 1}`} value={franja.inicio}
+                        onChange={e => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.map((f, i) => i === indice ? { ...f, inicio: e.target.value } : f) }))}
+                        style={{ ...inputStyle, marginTop: '4px' }} />
+                    </label>
+                    <label style={{ flex: '1 1 130px', fontSize: '13px', color: '#555' }}>
+                      Hasta
+                      <input type="time" required aria-label={`${DIAS_RECOGIDA[dia]}, fin de franja ${indice + 1}`} value={franja.fin}
+                        onChange={e => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.map((f, i) => i === indice ? { ...f, fin: e.target.value } : f) }))}
+                        style={{ ...inputStyle, marginTop: '4px' }} />
+                    </label>
+                    {horario.franjas.length > 1 && <button type="button" aria-label={`Eliminar franja ${indice + 1} del ${DIAS_RECOGIDA[dia]}`}
+                      onClick={() => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.filter((_, i) => i !== indice) }))}
+                      style={{ background: '#fff', border: '1px solid #ddd', padding: '10px', borderRadius: '6px', cursor: 'pointer', color: '#c0392b' }}>Eliminar</button>}
+                  </div>
+                ))}
+                <button type="button" disabled={horario.franjas.length >= 4}
+                  onClick={() => actualizarDia(dia, h => ({ ...h, franjas: [...h.franjas, { inicio: '', fin: '' }] }))}
+                  style={{ border: 'none', background: 'none', color: '#0066cc', padding: '4px 0', cursor: 'pointer', fontWeight: 'bold' }}>+ Añadir franja</button>
+              </>}
+            </div>
+          ))}
+        </fieldset>
 
         {/* NUEVOS CAMPOS: TELÉFONO Y DIRECCIÓN */}
         <div>
