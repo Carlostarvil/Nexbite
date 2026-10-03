@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>NexBite - Tablet Restaurante</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f4f9; padding: 20px; }
+        #panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px;}
+        .pedido { border-left: 5px solid #ff4757; padding: 15px; margin-top: 15px; background: #f1f2f6; border-radius: 0 8px 8px 0;}
+        .estado { color: #e1b12c; font-weight: bold; }
+        .error-alerta { border-left: 5px solid #d63031; padding: 15px; margin-top: 15px; background: #ff7675; color: white; border-radius: 0 8px 8px 0;}
+    </style>
+</head>
+<body>
+    <div id="panel">
+        <h2>🔔 Pedidos en Vivo (El Rey del Taco)</h2>
+        <div id="estado-conexion">Conectando al servidor...</div>
+        <div id="lista-pedidos"></div>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:4000/graphql', 'graphql-transport-ws');
+        const estadoConexion = document.getElementById('estado-conexion');
+        const listaPedidos = document.getElementById('lista-pedidos');
+
+        ws.onopen = () => {
+            ws.send(JSON.stringify({ type: 'connection_init' }));
+        };
+
+        ws.onmessage = (evento) => {
+            const respuesta = JSON.parse(evento.data);
+            
+            // 1. Registro de Depuración
+            // Propósito: Imprimir en la consola (F12) exactamente qué está enviando el servidor. Esto nos permite diagnosticar si está enviando un error de sintaxis de GraphQL en lugar de los datos del pedido.
+            console.log("Mensaje crudo del servidor:", respuesta);
+            
+            if (respuesta.type === 'connection_ack') {
+                estadoConexion.innerHTML = "✅ Conectado. Esperando nuevos pedidos...";
+                ws.send(JSON.stringify({
+                    id: '1',
+                    type: 'subscribe',
+                    payload: {
+                        query: `subscription { 
+                            nuevoPedido(id_restaurante: "1") { id_pedido, nombre_plato, estado } 
+                        }`
+                    }
+                }));
+            }
+
+            if (respuesta.type === 'next') {
+                // 2. Interceptor de Errores de GraphQL
+                // Propósito: Verificar si el servidor devolvió un arreglo de "errors". Si es así, extraemos el mensaje de error y lo dibujamos en la pantalla en rojo intenso para saber exactamente qué está fallando en el backend, deteniendo la ejecución con 'return'.
+                if (respuesta.payload && respuesta.payload.errors) {
+                    const mensajeError = respuesta.payload.errors[0].message;
+                    listaPedidos.innerHTML += `<div class="error-alerta">⚠️ Error GraphQL: ${mensajeError}</div>`;
+                    return; 
+                }
+
+                // 3. Navegación Segura (Optional Chaining)
+                // Propósito: Los signos de interrogación (?.) aseguran que si 'data' o 'nuevoPedido' vienen vacíos por alguna otra razón, Javascript no colapse con un "TypeError", permitiendo que la tablet siga funcionando.
+                const pedido = respuesta.payload?.data?.nuevoPedido;
+                
+                // 4. Renderizado Condicional
+                // Propósito: Solo dibujar la tarjeta verde del pedido si estamos 100% seguros de que la variable 'pedido' contiene información real.
+                if (pedido) {
+                    listaPedidos.innerHTML += `
+                        <div class="pedido">
+                            <strong>Pedido #${pedido.id_pedido}</strong><br>
+                            🌮 Plato: ${pedido.nombre_plato} <br>
+                            <span class="estado">⏳ Estado: ${pedido.estado}</span>
+                        </div>
+                    `;
+                }
+            }
+        };
+    </script>
+</body>
+</html>

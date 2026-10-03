@@ -1,0 +1,355 @@
+{
+  "settings": {
+    "languages": [
+      "es"
+    ],
+    "forceNER": true,
+    "tag": "nlp",
+    "threshold": 0.5,
+    "autoLoad": true,
+    "autoSave": true,
+    "modelFileName": "model.nlp",
+    "executeActionsBeforeAnswers": false,
+    "calculateSentiment": true
+  },
+  "nluManager": {
+    "settings": {
+      "tag": "nlu-manager"
+    },
+    "locales": [
+      "es"
+    ],
+    "languageNames": {},
+    "domainManagers": {
+      "es": {
+        "settings": {
+          "locale": "es",
+          "trainByDomain": false,
+          "tag": "domain-manager-es",
+          "nluByDomain": {
+            "default": {
+              "className": "NeuralNlu",
+              "settings": {}
+            }
+          },
+          "useStemDict": true
+        },
+        "stemDict": {
+          "hol": {
+            "intent": "saludo",
+            "domain": "default"
+          },
+          "buen,dia": {
+            "intent": "saludo",
+            "domain": "default"
+          },
+          "que,tal": {
+            "intent": "saludo",
+            "domain": "default"
+          },
+          "com,ped,quer": {
+            "intent": "hacer_pedido",
+            "domain": "default"
+          },
+          "hambr,quer,tac,ten,uno": {
+            "intent": "hacer_pedido",
+            "domain": "default"
+          },
+          "algo,com,de,gust,me,orden": {
+            "intent": "hacer_pedido",
+            "domain": "default"
+          }
+        },
+        "intentDict": {
+          "saludo": "default",
+          "hacer_pedido": "default"
+        },
+        "sentences": [
+          {
+            "domain": "default",
+            "utterance": "Hola",
+            "intent": "saludo"
+          },
+          {
+            "domain": "default",
+            "utterance": "Buenos dias",
+            "intent": "saludo"
+          },
+          {
+            "domain": "default",
+            "utterance": "Qué tal",
+            "intent": "saludo"
+          },
+          {
+            "domain": "default",
+            "utterance": "Quiero pedir comida",
+            "intent": "hacer_pedido"
+          },
+          {
+            "domain": "default",
+            "utterance": "Tengo hambre, quiero unos tacos",
+            "intent": "hacer_pedido"
+          },
+          {
+            "domain": "default",
+            "utterance": "Me gustaría ordenar algo de comer",
+            "intent": "hacer_pedido"
+          }
+        ],
+        "domains": {
+          "master_domain": {
+            "settings": {
+              "locale": "es",
+              "tag": "nlu-es",
+              "keepStopwords": true,
+              "nonefeatureValue": 1,
+              "nonedeltaMultiplier": 1.2,
+              "spellCheck": false,
+              "spellCheckDistance": 1,
+              "filterZeros": true,
+              "log": true
+            },
+            "features": {
+              "hol": 1,
+              "buen": 1,
+              "dia": 1,
+              "que": 1,
+              "tal": 1,
+              "quer": 1,
+              "ped": 1,
+              "com": 1,
+              "ten": 1,
+              "hambr": 1,
+              "uno": 1,
+              "tac": 1,
+              "me": 1,
+              "gust": 1,
+              "orden": 1,
+              "algo": 1,
+              "de": 1
+            },
+            "intents": {
+              "saludo": 1,
+              "hacer_pedido": 1
+            },
+            "intentFeatures": {
+              "saludo": {
+                "hol": 1,
+                "buen": 1,
+                "dia": 1,
+                "que": 1,
+                "tal": 1
+              },
+              "hacer_pedido": {
+                "quer": 1,
+                "ped": 1,
+                "com": 1,
+                "ten": 1,
+                "hambr": 1,
+                "uno": 1,
+                "tac": 1,
+                "me": 1,
+                "gust": 1,
+                "orden": 1,
+                "algo": 1,
+                "de": 1
+              }
+            },
+            "featuresToIntent": {
+              "hol": [
+                "saludo"
+              ],
+              "buen": [
+                "saludo"
+              ],
+              "dia": [
+                "saludo"
+              ],
+              "que": [
+                "saludo"
+              ],
+              "tal": [
+                "saludo"
+              ],
+              "quer": [
+                "hacer_pedido"
+              ],
+              "ped": [
+                "hacer_pedido"
+              ],
+              "com": [
+                "hacer_pedido"
+              ],
+              "ten": [
+                "hacer_pedido"
+              ],
+              "hambr": [
+                "hacer_pedido"
+              ],
+              "uno": [
+                "hacer_pedido"
+              ],
+              "tac": [
+                "hacer_pedido"
+              ],
+              "me": [
+                "hacer_pedido"
+              ],
+              "gust": [
+                "hacer_pedido"
+              ],
+              "orden": [
+                "hacer_pedido"
+              ],
+              "algo": [
+                "hacer_pedido"
+              ],
+              "de": [
+                "hacer_pedido"
+              ]
+            },
+            "neuralNetwork": {
+              "settings": {
+                "locale": "es",
+                "tag": "nlu-es",
+                "keepStopwords": true,
+                "nonefeatureValue": 1,
+                "nonedeltaMultiplier": 1.2,
+                "spellCheck": false,
+                "spellCheckDistance": 1,
+                "filterZeros": true,
+                "log": true
+              },
+              "features": [
+                "hol",
+                "buen",
+                "dia",
+                "que",
+                "tal",
+                "quer",
+                "ped",
+                "com",
+                "ten",
+                "hambr",
+                "uno",
+                "tac",
+                "me",
+                "gust",
+                "orden",
+                "algo",
+                "de"
+              ],
+              "intents": [
+                "saludo",
+                "hacer_pedido"
+              ],
+              "perceptrons": [
+                [
+                  7.741788864135742,
+                  4.024970054626465,
+                  4.024970054626465,
+                  4.027000904083252,
+                  4.027000904083252,
+                  -2.459207773208618,
+                  -1.5037978887557983,
+                  -2.300455093383789,
+                  -0.9535443782806396,
+                  -0.9535443782806396,
+                  -0.9535443782806396,
+                  -0.9535443782806396,
+                  -0.7948569655418396,
+                  -0.7948569655418396,
+                  -0.7948569655418396,
+                  -0.7948569655418396,
+                  -0.7948569655418396,
+                  6.277329050767921
+                ],
+                [
+                  -1.582770586013794,
+                  -0.8553317785263062,
+                  -0.8553317785263062,
+                  -0.8485682606697083,
+                  -0.8485682606697083,
+                  4.964666843414307,
+                  3.0416500568389893,
+                  4.644333362579346,
+                  1.922381043434143,
+                  1.922381043434143,
+                  1.922381043434143,
+                  1.922381043434143,
+                  1.6020618677139282,
+                  1.6020618677139282,
+                  1.6020618677139282,
+                  1.6020618677139282,
+                  1.6020618677139282,
+                  1.6304209666682454
+                ]
+              ]
+            }
+          }
+        }
+      }
+    },
+    "intentDomains": {},
+    "extraSentences": [
+      [
+        "es",
+        "Hola"
+      ],
+      [
+        "es",
+        "Buenos dias"
+      ],
+      [
+        "es",
+        "Qué tal"
+      ],
+      [
+        "es",
+        "Quiero pedir comida"
+      ],
+      [
+        "es",
+        "Tengo hambre, quiero unos tacos"
+      ],
+      [
+        "es",
+        "Me gustaría ordenar algo de comer"
+      ]
+    ]
+  },
+  "ner": {
+    "settings": {
+      "tag": "ner",
+      "entityPreffix": "%",
+      "entitySuffix": "%"
+    },
+    "rules": {}
+  },
+  "nlgManager": {
+    "settings": {
+      "tag": "nlg-manager"
+    },
+    "responses": {
+      "es": {
+        "saludo": [
+          {
+            "answer": "¡Hola! Soy el asistente virtual de NexBite. ¿En qué te puedo ayudar hoy?"
+          }
+        ],
+        "hacer_pedido": [
+          {
+            "answer": "¡Claro! Revisa nuestras recomendaciones en pantalla. ¿Te gustaría comida Mexicana o Italiana?"
+          }
+        ]
+      }
+    }
+  },
+  "actionManager": {
+    "settings": {
+      "tag": "action-manager"
+    },
+    "actions": {}
+  },
+  "slotManager": {}
+}
