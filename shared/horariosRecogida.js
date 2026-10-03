@@ -10,7 +10,6 @@ const dias = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const formatoDia = new Intl.DateTimeFormat('es-ES', {
   timeZone: ZONA_RECOGIDA, weekday: 'short', day: 'numeric', month: 'short',
 });
-const formatoZona = new Intl.DateTimeFormat('es-ES', { timeZone: ZONA_RECOGIDA, timeZoneName: 'shortOffset' });
 
 const minutos = (hora) => Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3));
 const duracion = (franja) => (minutos(franja.fin) - minutos(franja.inicio) + 1440) % 1440;
@@ -119,8 +118,7 @@ export function generarOpcionesRecogida(horarios, ahora = new Date()) {
       grupos.set(local.fecha, { valor: local.fecha, etiqueta: local.fecha === fechaHoy ? `Hoy, ${etiqueta}` : etiqueta, horas: [] });
     }
     const fin = datosLocales(new Date(instante + 30 * MINUTO));
-    const zona = formatoZona.formatToParts(fecha).find(p => p.type === 'timeZoneName').value;
-    grupos.get(local.fecha).horas.push({ valor: fecha.toISOString(), etiqueta: `${local.hora} - ${fin.hora} (${zona})` });
+    grupos.get(local.fecha).horas.push({ valor: fecha.toISOString(), etiqueta: `${local.hora} - ${fin.hora}` });
   }
   return [...grupos.values()];
 }
