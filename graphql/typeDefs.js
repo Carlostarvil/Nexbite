@@ -135,6 +135,19 @@ export const typeDefs = `#graphql
       horarios_recogida: [FranjaRecogidaInput!]
     ): Restaurante
     
+    actualizarNegocio(
+      id_restaurante: ID!,
+      nombre: String!,
+      tipo: String!,
+      latitud: Float!,
+      longitud: Float!,
+      imagen_url: String!,
+      radio_cobertura_km: Float!,
+      telefono: String!,
+      direccion: String,
+      horarios_recogida: [FranjaRecogidaInput!]
+    ): Restaurante
+
     crearPlato(
         id_restaurante: ID!, 
         nombre: String!, 

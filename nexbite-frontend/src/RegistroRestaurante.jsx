@@ -24,6 +24,25 @@ const REGISTRAR_NEGOCIO = gql`
   }
 `;
 
+const ACTUALIZAR_NEGOCIO = gql`
+  mutation ActualizarNegocio($id_restaurante: ID!, $nombre: String!, $tipo: String!, $latitud: Float!, $longitud: Float!, $imagen_url: String!, $radio_cobertura_km: Float!, $telefono: String!, $direccion: String, $horarios_recogida: [FranjaRecogidaInput!]) {
+    actualizarNegocio(id_restaurante: $id_restaurante, nombre: $nombre, tipo: $tipo, latitud: $latitud, longitud: $longitud, imagen_url: $imagen_url, radio_cobertura_km: $radio_cobertura_km, telefono: $telefono, direccion: $direccion, horarios_recogida: $horarios_recogida) {
+      id_restaurante
+      nombre
+      tipo
+      latitud
+      longitud
+      imagen_url
+      radio_cobertura_km
+      telefono
+      direccion
+      horarios_recogida { dia inicio fin }
+      aceptando_pedidos
+      tiempo_reactivacion
+    }
+  }
+`;
+
 function CapturadorUbicacion({ posicion, setPosicion }) {
   useMapEvents({
     click(e) { setPosicion({ lat: e.latlng.lat, lng: e.latlng.lng }); },
@@ -40,36 +59,52 @@ function RecentrarMapa({ lat, lng }) {
   return null;
 }
 
-export default function RegistroRestaurante() {
-  const [formData, setFormData] = useState({ 
-    nombre: '', 
-    tipo: 'RESTAURANTE', 
-    imagen_url: '',
-    radio_cobertura_km: 10.0,
-    telefono: '', // NUEVO
-    direccion: '' // NUEVO
-  });
+export default function RegistroRestaurante({ restaurante = null, onGuardado, onCancelar }) {
+  const esEdicion = Boolean(restaurante?.id_restaurante);
+  const ubicacionInicial = restaurante?.latitud != null && restaurante?.longitud != null
+    ? { lat: restaurante.latitud, lng: restaurante.longitud } : null;
+  const radioInicial = restaurante?.radio_cobertura_km ?? 10;
+  const radioPredefinido = [3, 5, 10, 20].includes(radioInicial);
+  const [formData, setFormData] = useState(() => ({
+    nombre: restaurante?.nombre ?? '',
+    tipo: restaurante?.tipo ?? 'RESTAURANTE',
+    imagen_url: restaurante?.imagen_url ?? '',
+    telefono: restaurante?.telefono ?? '',
+    direccion: restaurante?.direccion ?? '',
+  }));
 
-  const [radioSeleccion, setRadioSeleccion] = useState("10"); 
+  const [radioSeleccion, setRadioSeleccion] = useState(radioPredefinido ? String(radioInicial) : 'otro');
+  const [configurarHorarios, setConfigurarHorarios] = useState(!esEdicion || restaurante.horarios_recogida != null);
   const [horariosRecogida, setHorariosRecogida] = useState(() =>
-    DIAS_RECOGIDA.map(() => ({ activo: true, franjas: [{ inicio: '12:00', fin: '23:00' }] }))
+    DIAS_RECOGIDA.map((_, dia) => {
+      const franjas = restaurante?.horarios_recogida?.filter(franja => franja.dia === dia)
+        .map(({ inicio, fin }) => ({ inicio, fin }));
+      return {
+        activo: franjas ? franjas.length > 0 : true,
+        franjas: franjas?.length ? franjas : [{ inicio: '12:00', fin: '23:00' }],
+      };
+    })
   );
   const actualizarDia = (dia, actualizar) => setHorariosRecogida(anterior =>
     anterior.map((horario, indice) => indice === dia ? actualizar(horario) : horario)
   );
-  const [radioPersonalizado, setRadioPersonalizado] = useState(""); 
+  const [radioPersonalizado, setRadioPersonalizado] = useState(radioPredefinido ? '' : String(radioInicial));
 
-  const [posicion, setPosicion] = useState(null); 
-  const [centroMapa, setCentroMapa] = useState([40.4168, -3.7038]); 
-  const [busqueda, setBusqueda] = useState('');
+  const [posicion, setPosicion] = useState(ubicacionInicial);
+  const [centroMapa, setCentroMapa] = useState(ubicacionInicial ? [ubicacionInicial.lat, ubicacionInicial.lng] : [40.4168, -3.7038]);
+  const [busqueda, setBusqueda] = useState(restaurante?.direccion ?? '');
   const [sugerencias, setSugerencias] = useState([]);
   const [buscando, setBuscando] = useState(false);
 
-  const seleccionAutomatica = useRef(false);
+  const seleccionAutomatica = useRef(esEdicion);
 
-  const [registrar, { loading, error }] = useMutation(REGISTRAR_NEGOCIO);
+  const [registrar, { loading: registrando }] = useMutation(REGISTRAR_NEGOCIO);
+  const [actualizar, { loading: actualizando }] = useMutation(ACTUALIZAR_NEGOCIO);
+  const [errorFormulario, setErrorFormulario] = useState('');
+  const loading = registrando || actualizando;
 
   useEffect(() => {
+    if (esEdicion) return;
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -81,7 +116,7 @@ export default function RegistroRestaurante() {
         () => console.log("Sin GPS. Usando ubicación por defecto.")
       );
     }
-  }, []);
+  }, [esEdicion]);
 
   useEffect(() => {
     if (busqueda.trim().length < 4 || seleccionAutomatica.current) {
@@ -104,20 +139,11 @@ export default function RegistroRestaurante() {
     return () => clearTimeout(timerDeBusqueda); 
   }, [busqueda]);
 
-  useEffect(() => {
-    if (radioSeleccion === "otro") {
-      const num = parseFloat(radioPersonalizado);
-      setFormData(prev => ({ ...prev, radio_cobertura_km: isNaN(num) || num <= 0 ? 10 : num }));
-    } else {
-      setFormData(prev => ({ ...prev, radio_cobertura_km: parseFloat(radioSeleccion) }));
-    }
-  }, [radioSeleccion, radioPersonalizado]);
-
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setFormData({ ...formData, imagen_url: reader.result });
+      reader.onloadend = () => setFormData(anterior => ({ ...anterior, imagen_url: reader.result }));
       reader.readAsDataURL(file);
     }
   };
@@ -142,6 +168,8 @@ export default function RegistroRestaurante() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+    setErrorFormulario('');
 
     if (!formData.imagen_url) {
       return alert('⚠️ Es obligatorio subir una imagen de portada para tu negocio.');
@@ -151,26 +179,32 @@ export default function RegistroRestaurante() {
       return alert('⚠️ Por favor, busca tu dirección o haz clic en el mapa para colocar el pin.');
     }
 
-    if (formData.radio_cobertura_km <= 0 || formData.radio_cobertura_km > 500) {
+    const radioFinal = parseFloat(radioSeleccion === 'otro' ? radioPersonalizado : radioSeleccion);
+    if (!Number.isFinite(radioFinal) || radioFinal <= 0 || radioFinal > 500) {
       return alert('⚠️ La distancia de reparto debe ser un número válido entre 0 y 500 kilómetros.');
     }
 
     try {
-      const horarios = validarHorariosRecogida(horariosRecogida.flatMap((horario, dia) =>
+      const horarios = configurarHorarios ? validarHorariosRecogida(horariosRecogida.flatMap((horario, dia) =>
         horario.activo ? horario.franjas.map(franja => ({ dia, ...franja })) : []
-      ));
-      await registrar({
-        variables: { 
-          ...formData, 
-          horarios_recogida: horarios,
-          latitud: posicion.lat, 
-          longitud: posicion.lng
-        }
-      });
-      alert('✅ ¡Negocio registrado con éxito!');
-      window.location.reload();
+      )) : null;
+      const variables = {
+        ...formData,
+        radio_cobertura_km: radioFinal,
+        horarios_recogida: horarios,
+        latitud: posicion.lat,
+        longitud: posicion.lng,
+      };
+      if (esEdicion) {
+        const resultado = await actualizar({ variables: { ...variables, id_restaurante: restaurante.id_restaurante } });
+        onGuardado?.(resultado.data.actualizarNegocio);
+      } else {
+        await registrar({ variables });
+        alert('✅ ¡Negocio registrado con éxito!');
+        window.location.reload();
+      }
     } catch (err) {
-      alert('Error al registrar negocio: ' + err.message);
+      setErrorFormulario(err.message);
     }
   };
 
@@ -178,7 +212,8 @@ export default function RegistroRestaurante() {
 
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto', background: '#fff', padding: '2rem', borderRadius: '12px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
-      <h2 style={{ textAlign: 'center', color: '#ff4500', marginTop: 0 }}>🏪 Abre tu Negocio en NexBite</h2>
+      <h2 style={{ textAlign: 'center', color: '#ff4500', marginTop: 0 }}>{esEdicion ? '✏️ Editar local' : '🏪 Abre tu Negocio en NexBite'}</h2>
+      {errorFormulario && <p role="alert" style={{ padding: '12px', background: '#fdecea', color: '#b71c1c', borderRadius: '6px' }}>{errorFormulario}</p>}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
 
@@ -198,6 +233,12 @@ export default function RegistroRestaurante() {
 
         <fieldset style={{ margin: 0, padding: '15px', border: '1px solid #e5e5e5', borderRadius: '8px', minWidth: 0 }}>
           <legend style={{ fontWeight: 'bold', color: '#555' }}>Horarios de recogida</legend>
+          {esEdicion && restaurante.horarios_recogida == null && <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#555', marginBottom: '12px' }}>
+            <input type="checkbox" checked={configurarHorarios} onChange={e => setConfigurarHorarios(e.target.checked)} />
+            Configurar horarios de recogida
+          </label>}
+          {!configurarHorarios && <p style={{ fontSize: '13px', color: '#666' }}>Este local aún no tiene horarios de recogida definidos. Puedes configurarlos al editarlo.</p>}
+          {configurarHorarios && <>
           <p style={{ margin: '0 0 15px', fontSize: '13px', color: '#666' }}>
             Selecciona los días y las horas en que los clientes pueden recoger sus pedidos (hora peninsular).
             Puedes añadir varias franjas para separar comida y cena. Si la hora de cierre es anterior a la de apertura, termina al día siguiente.
@@ -235,6 +276,7 @@ export default function RegistroRestaurante() {
               </>}
             </div>
           ))}
+          </>}
         </fieldset>
 
         {/* NUEVOS CAMPOS: TELÉFONO Y DIRECCIÓN */}
@@ -279,7 +321,8 @@ export default function RegistroRestaurante() {
           <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555' }}>
             Imagen de Portada <span style={{ color: 'red' }}>* (Obligatorio)</span>:
           </label>
-          <input type="file" accept="image/*" onChange={handleImageChange} required style={inputStyle} />
+          {esEdicion && formData.imagen_url && <p style={{ margin: '0 0 8px', color: '#666', fontSize: '13px' }}>La portada actual se conserva. Selecciona otra imagen si quieres cambiarla.</p>}
+          <input type="file" accept="image/*" onChange={handleImageChange} required={!formData.imagen_url} style={inputStyle} />
           {formData.imagen_url && <img src={formData.imagen_url} alt="Vista previa" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', marginTop: '10px' }} />}
         </div>
 
@@ -332,8 +375,9 @@ export default function RegistroRestaurante() {
         </div>
 
         <button type="submit" disabled={loading} style={{ padding: '1rem', background: '#ff4500', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', marginTop: '15px' }}>
-          {loading ? 'Registrando...' : '🚀 Registrar Negocio'}
+          {loading ? (esEdicion ? 'Guardando...' : 'Registrando...') : (esEdicion ? 'Guardar cambios' : '🚀 Registrar Negocio')}
         </button>
+        {esEdicion && <button type="button" onClick={onCancelar} disabled={loading} style={{ padding: '1rem', background: '#f3f4f6', color: '#444', border: '1px solid #ddd', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>}
       </form>
     </div>
   );

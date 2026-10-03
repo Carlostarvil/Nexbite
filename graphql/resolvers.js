@@ -8,6 +8,7 @@ import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
 import Stripe from 'stripe';
 import crypto from 'crypto';
+import { crearActualizadorNegocio } from './actualizarNegocio.js';
 import { validarHorariosRecogida, validarFechaRecogida } from '../shared/horariosRecogida.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -531,6 +532,8 @@ export const resolvers = {
 
       return res.rows[0];
     },
+
+    actualizarNegocio: crearActualizadorNegocio(pool),
 
     crearPlato: async (_, {
       id_restaurante,
