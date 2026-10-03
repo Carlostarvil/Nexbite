@@ -69,7 +69,6 @@ export default function MapView({ onSelectRestaurante }) {
     <div>
       <div 
         style={{ marginTop: '2rem', borderRadius: '12px', overflow: 'hidden', border: '1px solid #ddd', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', position: 'relative' }}
-        onMouseDown={() => setZoomActivo(true)}
         onMouseLeave={() => setZoomActivo(false)}
       >
         
@@ -79,71 +78,79 @@ export default function MapView({ onSelectRestaurante }) {
             backgroundColor: 'rgba(255,255,255,0)',
             zIndex: 1000, 
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            pointerEvents: 'none' 
+            pointerEvents: 'auto'
           }}>
-            <div style={{
+            <button type="button" onClick={(event) => {
+              event.stopPropagation();
+              setZoomActivo(true);
+            }} style={{
               backgroundColor: 'rgba(0,0,0,0.6)', color: 'white',
               padding: '8px 16px', borderRadius: '20px', fontSize: '0.9rem',
               fontWeight: 'bold', backdropFilter: 'blur(2px)',
-              opacity: 0.8, transition: 'opacity 0.3s ease'
+              opacity: 0.8, transition: 'opacity 0.3s ease',
+              border: 'none', cursor: 'pointer', fontFamily: 'inherit'
             }}>
               {/* MODIFICADO: Texto actualizado a lo que pediste */}
               👆 Presiona para explorar
-            </div>
+            </button>
           </div>
         )}
 
-        <MapContainer 
-          center={[ubicacion.lat, ubicacion.lng]} 
-          zoom={3} 
-          zoomControl={false} 
-          scrollWheelZoom={false} // Inicialmente apagado
-          style={{ height: '400px', width: '100%' }}
-        >
-          {/* NUEVO: Llamamos al controlador pasándole el estado actual */}
-          <ControladorZoomMapa zoomActivo={zoomActivo} />
+        <div inert={!zoomActivo}>
+          <MapContainer 
+            center={[ubicacion.lat, ubicacion.lng]} 
+            zoom={3} 
+            zoomControl={false} 
+            scrollWheelZoom={false} // Inicialmente apagado
+            style={{ height: '400px', width: '100%' }}
+          >
+            {/* NUEVO: Llamamos al controlador pasándole el estado actual */}
+            <ControladorZoomMapa zoomActivo={zoomActivo} />
           
-          <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           
-          <Marker position={[ubicacion.lat, ubicacion.lng]}>
-            <Tooltip permanent direction="top" offset={[0, -35]} className="tooltip-ubicacion">
-              🏠 <b>Estás aquí</b>
-            </Tooltip>
-          </Marker>
-
-          {data?.obtenerRestaurantesCercanos.map((rest) => (
-            <Marker 
-              key={rest.id_restaurante} 
-              position={[rest.latitud, rest.longitud]}
-              eventHandlers={{
-                click: () => onSelectRestaurante(rest.id_restaurante)
-              }}
-            >
-              <Tooltip direction="top" offset={[0, -35]}>
-                <div style={{ textAlign: 'center', minWidth: '140px', padding: '5px' }}>
-                  
-                  {rest.imagen_url ? (
-                    <img 
-                      src={rest.imagen_url} 
-                      alt={rest.nombre} 
-                      style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px' }} 
-                    />
-                  ) : (
-                    <div style={{ width: '100%', height: '80px', backgroundColor: '#eee', borderRadius: '6px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>🏪</div>
-                  )}
-                  
-                  <h4 style={{ margin: '0 0 5px 0', color: '#ff4500', fontSize: '15px' }}>{rest.nombre}</h4>
-                  <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#666' }}>{rest.tipo} • A {rest.distancia_km.toFixed(1)} km</p>
-                  
-                  <span style={{ fontSize: '11px', color: '#0066cc', fontWeight: 'bold', backgroundColor: '#e6f2ff', padding: '3px 8px', borderRadius: '10px' }}>
-                    👆 Presiona para ver menú
-                  </span>
-
-                </div>
+            <Marker position={[ubicacion.lat, ubicacion.lng]}>
+              <Tooltip permanent direction="top" offset={[0, -35]} className="tooltip-ubicacion">
+                🏠 <b>Estás aquí</b>
               </Tooltip>
             </Marker>
-          ))}
-        </MapContainer>
+
+            {data?.obtenerRestaurantesCercanos.map((rest) => (
+              <Marker 
+                key={rest.id_restaurante} 
+                position={[rest.latitud, rest.longitud]}
+                eventHandlers={{
+                  click: () => {
+                    if (zoomActivo) onSelectRestaurante(rest.id_restaurante);
+                  }
+                }}
+              >
+                <Tooltip direction="top" offset={[0, -35]}>
+                  <div style={{ textAlign: 'center', minWidth: '140px', padding: '5px' }}>
+                  
+                    {rest.imagen_url ? (
+                      <img 
+                        src={rest.imagen_url} 
+                        alt={rest.nombre} 
+                        style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px' }} 
+                      />
+                    ) : (
+                      <div style={{ width: '100%', height: '80px', backgroundColor: '#eee', borderRadius: '6px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>🏪</div>
+                    )}
+                  
+                    <h4 style={{ margin: '0 0 5px 0', color: '#ff4500', fontSize: '15px' }}>{rest.nombre}</h4>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#666' }}>{rest.tipo} • A {rest.distancia_km.toFixed(1)} km</p>
+                  
+                    <span style={{ fontSize: '11px', color: '#0066cc', fontWeight: 'bold', backgroundColor: '#e6f2ff', padding: '3px 8px', borderRadius: '10px' }}>
+                      👆 Presiona para ver menú
+                    </span>
+
+                  </div>
+                </Tooltip>
+              </Marker>
+            ))}
+          </MapContainer>
+        </div>
       </div>
       
       <h3 style={{ color: '#333', marginTop: '2rem' }}>📍 Restaurantes ordenados por cercanía</h3>
