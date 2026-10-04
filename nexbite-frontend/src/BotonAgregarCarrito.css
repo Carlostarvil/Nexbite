@@ -32,6 +32,7 @@
 .boton-carrito-contenido { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; }
 .boton-carrito-icono { display: grid; place-items: center; flex: 0 0 34px; height: 34px; }
 .boton-carrito-etiqueta { white-space: nowrap; }
+.boton-carrito-etiqueta-mas { min-width: 24px; font-size: 26px; line-height: 1; text-align: center; }
 .boton-carrito-cantidad { position: relative; display: grid; place-items: center; min-width: 32px; min-height: 32px; box-sizing: border-box; padding: 0 6px; border-radius: 8px; background: #fff; color: #a52d06; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .boton-carrito-cantidad strong { font-size: 18px; }
 .esta-anadido .boton-carrito-cantidad { color: #106739; }

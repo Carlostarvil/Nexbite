@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 
-export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgregarAlCarrito }) {
+export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgregarAlCarrito, mostrarIcono = true }) {
   const scrollRef = useRef(null);
 
   // Paset a mangkontrol iti panag-scroll
@@ -25,7 +25,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
       
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ff4500', paddingBottom: '10px', marginBottom: '1.5rem' }}>
         <h2 style={{ color: '#333', margin: 0 }}>
-          ⭐ {titulo}
+          {mostrarIcono && '⭐ '}{titulo}
         </h2>
         
         {/* Dagiti napindut a palaso (Clickable arrows) */}

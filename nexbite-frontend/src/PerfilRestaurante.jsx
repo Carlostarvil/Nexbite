@@ -329,8 +329,8 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
 
   const seccionesSidebar = [];
   if (busquedaPlato === '') {
-    if (recomendacionesParaTi.length > 0) seccionesSidebar.push('✨ Elegido para ti');
-    if (platosPopulares.length > 0) seccionesSidebar.push('🔥 Lo más pedido aquí');
+    if (recomendacionesParaTi.length > 0) seccionesSidebar.push('Elegido para ti');
+    if (platosPopulares.length > 0) seccionesSidebar.push('Lo más pedido aquí');
   }
   seccionesSidebar.push(...categoriasConPlatos);
 
@@ -487,13 +487,13 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
             {busquedaPlato === '' && (
               <>
                 {recomendacionesParaTi.length > 0 && (
-                  <div id={getSeccionId('✨ Elegido para ti')} className="seccion-scroll" data-categoria="✨ Elegido para ti" style={{ marginBottom: '3rem', scrollMarginTop: '120px' }}>
-                    <CarruselPlatos titulo="✨ Elegido para ti" platos={recomendacionesParaTi} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
+                  <div id={getSeccionId('Elegido para ti')} className="seccion-scroll" data-categoria="Elegido para ti" style={{ marginBottom: '3rem', scrollMarginTop: '120px' }}>
+                    <CarruselPlatos titulo="Elegido para ti" mostrarIcono={false} platos={recomendacionesParaTi} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
                   </div>
                 )}
                 {platosPopulares.length > 0 && (
-                  <div id={getSeccionId('🔥 Lo más pedido aquí')} className="seccion-scroll" data-categoria="🔥 Lo más pedido aquí" style={{ marginBottom: '3rem', scrollMarginTop: '120px' }}>
-                    <CarruselPlatos titulo="🔥 Lo más pedido aquí" platos={platosPopulares} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
+                  <div id={getSeccionId('Lo más pedido aquí')} className="seccion-scroll" data-categoria="Lo más pedido aquí" style={{ marginBottom: '3rem', scrollMarginTop: '120px' }}>
+                    <CarruselPlatos titulo="Lo más pedido aquí" mostrarIcono={false} platos={platosPopulares} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
                   </div>
                 )}
               </>

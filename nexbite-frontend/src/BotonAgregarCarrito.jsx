@@ -23,7 +23,7 @@ export default function BotonAgregarCarrito({ onAgregar, idPlato, nombrePlato, v
     temporizador.current = setTimeout(() => setAnadido(false), 1500);
   };
 
-  const etiqueta = anadido ? 'Añadido' : cantidad > 0 ? 'Añadir más' : variante === 'reserva' ? 'Reservar' : 'Añadir al carrito';
+  const etiqueta = anadido ? 'Añadido' : cantidad > 0 ? '+' : variante === 'reserva' ? 'Reservar' : 'Añadir al carrito';
 
   return (
     <>
@@ -35,7 +35,7 @@ export default function BotonAgregarCarrito({ onAgregar, idPlato, nombrePlato, v
           <span className="boton-carrito-icono" aria-hidden="true">
             {anadido ? <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" focusable="false"><path d="m5 12 4 4 10-10" /></svg> : <IconoCarrito tamano={30} />}
           </span>
-          <span className="boton-carrito-etiqueta">{etiqueta}</span>
+          <span className={'boton-carrito-etiqueta' + (etiqueta === '+' ? ' boton-carrito-etiqueta-mas' : '')}>{etiqueta}</span>
         </span>
         {cantidad > 0 && <span className="boton-carrito-cantidad" aria-hidden="true"><strong>{cantidad}</strong></span>}
       </button>
