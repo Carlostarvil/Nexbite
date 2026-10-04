@@ -16,6 +16,7 @@ import Buscador from './Buscador';
 import DetallePlato from './DetallePlato'; 
 import PerfilUsuario from './PerfilUsuario';
 import CarruselPlatos from './CarruselPlatos';
+import BotonAgregarCarrito from './BotonAgregarCarrito';
 import SelectorUbicacion from './SelectorUbicacion';
 import { leerUbicacionEntrega, guardarUbicacionEntrega } from './ubicacionEntrega';
 
@@ -344,7 +345,7 @@ function App() {
                             <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontWeight: 'bold', color: '#0066cc' }}>€{pedido.precio_plato?.toFixed(2)}</span>
                               {puedeRecomprar ? (
-                                <button onClick={(e) => handleRecomprarRapido(e, pedido)} style={{ padding: '6px 12px', background: '#00cc66', color: 'white', border: 'none', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>+ Añadir</button>
+                                <BotonAgregarCarrito onAgregar={event => handleRecomprarRapido(event, pedido)} nombrePlato={pedido.nombre_plato} variante="repetir" />
                               ) : (
                                 <span style={{ fontSize: '11px', color: '#dc3545', fontWeight: 'bold' }}>No disponible</span>
                               )}

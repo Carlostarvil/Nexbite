@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
+import BotonAgregarCarrito from './BotonAgregarCarrito';
 
 export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgregarAlCarrito }) {
   const scrollRef = useRef(null);
@@ -74,14 +75,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
               
               <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 'bold', color: '#0066cc', fontSize: '1.1rem' }}>€{plato.precio?.toFixed(2)}</span>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onAgregarAlCarrito(plato); }}
-                  style={{ background: '#ff4500', color: 'white', border: 'none', borderRadius: '20px', padding: '6px 12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', transition: 'background 0.2s' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#cc3700'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ff4500'}
-                >
-                  + Añadir
-                </button>
+                <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} nombrePlato={plato.nombre} />
               </div>
             </div>
           </div>
