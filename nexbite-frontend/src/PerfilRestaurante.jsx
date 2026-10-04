@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonFavorito from './BotonFavorito'; 
 import CarruselPlatos from './CarruselPlatos';
+import IconoInfoRestaurante from './IconoInfoRestaurante';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 import './InfoRestauranteModal.css';
 
@@ -155,16 +156,16 @@ function InfoRestauranteModal({ restaurante, onClose }) {
   const vistaMapa = <>
     {urlMapa && mapaFallido !== urlMapa
       ? <img src={urlMapa} alt="Ubicación del restaurante en el mapa" onError={() => setMapaFallido(urlMapa)} />
-      : <div className="info-restaurante-mapa-alternativo"><span aria-hidden="true">📍</span><span>{destino ? 'Ubicación del local' : 'Ubicación no disponible'}</span></div>}
-    {urlIndicaciones && <span className="info-restaurante-mapa-etiqueta">Ver ubicación <span aria-hidden="true">↗</span></span>}
+      : <div className="info-restaurante-mapa-alternativo"><IconoInfoRestaurante tipo="ubicacion" /><span>{destino ? 'Ubicación del local' : 'Ubicación no disponible'}</span></div>}
+    {urlIndicaciones && <span className="info-restaurante-mapa-etiqueta">Ver ubicación <IconoInfoRestaurante tipo="externo" /></span>}
   </>;
 
   return (
     <div className="info-restaurante-fondo" onClick={onClose}>
       <div ref={modal} id="informacion-restaurante" className="info-restaurante-modal" role="dialog" aria-modal="true" aria-labelledby="info-restaurante-titulo" onKeyDown={controlarTeclado} onClick={event => event.stopPropagation()}>
-        <button ref={botonCerrar} type="button" className="info-restaurante-cerrar" aria-label="Cerrar información del restaurante" onClick={onClose}>×</button>
+        <button ref={botonCerrar} type="button" className="info-restaurante-cerrar" aria-label="Cerrar información del restaurante" onClick={onClose}><IconoInfoRestaurante tipo="cerrar" /></button>
         {urlIndicaciones
-          ? <a className="info-restaurante-mapa" href={urlIndicaciones} target="_blank" rel="noopener noreferrer" aria-label={'Cómo llegar a ' + restaurante.nombre + ' en Google Maps'}>{vistaMapa}</a>
+          ? <a className="info-restaurante-mapa" href={urlIndicaciones} target="_blank" rel="noopener noreferrer" aria-label={'Ver mapa de ' + restaurante.nombre + ' en Google Maps'}>{vistaMapa}</a>
           : <div className="info-restaurante-mapa">{vistaMapa}</div>}
 
         <div className="info-restaurante-contenido">
@@ -173,22 +174,21 @@ function InfoRestauranteModal({ restaurante, onClose }) {
 
           <div className="info-restaurante-datos">
             <div className="info-restaurante-fila">
-              <span className="info-restaurante-icono info-restaurante-icono-direccion" aria-hidden="true">📍</span>
+              <span className="info-restaurante-icono info-restaurante-icono-direccion"><IconoInfoRestaurante tipo="ubicacion" /></span>
               <div className="info-restaurante-dato">
                 <h3>Dirección</h3>
                 {urlIndicaciones
-                  ? <a className="info-restaurante-direccion" href={urlIndicaciones} target="_blank" rel="noopener noreferrer" aria-label={'Abrir ubicación de ' + restaurante.nombre + ' en Google Maps'}>{direccionTexto} <span aria-hidden="true">↗</span></a>
+                  ? <a className="info-restaurante-direccion" href={urlIndicaciones} target="_blank" rel="noopener noreferrer" aria-label={'Abrir ubicación de ' + restaurante.nombre + ' en Google Maps'}>{direccionTexto} <IconoInfoRestaurante tipo="externo" /></a>
                   : <p>{direccionTexto}</p>}
                 {urlIndicaciones && <div className="info-restaurante-acciones">
-                  <a className="info-restaurante-llegar" href={urlIndicaciones} target="_blank" rel="noopener noreferrer"><span aria-hidden="true">🧭</span> Cómo llegar</a>
-                  <button type="button" className="info-restaurante-copiar" onClick={copiarAlPortapapeles}><span aria-hidden="true">{estadoCopia === 'copiado' ? '✅' : '📋'}</span> {estadoCopia === 'copiado' ? 'Copiado' : 'Copiar dirección'}</button>
+                  <button type="button" className="info-restaurante-copiar" onClick={copiarAlPortapapeles}><IconoInfoRestaurante tipo={estadoCopia === 'copiado' ? 'copiado' : 'copiar'} /> {estadoCopia === 'copiado' ? 'Copiado' : 'Copiar dirección'}</button>
                 </div>}
                 <span role="status" className="info-restaurante-copia-estado">{estadoCopia === 'copiado' ? 'Dirección copiada' : estadoCopia === 'error' ? 'No se pudo copiar. Selecciona la dirección para copiarla.' : ''}</span>
               </div>
             </div>
 
             <div className="info-restaurante-fila">
-              <span className="info-restaurante-icono info-restaurante-icono-telefono" aria-hidden="true">📞</span>
+              <span className="info-restaurante-icono info-restaurante-icono-telefono"><IconoInfoRestaurante tipo="telefono" /></span>
               <div className="info-restaurante-dato">
                 <h3>Teléfono de contacto</h3>
                 <p>{restaurante.telefono || 'Teléfono no disponible'}</p>
@@ -196,7 +196,7 @@ function InfoRestauranteModal({ restaurante, onClose }) {
             </div>
 
             <div className="info-restaurante-fila">
-              <span className={'info-restaurante-icono ' + (abierto ? 'info-restaurante-icono-horario' : 'info-restaurante-icono-cerrado')} aria-hidden="true">🕒</span>
+              <span className={'info-restaurante-icono ' + (abierto ? 'info-restaurante-icono-horario' : 'info-restaurante-icono-cerrado')}><IconoInfoRestaurante tipo={abierto ? 'horario' : 'horario-cerrado'} /></span>
               <div className="info-restaurante-dato">
                 <h3>Horario de pedidos</h3>
                 <p className={abierto ? 'info-restaurante-abierto' : 'info-restaurante-cerrado'}>{horario}</p>
@@ -204,7 +204,7 @@ function InfoRestauranteModal({ restaurante, onClose }) {
             </div>
 
             <div className="info-restaurante-fila">
-              <span className="info-restaurante-icono info-restaurante-icono-entrega" aria-hidden="true">🛵</span>
+              <span className="info-restaurante-icono info-restaurante-icono-entrega"><IconoInfoRestaurante tipo="entrega" /></span>
               <div className="info-restaurante-dato">
                 <h3>Cobertura de entrega</h3>
                 <p>{restaurante.radio_cobertura_km ? 'Aprox. ' + restaurante.radio_cobertura_km + ' km' : 'No definida'}</p>
