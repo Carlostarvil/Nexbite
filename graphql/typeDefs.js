@@ -77,7 +77,15 @@ export const typeDefs = `#graphql
     direccion: String
   }
 
+  type TarjetaGuardada {
+    id: ID!
+    brand: String!
+    last4: String!
+    name: String
+  }
+
   type Query {
+    obtenerMisTarjetas(id_usuario: ID!): [TarjetaGuardada!]!
     buscarDirecciones(termino: String!): [DireccionUbicacion!]!
     obtenerDireccionUbicacion(latitud: Float!, longitud: Float!): DireccionUbicacion
     obtenerTags: [Tag]
@@ -184,7 +192,9 @@ export const typeDefs = `#graphql
     eliminarPlato(id_plato: ID!): String
     eliminarPedido(id_pedido: ID!): String
     
-    crearIntencionPago(monto: Float!): String
+    crearConfiguracionTarjeta: String!
+    eliminarTarjetaGuardada(id_tarjeta: ID!): Boolean!
+    crearIntencionPago(monto: Float!, id_tarjeta: ID!, clave_pago: ID!): String!
     actualizarPerfilUsuario(id_usuario: ID!, telefono: String, direccion: String): Usuario
   }
 

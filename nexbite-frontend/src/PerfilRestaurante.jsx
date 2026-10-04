@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonFavorito from './BotonFavorito'; 
@@ -127,7 +127,7 @@ function InfoRestauranteModal({ restaurante, onClose }) {
     ? direccionObtenida.texto : '';
   const direccionTexto = direccionGuardada || direccionResuelta || coordenadasTexto || 'Ubicación no especificada';
   const destino = tieneCoordenadas ? Number(latitud) + ',' + Number(longitud) : direccionGuardada;
-  const urlIndicaciones = destino ? 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(destino) : null;
+  const urlUbicacion = destino ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(destino) : null;
   const urlMapa = tieneCoordenadas
     ? 'https://static-maps.yandex.ru/1.x/?ll=' + longitud + ',' + latitud + '&size=400,200&z=16&l=map&pt=' + longitud + ',' + latitud + ',pm2rdm'
     : null;
@@ -160,15 +160,15 @@ function InfoRestauranteModal({ restaurante, onClose }) {
     {urlMapa && mapaFallido !== urlMapa
       ? <img src={urlMapa} alt="Ubicación del restaurante en el mapa" onError={() => setMapaFallido(urlMapa)} />
       : <div className="info-restaurante-mapa-alternativo"><IconoInfoRestaurante tipo="ubicacion" /><span>{destino ? 'Ubicación del local' : 'Ubicación no disponible'}</span></div>}
-    {urlIndicaciones && <span className="info-restaurante-mapa-etiqueta">Ver ubicación <IconoInfoRestaurante tipo="externo" /></span>}
+    {urlUbicacion && <span className="info-restaurante-mapa-etiqueta">Ver ubicación <IconoInfoRestaurante tipo="externo" /></span>}
   </>;
 
   return (
     <div className="info-restaurante-fondo" onClick={onClose}>
       <div ref={modal} id="informacion-restaurante" className="info-restaurante-modal" role="dialog" aria-modal="true" aria-labelledby="info-restaurante-titulo" onKeyDown={controlarTeclado} onClick={event => event.stopPropagation()}>
         <button ref={botonCerrar} type="button" className="info-restaurante-cerrar" aria-label="Cerrar información del restaurante" onClick={onClose}><IconoInfoRestaurante tipo="cerrar" /></button>
-        {urlIndicaciones
-          ? <a className="info-restaurante-mapa" href={urlIndicaciones} target="_blank" rel="noopener noreferrer" aria-label={'Ver mapa de ' + restaurante.nombre + ' en Google Maps'}>{vistaMapa}</a>
+        {urlUbicacion
+          ? <a className="info-restaurante-mapa" href={urlUbicacion} target="_blank" rel="noopener noreferrer" aria-label={'Ver mapa de ' + restaurante.nombre + ' en Google Maps'}>{vistaMapa}</a>
           : <div className="info-restaurante-mapa">{vistaMapa}</div>}
 
         <div className="info-restaurante-contenido">
@@ -180,10 +180,10 @@ function InfoRestauranteModal({ restaurante, onClose }) {
               <span className="info-restaurante-icono info-restaurante-icono-direccion"><IconoInfoRestaurante tipo="ubicacion" /></span>
               <div className="info-restaurante-dato">
                 <h3>Dirección</h3>
-                {urlIndicaciones
-                  ? <a className="info-restaurante-direccion" href={urlIndicaciones} target="_blank" rel="noopener noreferrer" aria-label={'Abrir ubicación de ' + restaurante.nombre + ' en Google Maps'}>{direccionTexto} <IconoInfoRestaurante tipo="externo" /></a>
+                {urlUbicacion
+                  ? <a className="info-restaurante-direccion" href={urlUbicacion} target="_blank" rel="noopener noreferrer" aria-label={'Abrir ubicación de ' + restaurante.nombre + ' en Google Maps'}>{direccionTexto} <IconoInfoRestaurante tipo="externo" /></a>
                   : <p>{direccionTexto}</p>}
-                {urlIndicaciones && <div className="info-restaurante-acciones">
+                {urlUbicacion && <div className="info-restaurante-acciones">
                   <button type="button" className="info-restaurante-copiar" onClick={copiarAlPortapapeles}><IconoInfoRestaurante tipo={estadoCopia === 'copiado' ? 'copiado' : 'copiar'} /> {estadoCopia === 'copiado' ? 'Copiado' : 'Copiar dirección'}</button>
                 </div>}
                 <span role="status" className="info-restaurante-copia-estado">{estadoCopia === 'copiado' ? 'Dirección copiada' : estadoCopia === 'error' ? 'No se pudo copiar. Selecciona la dirección para copiarla.' : ''}</span>
@@ -224,7 +224,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   const usuarioLogueado = JSON.parse(localStorage.getItem('user')) || {};
   const idUsuarioActual = usuarioLogueado.id_usuario || "0"; 
 
-  const { loading, error, data, refetch } = useQuery(OBTENER_DATOS, { 
+  const { loading, error, data } = useQuery(OBTENER_DATOS, { 
     variables: { id: idRestaurante, id_usuario: idUsuarioActual },
     fetchPolicy: 'network-only' 
   });
@@ -235,7 +235,9 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
     errorPolicy: 'ignore'
   });
 
-  const [alternarFavoritoPlato] = useMutation(ALTERNAR_FAVORITO_PLATO);
+  const [alternarFavoritoPlato, { loading: guardandoFavorito }] = useMutation(ALTERNAR_FAVORITO_PLATO);
+  const favoritoEnCurso = useRef(false);
+  const anclaFavorito = useRef(null);
   const [busquedaPlato, setBusquedaPlato] = useState('');
   const [favoritosLocales, setFavoritosLocales] = useState([]);
   const [mostrarInfoModal, setMostrarInfoModal] = useState(false); 
@@ -246,11 +248,20 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   const platosPopulares = data?.obtenerMasVendidos || []; 
   const listaFavoritos = data?.obtenerFavoritos || [];
   const esFavoritoInicial = listaFavoritos.some(fav => fav.id_restaurante === idRestaurante);
-  const platosFavoritos = data?.obtenerPlatosFavoritos || [];
+  const platosFavoritos = data?.obtenerPlatosFavoritos;
 
   useEffect(() => {
-    if (data) setFavoritosLocales(platosFavoritos.map(fav => String(fav.id_plato)));
-  }, [data]);
+    if (platosFavoritos) setFavoritosLocales(platosFavoritos.map(fav => String(fav.id_plato)));
+  }, [platosFavoritos]);
+
+  // Si aparece o desaparece "Elegido para ti", el plato pulsado conserva su sitio.
+  useLayoutEffect(() => {
+    const ancla = anclaFavorito.current;
+    anclaFavorito.current = null;
+    if (!ancla?.elemento.isConnected) return;
+    const desplazamiento = ancla.elemento.getBoundingClientRect().top - ancla.top;
+    if (Math.abs(desplazamiento) > 1) window.scrollBy({ top: desplazamiento, behavior: 'instant' });
+  }, [favoritosLocales]);
 
   const todasLasCategorias = Array.from(new Set(
     menuCompleto.flatMap(plato => extraerTags(plato.descripcion, plato.categoria).tagsTotales)
@@ -261,18 +272,44 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
 
   const isPausado = restaurante?.aceptando_pedidos === false;
 
-  const handleCorazonClick = async (idPlato) => {
+  const handleCorazonClick = async (idPlato, evento) => {
+    if (favoritoEnCurso.current) return;
+    favoritoEnCurso.current = true;
+    const elemento = evento.currentTarget.closest('.tarjeta-plato');
+    const conservarPosicion = () => {
+      if (elemento?.isConnected) anclaFavorito.current = { elemento, top: elemento.getBoundingClientRect().top };
+    };
+    conservarPosicion();
     const idStr = String(idPlato);
     const eraFavorito = favoritosLocales.includes(idStr);
     if (eraFavorito) setFavoritosLocales(prev => prev.filter(id => id !== idStr));
     else setFavoritosLocales(prev => [...prev, idStr]);
 
     try {
-      await alternarFavoritoPlato({ variables: { id_plato: idPlato } });
-      refetch(); 
-    } catch (e) {
+      await alternarFavoritoPlato({
+        variables: { id_plato: idPlato },
+        update(cache) {
+          // Actualiza los favoritos guardados sin desmontar ni volver a cargar el menú.
+          cache.updateQuery({ query: OBTENER_DATOS, variables: { id: idRestaurante, id_usuario: idUsuarioActual } }, datos => {
+            if (!datos) return datos;
+            const favoritos = datos.obtenerPlatosFavoritos || [];
+            const plato = datos.obtenerMenuRestaurante.find(p => String(p.id_plato) === idStr);
+            return {
+              ...datos,
+              obtenerPlatosFavoritos: eraFavorito
+                ? favoritos.filter(p => String(p.id_plato) !== idStr)
+                : favoritos.some(p => String(p.id_plato) === idStr) || !plato ? favoritos : [...favoritos, plato],
+            };
+          });
+        },
+      });
+    } catch {
+      conservarPosicion();
       if (eraFavorito) setFavoritosLocales(prev => [...prev, idStr]);
       else setFavoritosLocales(prev => prev.filter(id => id !== idStr));
+      alert('No se ha podido guardar el favorito. Inténtalo de nuevo.');
+    } finally {
+      favoritoEnCurso.current = false;
     }
   };
 
@@ -364,8 +401,8 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
     }
   };
 
-  if (loading) return <div style={{ padding: '2rem' }}>Cargando menú...</div>;
-  if (error) return <div style={{ padding: '2rem', color: 'red' }}>Error: {error.message}</div>;
+  if (loading && !data) return <div style={{ padding: '2rem' }}>Cargando menú...</div>;
+  if (error && !data) return <div style={{ padding: '2rem', color: 'red' }}>Error: {error.message}</div>;
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
@@ -522,11 +559,15 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                       return (
                       <div 
                         key={plato.id_plato} 
+                        className="tarjeta-plato"
                         onClick={() => onSelectPlato && onSelectPlato(plato)}
                         onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.1)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-                        style={{ border: '1px solid #e0e0e0', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#fff', opacity: (isPausado || plato.disponible === false) ? 0.7 : 1, cursor: 'pointer', transition: 'all 0.2s ease' }}
+                        style={{ position: 'relative', border: '1px solid #e0e0e0', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#fff', opacity: (isPausado || plato.disponible === false) ? 0.7 : 1, cursor: 'pointer', transition: 'all 0.2s ease' }}
                       >
+                        <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 2 }}>
+                          <BotonCorazon activo={esPlatoFavorito} disabled={guardandoFavorito} onClick={evento => handleCorazonClick(plato.id_plato, evento)} nombre={plato.nombre} />
+                        </div>
                         {plato.imagen_url ? <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '200px', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '200px', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>📷</div>}
 
                         <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'space-between' }}>
@@ -543,7 +584,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
 
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                               <h3 style={{ margin: '0 0 10px 0', flexGrow: 1 }}>{plato.nombre}</h3>
-                              <BotonCorazon activo={esPlatoFavorito} onClick={() => handleCorazonClick(plato.id_plato)} nombre={plato.nombre} />
                             </div>
                             <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>{descLimpia}</p>
                           </div>

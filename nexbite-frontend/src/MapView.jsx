@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import TituloSeccion from './TituloSeccion';
+import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -47,10 +48,10 @@ export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega
 
   const { loading, error, data } = useQuery(OBTENER_CERCANOS, {
     variables: { lat: ubicacion?.lat, lng: ubicacion?.lng, solo_con_entrega: soloConEntrega },
-    skip: !ubicacion, 
+    skip: !coordenadasValidas(ubicacion?.lat, ubicacion?.lng),
   });
 
-  if (!ubicacion) return <div style={{ padding: '2rem' }}>Selecciona una ubicación para ver los locales.</div>;
+  if (!coordenadasValidas(ubicacion?.lat, ubicacion?.lng)) return <div style={{ padding: '2rem' }}>Selecciona una ubicación para ver los locales.</div>;
 
   return (
     <div>
@@ -102,7 +103,7 @@ export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega
               </Tooltip>
             </Marker>
 
-            {data?.obtenerRestaurantesCercanos.map((rest) => (
+            {data?.obtenerRestaurantesCercanos?.filter(rest => coordenadasValidas(rest?.latitud, rest?.longitud)).map((rest) => (
               <Marker 
                 key={rest.id_restaurante} 
                 position={[rest.latitud, rest.longitud]}

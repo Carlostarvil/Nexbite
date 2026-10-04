@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:recogida": "node --test tests/horarios-recogida.test.js",
     "test:locales": "node --test tests/editar-locales.test.js",
-    "test:zona": "node --test tests/zona-entrega.test.js"
+    "test:zona": "node --test tests/zona-entrega.test.js",
+    "test:pagos": "node --test tests/pagos.test.js"
   },
   "keywords": [],
   "author": "",

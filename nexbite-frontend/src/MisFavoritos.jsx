@@ -70,8 +70,8 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
     }
   };
 
-  if (loading) return <div style={{ padding: '2rem' }}>Cargando tus favoritos...</div>;
-  if (error) return <div style={{ padding: '2rem', color: 'red' }}>Error al cargar.</div>;
+  if (loading && !data) return <div style={{ padding: '2rem' }}>Cargando tus favoritos...</div>;
+  if (error && !data) return <div style={{ padding: '2rem', color: 'red' }}>Error al cargar.</div>;
 
   const restaurantes = data.obtenerFavoritos || [];
   const platos = data.obtenerPlatosFavoritos || [];
@@ -166,11 +166,15 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
               {platos.map(plato => (
                 <div 
                   key={plato.id_plato} 
+                  className="tarjeta-plato"
                   onClick={() => onSelectPlato && onSelectPlato(plato)} // MODIFICADO: Abrir el plato
-                  style={{ border: '1px solid #e0e0e0', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#fff', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
+                  style={{ position: 'relative', border: '1px solid #e0e0e0', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#fff', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
                   onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-3px)'}
                   onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
+                  <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 2 }}>
+                    <BotonCorazon activo onClick={() => handleEliminarPlato(plato.id_plato)} nombre={plato.nombre} />
+                  </div>
                   {plato.imagen_url ? (
                     <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '150px', objectFit: 'cover' }} />
                   ) : (
@@ -180,7 +184,6 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
                   <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                       <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem' }}>{plato.nombre}</h3>
-                      <BotonCorazon activo onClick={() => handleEliminarPlato(plato.id_plato)} nombre={plato.nombre} />
                     </div>
                     <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0', flexGrow: 1 }}>{plato.descripcion}</p>
                     

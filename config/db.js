@@ -26,6 +26,11 @@ export const horariosRecogidaListos = pool.query(`
   ALTER TABLE Restaurantes ADD COLUMN IF NOT EXISTS horarios_recogida JSONB;
 `);
 
+// Conserva la relación con Stripe para reutilizar las tarjetas de cada cuenta.
+export const clientesPagoListos = pool.query(`
+  ALTER TABLE Usuarios ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+`);
+
 // Esto fuerza a Node a crear la tabla en la base de datos correcta si no existe
 pool.query(`
   CREATE TABLE IF NOT EXISTS Platos_Favoritos (

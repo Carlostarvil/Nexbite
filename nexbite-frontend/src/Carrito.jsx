@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import { generarOpcionesRecogida, recogidaDisponible, validarFechaRecogida } from '../../shared/horariosRecogida.js';
-import { validarZonaEntrega } from '../../shared/zonaEntrega.js';
+import { coordenadasValidas, validarZonaEntrega } from '../../shared/zonaEntrega.js';
 
 // Importaciones de Stripe
 import { loadStripe } from '@stripe/stripe-js';
@@ -26,8 +26,24 @@ const SOLICITAR_AVISO = gql`
 `;
 
 const CREAR_INTENCION_PAGO = gql`
-  mutation CrearIntencionPago($monto: Float!) {
-    crearIntencionPago(monto: $monto)
+  mutation CrearIntencionPago($monto: Float!, $id_tarjeta: ID!, $clave_pago: ID!) {
+    crearIntencionPago(monto: $monto, id_tarjeta: $id_tarjeta, clave_pago: $clave_pago)
+  }
+`;
+
+const OBTENER_MIS_TARJETAS = gql`
+  query ObtenerMisTarjetas($id_usuario: ID!) {
+    obtenerMisTarjetas(id_usuario: $id_usuario) { id brand last4 name }
+  }
+`;
+
+const CREAR_CONFIGURACION_TARJETA = gql`
+  mutation CrearConfiguracionTarjeta { crearConfiguracionTarjeta }
+`;
+
+const ELIMINAR_TARJETA_GUARDADA = gql`
+  mutation EliminarTarjetaGuardada($id_tarjeta: ID!) {
+    eliminarTarjetaGuardada(id_tarjeta: $id_tarjeta)
   }
 `;
 
@@ -130,58 +146,78 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   
   const [metodoPago, setMetodoPago] = useState('TARJETA');
 
-  const [tarjetas, setTarjetas] = useState(() => {
-    const guardadas = localStorage.getItem('nexbite_tarjetas');
-    return guardadas ? JSON.parse(guardadas) : [];
+  const { data: datosTarjetas, loading: cargandoTarjetas, error: errorTarjetas, refetch: refrescarTarjetas } = useQuery(OBTENER_MIS_TARJETAS, {
+    variables: { id_usuario: idUsuario }, skip: !idUsuario, fetchPolicy: 'network-only',
   });
-  const [tarjetaSeleccionada, setTarjetaSeleccionada] = useState(tarjetas.length > 0 ? tarjetas[0].id : null);
+  const tarjetas = datosTarjetas?.obtenerMisTarjetas || [];
+  const [idTarjetaSeleccionada, setTarjetaSeleccionada] = useState(null);
+  const tarjetaSeleccionada = tarjetas.some(t => t.id === idTarjetaSeleccionada) ? idTarjetaSeleccionada : tarjetas[0]?.id || null;
+  const [tarjetasAntiguas, setTarjetasAntiguas] = useState(() => {
+    try {
+      const anteriores = JSON.parse(localStorage.getItem('nexbite_tarjetas'));
+      return Array.isArray(anteriores) && anteriores.length > 0;
+    } catch { return false; }
+  });
   const [mostrarModalTarjeta, setMostrarModalTarjeta] = useState(false);
   const [nuevoTitular, setNuevoTitular] = useState('');
   const [guardandoTarjeta, setGuardandoTarjeta] = useState(false);
+  const guardadoEnCurso = useRef(false);
+  const [eliminandoTarjeta, setEliminandoTarjeta] = useState(null);
+  const [crearConfiguracion] = useMutation(CREAR_CONFIGURACION_TARJETA);
+  const [quitarTarjeta] = useMutation(ELIMINAR_TARJETA_GUARDADA);
+  const pagoEnCurso = useRef(false);
+  const intentosPago = useRef(new Map());
+  const [pedidoPagadoSinRegistrar, setPedidoPagadoSinRegistrar] = useState(null);
 
-  const [direccionRestaurante, setDireccionRestaurante] = useState('Obteniendo dirección del local...');
+  const [direccionResuelta, setDireccionResuelta] = useState(null);
 
   const handleGuardarTarjeta = async () => {
+    if (guardadoEnCurso.current || pagoEnCurso.current) return;
     if (!nuevoTitular.trim()) return alert("Ingresa el nombre del titular de la tarjeta.");
-    if (!stripe || !elements) return;
-    
-    setGuardandoTarjeta(true);
+    if (!stripe || !elements) return alert('El sistema de tarjetas está cargando. Inténtalo en unos segundos.');
     const cardEl = elements.getElement(CardElement);
-    
-    const { error, paymentMethod } = await stripe.createPaymentMethod({
-      type: 'card',
-      card: cardEl,
-      billing_details: { name: nuevoTitular }
-    });
-
-    setGuardandoTarjeta(false);
-    
-    if (error) {
-      alert("Error en la tarjeta: " + error.message);
-    } else {
-      const nuevaTarjeta = {
-        id: paymentMethod.id,
-        brand: paymentMethod.card.brand,
-        last4: paymentMethod.card.last4,
-        name: nuevoTitular
-      };
-      const nuevasTarjetas = [...tarjetas, nuevaTarjeta];
-      setTarjetas(nuevasTarjetas);
-      localStorage.setItem('nexbite_tarjetas', JSON.stringify(nuevasTarjetas));
-      setTarjetaSeleccionada(nuevaTarjeta.id);
+    if (!cardEl) return;
+    guardadoEnCurso.current = true;
+    setGuardandoTarjeta(true);
+    let guardada = false;
+    try {
+      const { data } = await crearConfiguracion();
+      const resultado = await stripe.confirmCardSetup(data.crearConfiguracionTarjeta, {
+        payment_method: { card: cardEl, billing_details: { name: nuevoTitular.trim() } },
+      });
+      if (resultado.error) throw new Error(resultado.error.message);
+      if (resultado.setupIntent?.status !== 'succeeded') throw new Error('Completa la verificación de tu tarjeta antes de guardarla.');
+      guardada = true;
+      const metodo = resultado.setupIntent.payment_method;
+      setTarjetaSeleccionada(typeof metodo === 'string' ? metodo : metodo?.id);
       setMostrarModalTarjeta(false);
       setNuevoTitular('');
       cardEl.clear();
+      setTarjetasAntiguas(false);
+      localStorage.removeItem('nexbite_tarjetas');
+      const resultadoTarjetas = await refrescarTarjetas();
+      if (resultadoTarjetas.error) throw resultadoTarjetas.error;
+    } catch (error) {
+      alert(guardada ? 'La tarjeta se ha guardado. No se ha podido actualizar la lista; pulsa Reintentar.' : 'No se ha podido guardar la tarjeta: ' + error.message);
+    } finally {
+      guardadoEnCurso.current = false;
+      setGuardandoTarjeta(false);
     }
   };
 
-  const eliminarTarjeta = (id, e) => {
+  const eliminarTarjeta = async (id, e) => {
     e.stopPropagation();
-    const nuevas = tarjetas.filter(t => t.id !== id);
-    setTarjetas(nuevas);
-    localStorage.setItem('nexbite_tarjetas', JSON.stringify(nuevas));
-    if (tarjetaSeleccionada === id) {
-      setTarjetaSeleccionada(nuevas.length > 0 ? nuevas[0].id : null);
+    if (eliminandoTarjeta || guardadoEnCurso.current || pagoEnCurso.current) return;
+    setEliminandoTarjeta(id);
+    try {
+      await quitarTarjeta({ variables: { id_tarjeta: id } });
+      const resultado = await refrescarTarjetas();
+      if (resultado.error) throw resultado.error;
+      if (tarjetaSeleccionada === id) setTarjetaSeleccionada(null);
+    } catch (error) {
+      alert('No se ha podido actualizar la tarjeta: ' + error.message);
+    } finally {
+      setEliminandoTarjeta(null);
     }
   };
 
@@ -208,12 +244,19 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const carritoEnUso = idCartActivo ? carrito.filter(p => p.id_restaurante === idCartActivo) : [];
   const idRestauranteCarrito = idCartActivo;
 
-  const aumentarCantidad = (id_plato) => setCarrito(carrito.map(p => String(p.id_plato) === String(id_plato) ? { ...p, cantidad: (p.cantidad || 1) + 1 } : p));
-  const disminuirCantidad = (id_plato) => setCarrito(carrito.map(p => (String(p.id_plato) === String(id_plato) && p.cantidad > 1) ? { ...p, cantidad: p.cantidad - 1 } : p));
-  const eliminarPlato = (id_plato) => setCarrito(carrito.filter(p => p.id_plato !== id_plato));
+  const aumentarCantidad = (id_plato) => { if (!pagoEnCurso.current) setCarrito(carrito.map(p => String(p.id_plato) === String(id_plato) ? { ...p, cantidad: (p.cantidad || 1) + 1 } : p)); };
+  const disminuirCantidad = (id_plato) => { if (!pagoEnCurso.current) setCarrito(carrito.map(p => (String(p.id_plato) === String(id_plato) && p.cantidad > 1) ? { ...p, cantidad: p.cantidad - 1 } : p)); };
+  const eliminarPlato = (id_plato) => { if (!pagoEnCurso.current) setCarrito(carrito.filter(p => p.id_plato !== id_plato)); };
 
   const { data: dataRest, loading: cargandoRestaurante, error: errorRestaurante, refetch: refrescarRestaurante } = useQuery(OBTENER_ESTADO_RESTAURANTE, { variables: { id: idRestauranteCarrito }, skip: !idRestauranteCarrito });
   const restaurante = dataRest?.obtenerRestaurantePorId;
+  const latitudLocal = restaurante?.latitud;
+  const longitudLocal = restaurante?.longitud;
+  const direccionGuardadaLocal = restaurante?.direccion?.trim();
+  const tieneCoordenadasLocal = coordenadasValidas(latitudLocal, longitudLocal);
+  const direccionRestaurante = direccionGuardadaLocal ||
+    (direccionResuelta && direccionResuelta.latitud === latitudLocal && direccionResuelta.longitud === longitudLocal ? direccionResuelta.texto : '') ||
+    (tieneCoordenadasLocal ? Number(latitudLocal).toFixed(5) + ', ' + Number(longitudLocal).toFixed(5) : 'Ubicación del local no especificada');
   const opcionesRecogida = useMemo(() => restaurante ? generarOpcionesRecogida(restaurante.horarios_recogida, ahora) : [], [restaurante, ahora]);
   const diasDisponibles = opcionesRecogida;
   const horasDisponiblesList = diasDisponibles.find(dia => dia.valor === diaProgramado)?.horas || [];
@@ -233,14 +276,16 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const platosTemporales = carritoEnUso.filter(p => p.disponible === false && p.tiempo_disponible && !p.tiempo_disponible.includes('Indefinido'));
 
   useEffect(() => {
-    if (restaurante?.direccion) setDireccionRestaurante(restaurante.direccion);
-    else if (restaurante?.latitud && restaurante?.longitud) {
-      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${restaurante.latitud}&lon=${restaurante.longitud}`)
-        .then(res => res.json())
-        .then(data => setDireccionRestaurante(data?.display_name ? data.display_name.split(', ').slice(0, 3).join(', ') : 'Dirección no encontrada'))
-        .catch(() => setDireccionRestaurante('Error al obtener la dirección'));
-    } else setDireccionRestaurante('Ubicación del local no especificada');
-  }, [restaurante]);
+    if (direccionGuardadaLocal || !tieneCoordenadasLocal) return;
+    const controlador = new AbortController();
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitudLocal}&lon=${longitudLocal}`, { signal: controlador.signal })
+      .then(res => { if (!res.ok) throw new Error('No se pudo obtener la dirección'); return res.json(); })
+      .then(data => {
+        if (data?.display_name) setDireccionResuelta({ latitud: latitudLocal, longitud: longitudLocal, texto: data.display_name.split(', ').slice(0, 3).join(', ') });
+      })
+      .catch(() => {});
+    return () => controlador.abort();
+  }, [direccionGuardadaLocal, tieneCoordenadasLocal, latitudLocal, longitudLocal]);
 
   const handlePedirAvisoRestaurante = async () => {
     await pedirAviso({ variables: { id_usuario: idUsuario, tipo: 'RESTAURANTE', id_referencia: idRestauranteCarrito } });
@@ -253,97 +298,134 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   };
 
   const handlePagar = async (fechaParaProgramar = null) => {
-    if (procesandoPago || procesandoStripe || comprobandoHorario) return;
+    if (pagoEnCurso.current || guardadoEnCurso.current || eliminandoTarjeta) return;
+    if (pedidoPagadoSinRegistrar === idCartActivo) return;
+    if (metodoPago === 'TARJETA' && (cargandoTarjetas || errorTarjetas)) return;
     if (carritoEnUso.length === 0) return alert("Tu carrito está vacío.");
-    
-    if (tipoEntrega === 'DOMICILIO') {
-      if (!direccion.trim()) return alert("Por favor ingresa la calle principal de envío.");
-      if (!coordenadasEnvio) return alert('Selecciona la dirección de entrega.');
-      setComprobandoHorario(true);
-      try {
-        const { data } = await refrescarRestaurante();
-        validarZonaEntrega(data?.obtenerRestaurantePorId, coordenadasEnvio.lat, coordenadasEnvio.lng);
-      } catch (error) {
-        return alert(error.message);
-      } finally {
-        setComprobandoHorario(false);
-      }
-    }
-
-    if (platosIndefinidos.length > 0) return alert("Debes eliminar los productos agotados antes de continuar.");
-
-    const direccionFinal = tipoEntrega === 'RECOGIDA' 
-      ? 'Recogida en el local' 
-      : (detallesDireccion.trim() ? `${direccion} - Detalles: ${detallesDireccion}` : direccion);
-
-    let fechaFinalBackend = fechaParaProgramar;
-    if (tipoEntrega === 'RECOGIDA') {
-      setComprobandoHorario(true);
-      try {
-        const { data } = await refrescarRestaurante();
-        const local = data?.obtenerRestaurantePorId;
-        if (!local) throw new Error('No se ha podido comprobar el horario del restaurante.');
-        if (modoRecogida === 'PROGRAMADO' && !opcionProgramada) throw new Error('Vuelve a seleccionar una hora de recogida disponible.');
-        if (modoRecogida === 'AHORA' && !local.aceptando_pedidos) throw new Error('El local no acepta pedidos inmediatos.');
-        fechaFinalBackend = validarFechaRecogida(local.horarios_recogida, modoRecogida === 'PROGRAMADO' ? horaProgramada : fechaParaProgramar);
-      } catch (error) {
-        return alert(error.message);
-      } finally {
-        setComprobandoHorario(false);
-      }
-    }
-
-    if (metodoPago === 'TARJETA') {
-      if (!tarjetaSeleccionada) return alert("💳 Por favor, selecciona o añade una tarjeta para pagar.");
-      if (!stripe) return alert("El sistema de pagos no está listo. Inténtalo de nuevo en unos segundos.");
-      setProcesandoStripe(true);
-      try {
-        const resIntencion = await crearIntencion({ variables: { monto: total } });
-        const clientSecret = resIntencion.data.crearIntencionPago;
-        const result = await stripe.confirmCardPayment(clientSecret, { payment_method: tarjetaSeleccionada });
-        if (result.error) {
-          setProcesandoStripe(false);
-          return alert("❌ Pago rechazado: " + result.error.message);
-        }
-      } catch (error) {
-        setProcesandoStripe(false);
-        return alert("❌ Error de conexión con el banco. Inténtalo de nuevo.");
-      }
-    }
-
+    pagoEnCurso.current = true;
+    setProcesandoStripe(true);
+    let pagoConfirmado = false;
+    let huellaPago = null;
     try {
-      const promesas = [];
-      carritoEnUso.forEach(plato => {
-        const cantidadDeEstePlato = plato.cantidad || 1;
-        for (let i = 0; i < cantidadDeEstePlato; i++) {
-          promesas.push(
-            crearPedido({
-              variables: {
-                id_usuario: idUsuario, 
-                id_restaurante: plato.id_restaurante, 
-                id_plato: plato.id_plato,
-                metodo_pago: metodoPago, 
-                direccion_envio: direccionFinal, 
-                fecha_programada: fechaFinalBackend,
-                latitud_cliente: tipoEntrega === 'RECOGIDA' ? null : coordenadasEnvio?.lat,
-                longitud_cliente: tipoEntrega === 'RECOGIDA' ? null : coordenadasEnvio?.lng
-              }
-            })
-          );
+
+      if (tipoEntrega === 'DOMICILIO') {
+        if (!direccion.trim()) return alert("Por favor ingresa la calle principal de envío.");
+        if (!coordenadasEnvio) return alert('Selecciona la dirección de entrega.');
+        setComprobandoHorario(true);
+        try {
+          const { data } = await refrescarRestaurante();
+          validarZonaEntrega(data?.obtenerRestaurantePorId, coordenadasEnvio.lat, coordenadasEnvio.lng);
+        } catch (error) {
+          return alert(error.message);
+        } finally {
+          setComprobandoHorario(false);
         }
-      });
-      await Promise.all(promesas);
-      
-      const carritoRestante = carrito.filter(p => p.id_restaurante !== idCartActivo);
-      setCarrito(carritoRestante);
-      
-      if (fechaFinalBackend) alert("📅 ¡Reserva confirmada! El restaurante te espera a la hora programada.");
-      else alert(tipoEntrega === 'RECOGIDA' ? "✅ ¡Pago realizado con éxito! Tu pedido se preparará para recoger lo antes posible." : "✅ ¡Pago realizado con éxito! En breve llegará tu comida.");
-      
-      if (carritoRestante.length > 0) setIdCartActivo(null); 
-      else { vaciarCarrito(); onVolver(); }
-    } catch(e) {
-      alert("Error al procesar tu pedido: " + e.message.replace("GraphQL error: ", ""));
+      }
+
+      if (platosIndefinidos.length > 0) return alert("Debes eliminar los productos agotados antes de continuar.");
+
+      const direccionFinal = tipoEntrega === 'RECOGIDA' 
+        ? 'Recogida en el local' 
+        : (detallesDireccion.trim() ? `${direccion} - Detalles: ${detallesDireccion}` : direccion);
+
+      let fechaFinalBackend = fechaParaProgramar;
+      if (tipoEntrega === 'RECOGIDA') {
+        setComprobandoHorario(true);
+        try {
+          const { data } = await refrescarRestaurante();
+          const local = data?.obtenerRestaurantePorId;
+          if (!local) throw new Error('No se ha podido comprobar el horario del restaurante.');
+          if (modoRecogida === 'PROGRAMADO' && !opcionProgramada) throw new Error('Vuelve a seleccionar una hora de recogida disponible.');
+          if (modoRecogida === 'AHORA' && !local.aceptando_pedidos) throw new Error('El local no acepta pedidos inmediatos.');
+          fechaFinalBackend = validarFechaRecogida(local.horarios_recogida, modoRecogida === 'PROGRAMADO' ? horaProgramada : fechaParaProgramar);
+        } catch (error) {
+          return alert(error.message);
+        } finally {
+          setComprobandoHorario(false);
+        }
+      }
+
+      if (metodoPago === 'TARJETA') {
+        if (!tarjetaSeleccionada) return alert("💳 Por favor, selecciona o añade una tarjeta para pagar.");
+        if (!stripe) return alert("El sistema de pagos no está listo. Inténtalo de nuevo en unos segundos.");
+        const huella = JSON.stringify([idUsuario, idCartActivo, total, carritoEnUso.map(p => [p.id_plato, p.cantidad || 1]), direccionFinal, fechaFinalBackend]);
+        huellaPago = huella;
+        try {
+          // Un reintento consulta la misma intención antes de volver a confirmar el pago.
+          let intento = intentosPago.current.get(huella);
+          if (!intento) {
+            intento = { clave: crypto.randomUUID(), tarjeta: tarjetaSeleccionada, secreto: null };
+            intentosPago.current.set(huella, intento);
+          }
+          if (!intento.secreto) {
+            const { data } = await crearIntencion({ variables: { monto: total, id_tarjeta: intento.tarjeta, clave_pago: intento.clave } });
+            intento.secreto = data.crearIntencionPago;
+          } else {
+            const estado = await stripe.retrievePaymentIntent(intento.secreto);
+            if (estado.error) throw new Error(estado.error.message);
+            if (estado.paymentIntent?.status === 'succeeded') pagoConfirmado = true;
+            if (estado.paymentIntent?.status === 'processing') return alert('Tu banco sigue confirmando este pago. Espera unos segundos y vuelve a consultar.');
+            if (estado.paymentIntent?.status === 'canceled') {
+              intentosPago.current.delete(huella);
+              return alert('El intento de pago se ha cancelado. Vuelve a pulsar Pagar para iniciar otro.');
+            }
+          }
+          if (!pagoConfirmado) {
+            const resultado = await stripe.confirmCardPayment(intento.secreto, { payment_method: tarjetaSeleccionada });
+            if (resultado.error) throw new Error(resultado.error.message);
+            if (resultado.paymentIntent?.status !== 'succeeded') return alert('El pago todavía no está confirmado. Espera unos segundos y vuelve a consultar.');
+            pagoConfirmado = true;
+          }
+        } catch (error) {
+          if (error.message.includes('Añádela de nuevo')) {
+            intentosPago.current.delete(huella);
+            await refrescarTarjetas().catch(() => {});
+            setMostrarModalTarjeta(true);
+          }
+          return alert('No se ha completado el pago: ' + error.message);
+        }
+      }
+
+      try {
+        const promesas = [];
+        carritoEnUso.forEach(plato => {
+          const cantidadDeEstePlato = plato.cantidad || 1;
+          for (let i = 0; i < cantidadDeEstePlato; i++) {
+            promesas.push(
+              crearPedido({
+                variables: {
+                  id_usuario: idUsuario, 
+                  id_restaurante: plato.id_restaurante, 
+                  id_plato: plato.id_plato,
+                  metodo_pago: metodoPago, 
+                  direccion_envio: direccionFinal, 
+                  fecha_programada: fechaFinalBackend,
+                  latitud_cliente: tipoEntrega === 'RECOGIDA' ? null : coordenadasEnvio?.lat,
+                  longitud_cliente: tipoEntrega === 'RECOGIDA' ? null : coordenadasEnvio?.lng
+                }
+              })
+            );
+          }
+        });
+        await Promise.all(promesas);
+        if (huellaPago) intentosPago.current.delete(huellaPago);
+
+        const carritoRestante = carrito.filter(p => p.id_restaurante !== idCartActivo);
+        setCarrito(carritoRestante);
+
+        if (fechaFinalBackend) alert("📅 ¡Reserva confirmada! El restaurante te espera a la hora programada.");
+        else alert(tipoEntrega === 'RECOGIDA' ? "✅ ¡Pago realizado con éxito! Tu pedido se preparará para recoger lo antes posible." : "✅ ¡Pago realizado con éxito! En breve llegará tu comida.");
+
+        if (carritoRestante.length > 0) setIdCartActivo(null); 
+        else { vaciarCarrito(); onVolver(); }
+      } catch(e) {
+        if (pagoConfirmado) {
+          setPedidoPagadoSinRegistrar(idCartActivo);
+          alert('El pago está confirmado, pero no se ha podido registrar todo el pedido. Revisa Mis pedidos y contacta con el local antes de volver a pagar.');
+        } else alert("Error al procesar tu pedido: " + e.message.replace("GraphQL error: ", ""));
+      }
+    } finally {
+      pagoEnCurso.current = false;
       setProcesandoStripe(false);
     }
   };
@@ -365,7 +447,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
   const recogidaBloqueada = tipoEntrega === 'RECOGIDA' && (cargandoRestaurante || errorRestaurante || !restaurante || (modoRecogida === 'AHORA' ? !recogidaAhoraDisponible : !opcionProgramada));
   const entregaBloqueada = tipoEntrega === 'DOMICILIO' && (cargandoRestaurante || errorRestaurante || !restaurante || Boolean(errorZonaEntrega));
-  const bloqueado = procesandoPago || procesandoStripe || comprobandoHorario || recogidaBloqueada || entregaBloqueada;
+  const bloqueado = procesandoPago || procesandoStripe || comprobandoHorario || guardandoTarjeta || Boolean(eliminandoTarjeta) || recogidaBloqueada || entregaBloqueada || pedidoPagadoSinRegistrar === idCartActivo || (metodoPago === 'TARJETA' && (cargandoTarjetas || Boolean(errorTarjetas)));
   const urlMapaRestaurante = (restaurante?.latitud && restaurante?.longitud) ? `https://static-maps.yandex.ru/1.x/?ll=${restaurante.longitud},${restaurante.latitud}&size=600,150&z=16&l=map&pt=${restaurante.longitud},${restaurante.latitud},pm2rdm` : null;
 
   return (
@@ -512,10 +594,17 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
             {metodoPago === 'TARJETA' && (
               <div style={{ marginTop: '15px' }}>
+                {cargandoTarjetas && !datosTarjetas && <p role="status">Cargando tus tarjetas…</p>}
+                {errorTarjetas && <div role="alert" style={{ marginBottom: '15px', color: '#a42318' }}>
+                  No se han podido cargar tus tarjetas. <button type="button" onClick={() => refrescarTarjetas().catch(() => {})}>Reintentar</button>
+                </div>}
+                {tarjetasAntiguas && <p style={{ padding: '12px', background: '#fff4dc', borderRadius: '8px', color: '#704b0b', fontSize: '14px' }}>
+                  Para volver a usar las tarjetas que tenías guardadas, añádelas de nuevo una sola vez.
+                </p>}
                 {tarjetas.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '15px' }}>
                     {tarjetas.map(t => (
-                      <div key={t.id} onClick={() => setTarjetaSeleccionada(t.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px', border: tarjetaSeleccionada === t.id ? '2px solid #ff4500' : '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', backgroundColor: tarjetaSeleccionada === t.id ? '#fff0eb' : '#fff' }}>
+                      <div key={t.id} onClick={() => { if (!pagoEnCurso.current && !guardadoEnCurso.current && !eliminandoTarjeta) setTarjetaSeleccionada(t.id); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px', border: tarjetaSeleccionada === t.id ? '2px solid #ff4500' : '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', backgroundColor: tarjetaSeleccionada === t.id ? '#fff0eb' : '#fff' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <span style={{ fontSize: '1.5rem' }}>{t.brand === 'visa' ? '💳' : '💳'}</span>
                           <div>
@@ -524,20 +613,21 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <button onClick={(e) => eliminarTarjeta(t.id, e)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: '12px', textDecoration: 'underline' }}>Eliminar</button>
+                          <button disabled={procesandoStripe || guardandoTarjeta || Boolean(eliminandoTarjeta)} onClick={(e) => eliminarTarjeta(t.id, e)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: '12px', textDecoration: 'underline' }}>{eliminandoTarjeta === t.id ? 'Eliminando…' : 'Eliminar'}</button>
                           {tarjetaSeleccionada === t.id && <span style={{ color: '#ff4500', fontWeight: 'bold' }}>✓</span>}
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-                <button onClick={() => setMostrarModalTarjeta(true)} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'none', border: '1px dashed #ccc', padding: '15px', width: '100%', borderRadius: '8px', cursor: 'pointer', color: '#0066cc', fontWeight: 'bold', fontSize: '14px', justifyContent: 'center' }}>
+                <button disabled={procesandoStripe || Boolean(eliminandoTarjeta)} onClick={() => setMostrarModalTarjeta(true)} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'none', border: '1px dashed #ccc', padding: '15px', width: '100%', borderRadius: '8px', cursor: 'pointer', color: '#0066cc', fontWeight: 'bold', fontSize: '14px', justifyContent: 'center' }}>
                   <span>➕</span> Añadir una tarjeta de crédito o débito
                 </button>
               </div>
             )}
 
-            <button onClick={() => handlePagar(null)} disabled={bloqueado} style={{ padding: '1.2rem', background: '#28a745', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2rem', marginTop: '1rem' }}>
+            {pedidoPagadoSinRegistrar === idCartActivo && <p role="alert" style={{ color: '#a42318' }}>El pago está confirmado, pero falta comprobar el pedido. Revisa Mis pedidos y contacta con el local antes de volver a pagar.</p>}
+            <button onClick={() => handlePagar(null)} disabled={bloqueado} style={{ padding: '1.2rem', background: '#28a745', color: '#fff', border: 'none', borderRadius: '8px', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.2rem', marginTop: '1rem' }}>
               {procesandoPago || procesandoStripe || comprobandoHorario ? 'Procesando...' : `Pagar €${total.toFixed(2)}`}
             </button>
           </div>
@@ -546,14 +636,15 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
       {mostrarModalTarjeta && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: '1rem' }}>
-          <div style={{ background: '#fff', borderRadius: '12px', padding: '2rem', width: '100%', maxWidth: '400px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
-            <button onClick={() => setMostrarModalTarjeta(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>❌</button>
-            <h3 style={{ margin: '0 0 20px 0', color: '#333', fontSize: '1.3rem' }}>Añadir una tarjeta</h3>
-            <label style={{ fontSize: '13px', color: '#555', fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Nombre en la tarjeta</label>
-            <input type="text" value={nuevoTitular} onChange={e => setNuevoTitular(e.target.value)} placeholder="Ej. Juan Pérez" style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box', outline: 'none' }} />
+          <div role="dialog" aria-modal="true" aria-labelledby="titulo-tarjeta" style={{ background: '#fff', borderRadius: '12px', padding: '2rem', width: '100%', maxWidth: '400px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
+            <button disabled={guardandoTarjeta} aria-label="Cerrar tarjeta" onClick={() => setMostrarModalTarjeta(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>❌</button>
+            <h3 id="titulo-tarjeta" style={{ margin: '0 0 12px 0', color: '#333', fontSize: '1.3rem' }}>Añadir una tarjeta</h3>
+            <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>Guardaremos esta tarjeta en tu cuenta para tus próximos pedidos.</p>
+            <label htmlFor="titular-tarjeta" style={{ fontSize: '13px', color: '#555', fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Nombre en la tarjeta</label>
+            <input id="titular-tarjeta" disabled={guardandoTarjeta} type="text" value={nuevoTitular} onChange={e => setNuevoTitular(e.target.value)} placeholder="Ej. Juan Pérez" style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box', outline: 'none' }} />
             <label style={{ fontSize: '13px', color: '#555', fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Información de la tarjeta</label>
             <div style={{ padding: '14px 12px', border: '1px solid #ccc', borderRadius: '6px', marginBottom: '25px', backgroundColor: '#fff' }}><CardElement options={{ style: { base: { fontSize: '16px', color: '#333', '::placeholder': { color: '#aab7c4' } } } }} /></div>
-            <button onClick={handleGuardarTarjeta} disabled={guardandoTarjeta} style={{ width: '100%', background: '#333', color: '#fff', padding: '15px', borderRadius: '8px', fontWeight: 'bold', border: 'none', fontSize: '1rem', cursor: guardandoTarjeta ? 'not-allowed' : 'pointer', opacity: guardandoTarjeta ? 0.7 : 1 }}>{guardandoTarjeta ? 'Guardando...' : 'Guardar y continuar'}</button>
+            <button onClick={handleGuardarTarjeta} disabled={guardandoTarjeta || !stripe || !elements} style={{ width: '100%', background: '#333', color: '#fff', padding: '15px', borderRadius: '8px', fontWeight: 'bold', border: 'none', fontSize: '1rem', cursor: guardandoTarjeta ? 'not-allowed' : 'pointer', opacity: guardandoTarjeta ? 0.7 : 1 }}>{guardandoTarjeta ? 'Guardando...' : 'Guardar y continuar'}</button>
           </div>
         </div>
       )}

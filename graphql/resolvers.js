@@ -13,8 +13,10 @@ import { validarHorariosRecogida, validarFechaRecogida } from '../shared/horario
 import { validarZonaEntrega } from '../shared/zonaEntrega.js';
 import { crearConsultasZona } from './consultasZona.js';
 import { crearBuscadorDirecciones } from './direcciones.js';
+import { crearOperacionesPago } from './pagos.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const operacionesPago = crearOperacionesPago(pool, stripe);
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "843824368024-1tkoj6d49643fmj3puiab75roa60ig10.apps.googleusercontent.com";
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
@@ -55,6 +57,7 @@ const calcularExpiracion = (tiempoStr) => {
 
 export const resolvers = {
   Query: {
+    ...operacionesPago.Query,
     ...crearConsultasZona(pool),
     ...crearBuscadorDirecciones(),
     obtenerTags: async () => (await pool.query('SELECT * FROM Preferencias_Tags')).rows,
@@ -213,19 +216,7 @@ export const resolvers = {
       return "✅ Tu contraseña ha sido actualizada con éxito. Ya puedes iniciar sesión.";
     },
 
-    crearIntencionPago: async (_, { monto }) => {
-      try {
-        const paymentIntent = await stripe.paymentIntents.create({
-          amount: Math.round(monto * 100),
-          currency: 'eur',
-          automatic_payment_methods: { enabled: true },
-        });
-        return paymentIntent.client_secret;
-      } catch (error) {
-        console.error("Error al crear intención de pago en Stripe:", error);
-        throw new Error("No se pudo conectar con la pasarela de pago.");
-      }
-    },
+    ...operacionesPago.Mutation,
 
     solicitarAviso: async (_, { id_usuario, tipo, id_referencia }) => {
       const check = await pool.query('SELECT * FROM Alertas_Disponibilidad WHERE id_usuario = $1 AND tipo = $2 AND id_referencia = $3 AND email_enviado = FALSE', [id_usuario, tipo, id_referencia]);
