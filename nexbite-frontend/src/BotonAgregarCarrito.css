@@ -1,5 +1,4 @@
 .boton-agregar-carrito {
-  --carrito-trazo: #fff6dc;
   position: relative;
   isolation: isolate;
   width: 100%;
@@ -27,11 +26,11 @@
 .boton-agregar-carrito:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 3px; }
 .boton-agregar-carrito:disabled { cursor: default; }
 .boton-agregar-carrito.esta-anadido { background: linear-gradient(135deg, #168047, #106739); box-shadow: 0 5px 12px rgb(22 128 71 / 24%); }
-.boton-agregar-carrito-reserva { --carrito-trazo: #754116; background: linear-gradient(135deg, #ffe077, #ffc742); color: #533600; }
+.boton-agregar-carrito-reserva { background: linear-gradient(135deg, #ffe077, #ffc742); color: #533600; }
 .boton-agregar-carrito-detalle { min-height: 56px; font-size: 16px; padding: 10px 16px; }
 
 .boton-carrito-contenido { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; }
-.boton-carrito-icono { display: grid; place-items: center; flex: 0 0 34px; height: 34px; border-radius: 10px; background: rgb(255 255 255 / 13%); }
+.boton-carrito-icono { display: grid; place-items: center; flex: 0 0 34px; height: 34px; }
 .boton-carrito-etiqueta { white-space: nowrap; }
 .boton-carrito-cantidad { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 43px; padding: 3px 5px; border-radius: 8px; background: #fff; color: #a52d06; line-height: 1.1; }
 .boton-carrito-cantidad strong { font-size: 18px; }
