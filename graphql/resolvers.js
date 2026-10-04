@@ -10,6 +10,9 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import { crearActualizadorNegocio } from './actualizarNegocio.js';
 import { validarHorariosRecogida, validarFechaRecogida } from '../shared/horariosRecogida.js';
+import { validarZonaEntrega } from '../shared/zonaEntrega.js';
+import { crearConsultasZona } from './consultasZona.js';
+import { crearBuscadorDirecciones } from './direcciones.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -50,59 +53,13 @@ const calcularExpiracion = (tiempoStr) => {
   return ahora;
 };
 
-function calcularDistancia(lat1, lon1, lat2, lon2) {
-  if (lat1 === lat2 && lon1 === lon2) return 0;
-  const R = 6371;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
-
 export const resolvers = {
   Query: {
+    ...crearConsultasZona(pool),
+    ...crearBuscadorDirecciones(),
     obtenerTags: async () => (await pool.query('SELECT * FROM Preferencias_Tags')).rows,
     obtenerRecomendaciones: async (_, { id_usuario, limit = 20, offset = 0 }) => (await pool.query(`SELECT p.id_plato, p.nombre, p.descripcion, p.precio, r.nombre AS restaurante, COUNT(pt.id_tag) AS coincidencias FROM Platos p JOIN Restaurantes r ON p.id_restaurante = r.id_restaurante JOIN Plato_Tags pt ON p.id_plato = pt.id_plato JOIN Usuario_Preferencias up ON pt.id_tag = up.id_tag WHERE up.id_usuario = $1 GROUP BY p.id_plato, p.nombre, p.descripcion, p.precio, r.nombre ORDER BY coincidencias DESC LIMIT $2 OFFSET $3;`, [id_usuario, limit, offset])).rows,
     chatearConBot: async (_, { mensaje }) => await procesarMensaje(mensaje),
-    obtenerFavoritos: async (_, { id_usuario }) => (await pool.query('SELECT r.* FROM Restaurantes r JOIN Favoritos f ON r.id_restaurante = f.id_restaurante WHERE f.id_usuario = $1;', [id_usuario])).rows,
-
-    obtenerPlatosFavoritos: async (_, { id_usuario }) => {
-      const res = await pool.query(`
-        SELECT p.* FROM Platos p
-        JOIN Platos_Favoritos pf ON p.id_plato = pf.id_plato
-        WHERE pf.id_usuario = $1;
-      `, [id_usuario]);
-      return res.rows;
-    },
-
-    obtenerRestaurantesCercanos: async (_, { latitud, longitud, radio_km = 5.0 }) => (await pool.query(`SELECT id_restaurante, nombre, tipo, latitud, longitud, radio_cobertura_km, (6371 * acos(LEAST(1.0, GREATEST(-1.0, cos(radians($1)) * cos(radians(latitud)) * cos(radians(longitud) - radians($2)) + sin(radians($1)) * sin(radians(latitud)))))) AS distancia_km FROM Restaurantes WHERE latitud IS NOT NULL AND longitud IS NOT NULL AND (6371 * acos(LEAST(1.0, GREATEST(-1.0, cos(radians($1)) * cos(radians(latitud)) * cos(radians(longitud) - radians($2)) + sin(radians($1)) * sin(radians(latitud)))))) <= $3 ORDER BY distancia_km ASC;`, [latitud, longitud, radio_km])).rows,
-
-    buscarRestaurantes: async (_, { termino }) => {
-      if (!termino || termino.trim() === '') return [];
-      return (await pool.query('SELECT * FROM Restaurantes WHERE nombre ILIKE $1 OR tipo ILIKE $1 LIMIT 6', [`%${termino}%`])).rows;
-    },
-
-    buscarPlatos: async (_, { termino }) => {
-      if (!termino || termino.trim() === '') return [];
-      return (await pool.query('SELECT * FROM Platos WHERE nombre ILIKE $1 OR descripcion ILIKE $1 LIMIT 6', [`%${termino}%`])).rows;
-    },
-
-    obtenerPlatosDestacados: async () => {
-      // Devuelve 8 platos aleatorios que estén disponibles para dar variedad en el inicio
-      const res = await pool.query(`
-        SELECT pl.*, r.nombre AS nombre_restaurante
-        FROM Platos pl
-        JOIN Restaurantes r ON pl.id_restaurante = r.id_restaurante
-        WHERE pl.disponible = true
-        ORDER BY RANDOM()
-        LIMIT 8
-      `);
-      return res.rows;
-    },
 
     obtenerMiRestaurante: async (_, __, contexto) => {
       if (!contexto.usuario || contexto.usuario.rol !== 'VENDEDOR') return null;
@@ -123,8 +80,6 @@ export const resolvers = {
       }
       return res.rows;
     },
-
-    obtenerMejoresRestaurantes: async () => (await pool.query(`SELECT r.*, COUNT(p.id_pedido) as total_ventas FROM Restaurantes r LEFT JOIN Pedidos p ON r.id_restaurante = p.id_restaurante GROUP BY r.id_restaurante ORDER BY total_ventas DESC LIMIT 10;`)).rows,
 
     obtenerRestaurantePorId: async (_, { id_restaurante }) => {
       const res = await pool.query('SELECT * FROM Restaurantes WHERE id_restaurante = $1', [id_restaurante]);
@@ -174,22 +129,6 @@ export const resolvers = {
         LEFT JOIN Restaurantes r ON pe.id_restaurante = r.id_restaurante
         WHERE pe.id_usuario = $1
         ORDER BY pe.id_pedido DESC
-      `, [id_usuario]);
-      return res.rows;
-    },
-
-    // Últimos pedidos con fechas y fotos del plato
-    obtenerUltimosPedidos: async (_, { id_usuario }) => {
-      const res = await pool.query(`
-        SELECT pe.id_pedido, pe.id_restaurante, pe.id_plato, pe.estado, pe.metodo_pago, pe.direccion_envio, pe.fecha_programada, pe.fecha_pedido,
-               pl.nombre AS nombre_plato, pl.precio AS precio_plato, pl.disponible AS plato_disponible, pl.descripcion AS descripcion_plato, pl.imagen_url AS imagen_plato,
-               r.nombre AS nombre_restaurante, r.imagen_url AS imagen_restaurante, r.aceptando_pedidos AS restaurante_abierto
-        FROM Pedidos pe
-        LEFT JOIN Platos pl ON pe.id_plato = pl.id_plato
-        LEFT JOIN Restaurantes r ON pe.id_restaurante = r.id_restaurante
-        WHERE pe.id_usuario = $1
-        ORDER BY pe.id_pedido DESC
-        LIMIT 3
       `, [id_usuario]);
       return res.rows;
     },
@@ -424,23 +363,12 @@ export const resolvers = {
 
         if (direccion_envio === 'Recogida en el local') {
           validarFechaRecogida(restaurante.horarios_recogida, fecha_programada);
+        } else {
+          validarZonaEntrega(restaurante, latitud_cliente, longitud_cliente);
         }
 
         if (!restaurante.aceptando_pedidos && !fecha_programada) {
           throw new Error('⛔ El restaurante está pausado temporalmente.');
-        }
-
-        if (latitud_cliente && longitud_cliente && restaurante.latitud && restaurante.longitud && restaurante.radio_cobertura_km) {
-          const distanciaCalculada = calcularDistancia(
-            parseFloat(latitud_cliente),
-            parseFloat(longitud_cliente),
-            parseFloat(restaurante.latitud),
-            parseFloat(restaurante.longitud)
-          );
-
-          if (distanciaCalculada > restaurante.radio_cobertura_km) {
-            throw new Error(`⛔ Estás demasiado lejos (${distanciaCalculada.toFixed(1)} km). Este restaurante solo reparte a un máximo de ${restaurante.radio_cobertura_km} km.`);
-          }
         }
 
         const platoResCheck = await pool.query(

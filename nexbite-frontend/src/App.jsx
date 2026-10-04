@@ -16,18 +16,20 @@ import Buscador from './Buscador';
 import DetallePlato from './DetallePlato'; 
 import PerfilUsuario from './PerfilUsuario';
 import CarruselPlatos from './CarruselPlatos';
+import SelectorUbicacion from './SelectorUbicacion';
+import { leerUbicacionEntrega, guardarUbicacionEntrega } from './ubicacionEntrega';
 
 const OBTENER_DATOS_INICIO = gql`
-  query ObtenerDatosInicio($id_usuario: ID!) {
-    obtenerMejoresRestaurantes { id_restaurante, nombre, tipo, imagen_url }
-    obtenerFavoritos(id_usuario: $id_usuario) { id_restaurante, nombre, tipo, imagen_url }
-    obtenerPlatosDestacados { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, nombre_restaurante, categoria }
-    obtenerUltimosPedidos(id_usuario: $id_usuario) {
+  query ObtenerDatosInicio($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
+    obtenerMejoresRestaurantes(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url }
+    obtenerFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url }
+    obtenerPlatosDestacados(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, nombre_restaurante, categoria }
+    obtenerUltimosPedidos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) {
       id_pedido, id_restaurante, id_plato, nombre_plato, precio_plato
       estado, nombre_restaurante, imagen_restaurante, plato_disponible, restaurante_abierto
       fecha_pedido, descripcion_plato, imagen_plato
     }
-    obtenerPlatosFavoritos(id_usuario: $id_usuario) { id_plato }
+    obtenerPlatosFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato }
   }
 `;
 
@@ -76,6 +78,12 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userId, setUserId] = useState(null);
   const [userRol, setUserRol] = useState(null);
+  const [ubicacionEntrega, setUbicacionEntrega] = useState(() => {
+    const datos = obtenerDatosDesdeToken(localStorage.getItem('nexbite_token') || '');
+    return leerUbicacionEntrega(datos?.id_usuario);
+  });
+  const [mostrarSelectorUbicacion, setMostrarSelectorUbicacion] = useState(false);
+  const [modoEntrega, setModoEntrega] = useState('DOMICILIO');
   
   const [restauranteActivo, setRestauranteActivo] = useState(null);
   const [platoActivo, setPlatoActivo] = useState(null); 
@@ -121,10 +129,13 @@ function App() {
     }
   }, []);
 
-  const { loading, error, data } = useQuery(OBTENER_DATOS_INICIO, {
-    variables: { id_usuario: userId }, skip: !isLoggedIn || !userId || userRol === 'VENDEDOR',
+  const { loading, error, data: datosInicio } = useQuery(OBTENER_DATOS_INICIO, {
+    variables: { id_usuario: userId, latitud: ubicacionEntrega?.lat, longitud: ubicacionEntrega?.lng, solo_con_entrega: modoEntrega === 'DOMICILIO' },
+    skip: !isLoggedIn || !userId || userRol === 'VENDEDOR' || !ubicacionEntrega,
     fetchPolicy: 'network-only' 
   });
+
+  const data = loading ? undefined : datosInicio;
 
   const handleCerrarSesion = () => {
     localStorage.removeItem('nexbite_token');
@@ -161,6 +172,7 @@ function App() {
     return <Auth onLogin={() => {
       const token = localStorage.getItem('nexbite_token');
       const datos = obtenerDatosDesdeToken(token);
+      setUbicacionEntrega(leerUbicacionEntrega(datos?.id_usuario));
       setUserId(datos?.id_usuario); setUserRol(datos?.rol); setIsLoggedIn(true);
     }} />;
   }
@@ -210,6 +222,7 @@ function App() {
   return (
     <ErrorBoundary>
       <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: '#f8f9fa', position: 'relative' }}>
+        <div inert={mostrarSelectorUbicacion}>
         <Header 
           onInicio={handleInicio} onLogout={handleCerrarSesion} 
           cantidadCarrito={totalArticulos} 
@@ -219,8 +232,21 @@ function App() {
           onAbrirPerfil={() => { setMostrarPerfil(true); setMostrarCarrito(false); setMostrarFavoritos(false); setRestauranteActivo(null); setPlatoActivo(null); }}
           userRol={userRol}
         />
+        </div>
 
-        <main style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+        {userRol !== 'VENDEDOR' && ubicacionEntrega && <div className="ubicacion-barra" inert={mostrarSelectorUbicacion}>
+          <div className="ubicacion-direccion">
+            <strong>📍 {modoEntrega === 'DOMICILIO' ? 'Entregar en' : 'Buscar cerca de'}</strong>
+            <p>{ubicacionEntrega.direccion}</p>
+            <button type="button" className="ubicacion-cambiar" onClick={() => setMostrarSelectorUbicacion(true)}>Cambiar ubicación</button>
+          </div>
+          <div className="ubicacion-modos" aria-label="Tipo de pedido">
+            <button type="button" aria-pressed={modoEntrega === 'DOMICILIO'} onClick={() => { setModoEntrega('DOMICILIO'); handleInicio(); }}>A domicilio</button>
+            <button type="button" aria-pressed={modoEntrega === 'RECOGIDA'} onClick={() => { setModoEntrega('RECOGIDA'); handleInicio(); }}>Recogida</button>
+          </div>
+        </div>}
+
+        <main inert={mostrarSelectorUbicacion} style={{ padding: 'clamp(1rem, 4vw, 2rem)', maxWidth: '1200px', margin: '0 auto' }}>
           
           {mostrarPerfil ? (
             <PerfilUsuario onVolver={() => setMostrarPerfil(false)} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={abrirDetalleDesdePedido} />
@@ -232,17 +258,19 @@ function App() {
             : <MisLocales onCrearNuevo={() => setVistaVendedor('REGISTRAR')} onGestionarMenu={(local) => { setLocalSeleccionado(local); setVistaVendedor('GESTOR_MENU'); }} onGestionarPedidos={(local) => { setLocalSeleccionado(local); setVistaVendedor('GESTOR_PEDIDOS'); }} />
           ) : (
             
-            mostrarCarrito ? (
-              <Carrito carrito={carrito} setCarrito={setCarrito} onVolver={() => setMostrarCarrito(false)} vaciarCarrito={() => setCarrito([])} idUsuario={userId} />
+            !ubicacionEntrega ? (
+              <SelectorUbicacion onConfirmar={ubicacion => { guardarUbicacionEntrega(userId, ubicacion); setUbicacionEntrega(ubicacion); }} />
+            ) : mostrarCarrito ? (
+              <Carrito carrito={carrito} setCarrito={setCarrito} onVolver={() => setMostrarCarrito(false)} vaciarCarrito={() => setCarrito([])} idUsuario={userId} ubicacionEntrega={ubicacionEntrega} onCambiarUbicacion={() => setMostrarSelectorUbicacion(true)} tipoEntregaInicial={modoEntrega} />
             ) : mostrarFavoritos ? (
-              <MisFavoritos idUsuario={userId} onVolver={() => setMostrarFavoritos(false)} onSelectRestaurante={(id) => { setRestauranteActivo(id); setMostrarFavoritos(false); }} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={setPlatoActivo} />
+              <MisFavoritos idUsuario={userId} ubicacionEntrega={ubicacionEntrega} modoEntrega={modoEntrega} onVolver={() => setMostrarFavoritos(false)} onSelectRestaurante={(id) => { setRestauranteActivo(id); setMostrarFavoritos(false); }} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={setPlatoActivo} />
             
             ) : restauranteActivo ? (
               <PerfilRestaurante idRestaurante={restauranteActivo} idUsuario={userId} onVolver={() => setRestauranteActivo(null)} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={setPlatoActivo} carrito={carrito} />
             ) : (
               <>
                 <h2 style={{ color: '#333' }}>¿Qué te apetece hoy? 🔍</h2>
-                <Buscador onSelectRestaurante={setRestauranteActivo} onSelectPlato={setPlatoActivo} />
+                <Buscador ubicacionEntrega={ubicacionEntrega} modoEntrega={modoEntrega} onSelectRestaurante={setRestauranteActivo} onSelectPlato={setPlatoActivo} />
 
                 <div className="ocultar-scrollbar" style={{ display: 'flex', gap: '15px', overflowX: 'auto', padding: '15px 0', marginTop: '10px' }}>
                   <style>{`.ocultar-scrollbar::-webkit-scrollbar { display: none; } .ocultar-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
@@ -337,10 +365,11 @@ function App() {
                   {categoriaFiltroInicio ? `Locales de ${categoriaFiltroInicio}` : '🏆 Los Mejores Restaurantes'}
                 </h2>
                 
-                {categoriaFiltroInicio && restaurantesFiltrados.length === 0 ? (
+                {!loading && !error && restaurantesFiltrados.length === 0 ? (
                   <div style={{ padding: '3rem', textAlign: 'center', background: '#fff', borderRadius: '12px' }}>
-                    <p style={{ fontSize: '1.2rem', color: '#666' }}>No hay restaurantes de <b>{categoriaFiltroInicio}</b> disponibles ahora mismo.</p>
-                    <button onClick={() => setCategoriaFiltroInicio(null)} style={{ marginTop: '10px', padding: '10px 20px', background: '#ff4500', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Ver todos</button>
+                    <p style={{ fontSize: '1.2rem', color: '#666' }}>{categoriaFiltroInicio ? `No hay locales de ${categoriaFiltroInicio} disponibles aquí.` : modoEntrega === 'DOMICILIO' ? 'Todavía no hay locales que entreguen en esta dirección.' : 'Todavía no hay locales para recoger a menos de 50 km.'}</p>
+                    {categoriaFiltroInicio && <button onClick={() => setCategoriaFiltroInicio(null)} className="ubicacion-boton" style={{ marginTop: '16px' }}>Ver todos</button>}
+                    <button onClick={() => setMostrarSelectorUbicacion(true)} className="ubicacion-cambiar" style={{ display: 'block', margin: '16px auto 0' }}>Cambiar ubicación</button>
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
@@ -373,7 +402,7 @@ function App() {
                 {!categoriaFiltroInicio && (
                   <>
                     <h2 style={{ color: '#333', marginTop: '3rem' }}>Descubre qué hay cerca de ti 📍</h2>
-                    <MapView onSelectRestaurante={setRestauranteActivo} />
+                    <MapView key={`${ubicacionEntrega.lat}-${ubicacionEntrega.lng}-${modoEntrega}`} ubicacion={ubicacionEntrega} soloConEntrega={modoEntrega === 'DOMICILIO'} onSelectRestaurante={setRestauranteActivo} />
                   </>
                 )}
 
@@ -384,6 +413,15 @@ function App() {
             )
           )}
         </main>
+
+        {mostrarSelectorUbicacion && userRol !== 'VENDEDOR' && <div className="ubicacion-modal" role="dialog" aria-modal="true" aria-labelledby="titulo-ubicacion">
+          <SelectorUbicacion ubicacion={ubicacionEntrega} onCancelar={() => setMostrarSelectorUbicacion(false)} onConfirmar={ubicacion => {
+            guardarUbicacionEntrega(userId, ubicacion);
+            setUbicacionEntrega(ubicacion);
+            setMostrarSelectorUbicacion(false);
+            if (!mostrarCarrito) handleInicio();
+          }} />
+        </div>}
 
         {platoActivo && (
           <DetallePlato 

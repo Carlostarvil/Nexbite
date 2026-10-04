@@ -12,8 +12,8 @@ const DefaultIcon = L.icon({ iconUrl, shadowUrl: iconShadow, iconSize: [25, 41],
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const OBTENER_CERCANOS = gql`
-  query ObtenerRestaurantesCercanos($lat: Float!, $lng: Float!, $radio: Float) {
-    obtenerRestaurantesCercanos(latitud: $lat, longitud: $lng, radio_km: $radio) {
+  query ObtenerRestaurantesCercanos($lat: Float!, $lng: Float!, $solo_con_entrega: Boolean!) {
+    obtenerRestaurantesCercanos(latitud: $lat, longitud: $lng, solo_con_entrega: $solo_con_entrega) {
       id_restaurante
       nombre
       tipo
@@ -41,29 +41,15 @@ function ControladorZoomMapa({ zoomActivo }) {
   return null;
 }
 
-export default function MapView({ onSelectRestaurante }) {
-  const [ubicacion, setUbicacion] = useState(null);
-  const [errorGPS, setErrorGPS] = useState('');
+export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega = true }) {
   const [zoomActivo, setZoomActivo] = useState(false);
 
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setErrorGPS('Tu navegador no soporta geolocalización.');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => setUbicacion({ lat: position.coords.latitude, lng: position.coords.longitude }),
-      () => setErrorGPS('Por favor, activa el GPS o da permisos de ubicación.')
-    );
-  }, []);
-
   const { loading, error, data } = useQuery(OBTENER_CERCANOS, {
-    variables: { lat: ubicacion?.lat, lng: ubicacion?.lng, radio: 50000.0 }, 
+    variables: { lat: ubicacion?.lat, lng: ubicacion?.lng, solo_con_entrega: soloConEntrega },
     skip: !ubicacion, 
   });
 
-  if (errorGPS) return <div style={{ padding: '2rem', color: 'red' }}>📍 {errorGPS}</div>;
-  if (!ubicacion) return <div style={{ padding: '2rem' }}>📍 Buscando tu ubicación exacta...</div>;
+  if (!ubicacion) return <div style={{ padding: '2rem' }}>Selecciona una ubicación para ver los locales.</div>;
 
   return (
     <div>
@@ -99,7 +85,7 @@ export default function MapView({ onSelectRestaurante }) {
         <div inert={!zoomActivo}>
           <MapContainer 
             center={[ubicacion.lat, ubicacion.lng]} 
-            zoom={3} 
+            zoom={13}
             zoomControl={false} 
             scrollWheelZoom={false} // Inicialmente apagado
             style={{ height: '400px', width: '100%' }}
@@ -111,7 +97,7 @@ export default function MapView({ onSelectRestaurante }) {
           
             <Marker position={[ubicacion.lat, ubicacion.lng]}>
               <Tooltip permanent direction="top" offset={[0, -35]} className="tooltip-ubicacion">
-                🏠 <b>Estás aquí</b>
+                📍 <b>Dirección seleccionada</b>
               </Tooltip>
             </Marker>
 
@@ -153,8 +139,10 @@ export default function MapView({ onSelectRestaurante }) {
         </div>
       </div>
       
-      <h3 style={{ color: '#333', marginTop: '2rem' }}>📍 Restaurantes ordenados por cercanía</h3>
+      <h3 style={{ color: '#333', marginTop: '2rem' }}>{soloConEntrega ? '📍 Locales que entregan aquí' : '📍 Locales cercanos para recoger'}</h3>
       {loading && <p>Calculando distancias espaciales...</p>}
+      {error && <p role="alert" style={{ color: '#b42318' }}>No se pudieron cargar los locales del mapa.</p>}
+      {!loading && !error && data?.obtenerRestaurantesCercanos?.length === 0 && <p>No hay locales disponibles en esta zona.</p>}
       
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
         {data?.obtenerRestaurantesCercanos?.map((rest) => (

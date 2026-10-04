@@ -3,14 +3,14 @@ import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 
 const OBTENER_FAVORITOS_GENERALES = gql`
-  query ObtenerFavoritosGenerales($id_usuario: ID!) {
-    obtenerFavoritos(id_usuario: $id_usuario) {
+  query ObtenerFavoritosGenerales($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
+    obtenerFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) {
       id_restaurante
       nombre
       tipo
       imagen_url
     }
-    obtenerPlatosFavoritos(id_usuario: $id_usuario) {
+    obtenerPlatosFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) {
       id_plato
       id_restaurante 
       nombre
@@ -37,11 +37,12 @@ const ALTERNAR_FAVORITO_PLATO = gql`
 `;
 
 // MODIFICADO: Añadido onSelectPlato a los parámetros
-export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver, onAgregarAlCarrito, onSelectPlato }) {
+export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver, onAgregarAlCarrito, onSelectPlato, ubicacionEntrega, modoEntrega }) {
   const [pestañaActiva, setPestañaActiva] = useState('RESTAURANTES'); 
 
   const { loading, error, data, refetch } = useQuery(OBTENER_FAVORITOS_GENERALES, {
-    variables: { id_usuario: idUsuario },
+    variables: { id_usuario: idUsuario, latitud: ubicacionEntrega?.lat, longitud: ubicacionEntrega?.lng, solo_con_entrega: modoEntrega === 'DOMICILIO' },
+    skip: !ubicacionEntrega,
     fetchPolicy: 'network-only' 
   });
 
@@ -103,8 +104,8 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
         <>
           {restaurantes.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem', background: '#fff', borderRadius: '12px' }}>
-              <h3>Aún no tienes restaurantes favoritos</h3>
-              <p style={{ color: '#666' }}>Explora los restaurantes y haz clic en el corazón para guardarlos aquí.</p>
+              <h3>No hay restaurantes favoritos disponibles aquí</h3>
+              <p style={{ color: '#666' }}>Tus favoritos siguen guardados. Puedes cambiar la ubicación o elegir recogida para ver otros locales.</p>
             </div>
           ) : (
             <div style={{ display: 'grid', gap: '1rem' }}>
@@ -154,7 +155,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
         <>
           {platos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem', background: '#fff', borderRadius: '12px' }}>
-              <h3>Aún no tienes platos favoritos</h3>
+              <h3>No hay platos favoritos disponibles aquí</h3>
               <p style={{ color: '#666' }}>Entra en los menús de los restaurantes y marca el 🤍 para guardar tus platos preferidos aquí.</p>
             </div>
           ) : (

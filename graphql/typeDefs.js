@@ -1,4 +1,5 @@
 export const typeDefs = `#graphql
+  type DireccionUbicacion { direccion: String!, lat: Float!, lng: Float! }
   type Tag { id_tag: ID!, nombre: String!, categoria: String! }
   type UsuarioAuth { id_usuario: ID!, nombre: String!, email: String!, rol: String!, puntos_acumulados: Int!, token: String! }
   type FranjaRecogida { dia: Int!, inicio: String!, fin: String! }
@@ -77,33 +78,35 @@ export const typeDefs = `#graphql
   }
 
   type Query {
+    buscarDirecciones(termino: String!): [DireccionUbicacion!]!
+    obtenerDireccionUbicacion(latitud: Float!, longitud: Float!): DireccionUbicacion
     obtenerTags: [Tag]
     obtenerRecomendaciones(id_usuario: ID!, limit: Int, offset: Int): [PlatoRecomendado]
     chatearConBot(mensaje: String!): String
     
-    obtenerFavoritos(id_usuario: ID!): [Restaurante]
-    obtenerPlatosFavoritos(id_usuario: ID!): [Plato] 
+    obtenerFavoritos(id_usuario: ID!, latitud: Float, longitud: Float, solo_con_entrega: Boolean, radio_km: Float): [Restaurante]
+    obtenerPlatosFavoritos(id_usuario: ID!, latitud: Float, longitud: Float, solo_con_entrega: Boolean, radio_km: Float): [Plato] 
 
-    obtenerRestaurantesCercanos(latitud: Float!, longitud: Float!, radio_km: Float): [RestauranteConDistancia]
+    obtenerRestaurantesCercanos(latitud: Float!, longitud: Float!, radio_km: Float, solo_con_entrega: Boolean): [RestauranteConDistancia]
     
-    buscarRestaurantes(termino: String!): [Restaurante]
-    buscarPlatos(termino: String!): [Plato] 
+    buscarRestaurantes(termino: String!, latitud: Float, longitud: Float, solo_con_entrega: Boolean, radio_km: Float): [Restaurante]
+    buscarPlatos(termino: String!, latitud: Float, longitud: Float, solo_con_entrega: Boolean, radio_km: Float): [Plato] 
     
     obtenerMisRestaurantes: [Restaurante]
     obtenerMiRestaurante: Restaurante
     obtenerPedidosVendedor(id_restaurante: ID!): [Pedido]
     
     obtenerPedidosCliente(id_usuario: ID!): [Pedido]
-    obtenerUltimosPedidos(id_usuario: ID!): [Pedido]
+    obtenerUltimosPedidos(id_usuario: ID!, latitud: Float, longitud: Float, solo_con_entrega: Boolean, radio_km: Float): [Pedido]
 
     obtenerRestaurantePorId(id_restaurante: ID!): Restaurante 
-    obtenerMejoresRestaurantes: [Restaurante]
+    obtenerMejoresRestaurantes(latitud: Float, longitud: Float, solo_con_entrega: Boolean, radio_km: Float): [Restaurante]
     obtenerMenuRestaurante(id_restaurante: ID!): [Plato]
     obtenerMasVendidos(id_restaurante: ID!): [Plato]
     obtenerPlatosPorCategoria(categoria: String!): [Plato]
     obtenerRestaurantesSimilares(id_restaurante: ID!): [Restaurante]
     obtenerPerfilUsuario(id_usuario: ID!): Usuario
-    obtenerPlatosDestacados: [Plato]
+    obtenerPlatosDestacados(latitud: Float, longitud: Float, solo_con_entrega: Boolean, radio_km: Float): [Plato]
   }
 
   type Mutation {

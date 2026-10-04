@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import { generarOpcionesRecogida, recogidaDisponible, validarFechaRecogida } from '../../shared/horariosRecogida.js';
+import { validarZonaEntrega } from '../../shared/zonaEntrega.js';
 
 // Importaciones de Stripe
 import { loadStripe } from '@stripe/stripe-js';
@@ -39,6 +40,7 @@ const OBTENER_ESTADO_RESTAURANTE = gql`
       direccion
       latitud
       longitud 
+      radio_cobertura_km
       horarios_recogida { dia inicio fin }
     }
   }
@@ -88,12 +90,12 @@ function TarjetaCarritoGrupo({ grupo, onSeleccionar, onEliminar }) {
   );
 }
 
-function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuario }) {
+function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuario, ubicacionEntrega, onCambiarUbicacion, tipoEntregaInicial = 'DOMICILIO' }) {
   const stripe = useStripe();
   const elements = useElements();
 
   const [idCartActivo, setIdCartActivo] = useState(null); 
-  const [tipoEntrega, setTipoEntrega] = useState('DOMICILIO');
+  const [tipoEntrega, setTipoEntrega] = useState(tipoEntregaInicial);
   
   // Cada carrito mantiene su selección; nunca se aplica la hora de otro restaurante.
   const [seleccionesRecogida, setSeleccionesRecogida] = useState({});
@@ -115,12 +117,11 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     return () => clearInterval(timer);
   }, []);
 
-  const [direccion, setDireccion] = useState('');
+  const direccion = ubicacionEntrega?.direccion || '';
   const [detallesDireccion, setDetallesDireccion] = useState('');
-  const [coordenadasEnvio, setCoordenadasEnvio] = useState(null);
+  const coordenadasEnvio = ubicacionEntrega;
   
   const [metodoPago, setMetodoPago] = useState('TARJETA');
-  const [obteniendoUbicacion, setObteniendoUbicacion] = useState(false);
 
   const [tarjetas, setTarjetas] = useState(() => {
     const guardadas = localStorage.getItem('nexbite_tarjetas');
@@ -183,10 +184,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const [crearIntencion] = useMutation(CREAR_INTENCION_PAGO);
   const [pedirAviso] = useMutation(SOLICITAR_AVISO);
 
-  const [sugerencias, setSugerencias] = useState([]);
-  const [buscando, setBuscando] = useState(false);
-  const seleccionManual = useRef(false); 
-
   const gruposObj = carrito.reduce((acc, plato) => {
     if (!acc[plato.id_restaurante]) acc[plato.id_restaurante] = { id_restaurante: plato.id_restaurante, platos: [], totalItems: 0 };
     acc[plato.id_restaurante].platos.push(plato);
@@ -220,6 +217,11 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const total = carritoEnUso.reduce((suma, plato) => suma + (plato.precio * (plato.cantidad || 1)), 0);
 
   const restauranteCerrado = restaurante ? !restaurante.aceptando_pedidos : false;
+  let errorZonaEntrega = '';
+  if (tipoEntrega === 'DOMICILIO' && restaurante && !cargandoRestaurante) {
+    try { validarZonaEntrega(restaurante, coordenadasEnvio?.lat, coordenadasEnvio?.lng); }
+    catch (error) { errorZonaEntrega = error.message; }
+  }
   const platosIndefinidos = carritoEnUso.filter(p => p.disponible === false && (!p.tiempo_disponible || p.tiempo_disponible.includes('Indefinido')));
   const platosTemporales = carritoEnUso.filter(p => p.disponible === false && p.tiempo_disponible && !p.tiempo_disponible.includes('Indefinido'));
 
@@ -232,49 +234,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         .catch(() => setDireccionRestaurante('Error al obtener la dirección'));
     } else setDireccionRestaurante('Ubicación del local no especificada');
   }, [restaurante]);
-
-  useEffect(() => {
-    if (seleccionManual.current || direccion.length < 4 || tipoEntrega === 'RECOGIDA') {
-      setSugerencias([]);
-      seleccionManual.current = false;
-      return;
-    }
-    const temporizador = setTimeout(async () => {
-      setBuscando(true);
-      try {
-        const respuesta = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(direccion)}&limit=5`);
-        setSugerencias(await respuesta.json());
-      } catch (error) {} finally { setBuscando(false); }
-    }, 800);
-    return () => clearTimeout(temporizador);
-  }, [direccion, tipoEntrega]);
-
-  const handleSeleccionarDireccion = (ubicacion) => {
-    seleccionManual.current = true; 
-    setDireccion(ubicacion.display_name);
-    setCoordenadasEnvio({ lat: parseFloat(ubicacion.lat), lng: parseFloat(ubicacion.lon) });
-    setSugerencias([]); 
-  };
-
-  const handleUsarMiUbicacion = () => {
-    if (!navigator.geolocation) return alert("⚠ Tu navegador no soporta geolocalización.");
-    setObteniendoUbicacion(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
-          const data = await res.json();
-          if (data && data.display_name) {
-            seleccionManual.current = true; 
-            setDireccion(data.display_name);
-            setCoordenadasEnvio({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          } else alert("❌ No pudimos traducir tu ubicación a una calle real.");
-        } catch (error) { alert("❌ Hubo un error de conexión al buscar tu calle."); } 
-        finally { setObteniendoUbicacion(false); }
-      },
-      () => { alert("⚠️ No pudimos obtener tu ubicación."); setObteniendoUbicacion(false); }
-    );
-  };
 
   const handlePedirAvisoRestaurante = async () => {
     await pedirAviso({ variables: { id_usuario: idUsuario, tipo: 'RESTAURANTE', id_referencia: idRestauranteCarrito } });
@@ -292,7 +251,16 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     
     if (tipoEntrega === 'DOMICILIO') {
       if (!direccion.trim()) return alert("Por favor ingresa la calle principal de envío.");
-      if (!coordenadasEnvio) return alert("⚠️ Por favor, selecciona tu calle de las sugerencias o pulsa 'Usar mi ubicación actual'.");
+      if (!coordenadasEnvio) return alert('Selecciona la dirección de entrega.');
+      setComprobandoHorario(true);
+      try {
+        const { data } = await refrescarRestaurante();
+        validarZonaEntrega(data?.obtenerRestaurantePorId, coordenadasEnvio.lat, coordenadasEnvio.lng);
+      } catch (error) {
+        return alert(error.message);
+      } finally {
+        setComprobandoHorario(false);
+      }
     }
 
     if (platosIndefinidos.length > 0) return alert("Debes eliminar los productos agotados antes de continuar.");
@@ -389,7 +357,8 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   }
 
   const recogidaBloqueada = tipoEntrega === 'RECOGIDA' && (cargandoRestaurante || errorRestaurante || !restaurante || (modoRecogida === 'AHORA' ? !recogidaAhoraDisponible : !opcionProgramada));
-  const bloqueado = procesandoPago || procesandoStripe || comprobandoHorario || recogidaBloqueada;
+  const entregaBloqueada = tipoEntrega === 'DOMICILIO' && (cargandoRestaurante || errorRestaurante || !restaurante || Boolean(errorZonaEntrega));
+  const bloqueado = procesandoPago || procesandoStripe || comprobandoHorario || recogidaBloqueada || entregaBloqueada;
   const urlMapaRestaurante = (restaurante?.latitud && restaurante?.longitud) ? `https://static-maps.yandex.ru/1.x/?ll=${restaurante.longitud},${restaurante.latitud}&size=600,150&z=16&l=map&pt=${restaurante.longitud},${restaurante.latitud},pm2rdm` : null;
 
   return (
@@ -464,22 +433,10 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             {tipoEntrega === 'DOMICILIO' ? (
               <div style={{ position: 'relative', marginTop: '10px', borderTop: '1px solid #ddd', paddingTop: '15px' }}>
                 <h3 style={{ margin: '0 0 15px 0' }}>Datos de Envío</h3>
-                <div style={{ marginBottom: '10px' }}>
-                  <button type="button" onClick={handleUsarMiUbicacion} disabled={obteniendoUbicacion} style={{ padding: '8px 15px', background: '#e0f7fa', color: '#00838f', border: '1px solid #b2ebf2', borderRadius: '20px', cursor: obteniendoUbicacion ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    {obteniendoUbicacion ? '⏳ Localizando...' : '📍 Usar mi ubicación actual'}
-                  </button>
-                </div>
-                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#555', marginBottom: '3px', display: 'block' }}>Calle, número y ciudad: *</label>
-                <input type="text" placeholder="Ej. Gran Vía 12, Madrid..." value={direccion} onChange={e => { setDireccion(e.target.value); setCoordenadasEnvio(null); }} style={{ padding: '0.8rem', borderRadius: '6px', border: '1px solid #ccc', width: '100%', boxSizing: 'border-box' }} />
-                
-                {buscando && <span style={{ fontSize: '12px', color: '#666', marginTop: '5px', display: 'block' }}>Buscando direcciones... 📍</span>}
+                <p style={{ marginBottom: '10px', color: '#333', overflowWrap: 'anywhere' }}>{direccion || 'Selecciona la dirección de entrega.'}</p>
+                <button type="button" onClick={onCambiarUbicacion} className="ubicacion-cambiar">Cambiar dirección de entrega</button>
+                {errorZonaEntrega && <p role="alert" style={{ color: '#b42318', marginTop: '12px' }}>{errorZonaEntrega}</p>}
 
-                {sugerencias.length > 0 && (
-                  <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '0 0 6px 6px', margin: 0, padding: 0, listStyle: 'none', zIndex: 10, maxHeight: '200px', overflowY: 'auto', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                    {sugerencias.map((sug) => <li key={sug.place_id} onClick={() => handleSeleccionarDireccion(sug)} style={{ padding: '10px', borderBottom: '1px solid #eee', cursor: 'pointer', fontSize: '14px' }}>{sug.display_name}</li>)}
-                  </ul>
-                )}
-                
                 <div style={{ marginTop: '10px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#555', marginBottom: '3px', display: 'block' }}>Piso, Puerta, Portal (Opcional):</label>
                   <input type="text" placeholder="Ej. Piso 3, Puerta B..." value={detallesDireccion} onChange={e => setDetallesDireccion(e.target.value)} style={{ padding: '0.8rem', borderRadius: '6px', border: '1px solid #ccc', width: '100%', boxSizing: 'border-box' }} />
@@ -574,7 +531,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             )}
 
             <button onClick={() => handlePagar(null)} disabled={bloqueado} style={{ padding: '1.2rem', background: '#28a745', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2rem', marginTop: '1rem' }}>
-              {bloqueado ? 'Procesando...' : `Pagar €${total.toFixed(2)}`}
+              {procesandoPago || procesandoStripe || comprobandoHorario ? 'Procesando...' : `Pagar €${total.toFixed(2)}`}
             </button>
           </div>
         </>

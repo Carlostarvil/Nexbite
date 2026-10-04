@@ -1,7 +1,7 @@
 // AÑADIDO: onAbrirPerfil en las propiedades
 export default function Header({ onInicio, onLogout, cantidadCarrito, onAbrirCarrito, userRol, onAbrirFavoritos, onAbrirPerfil }) {
   return (
-    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 2rem', backgroundColor: '#ff4500', color: 'white' }}>
+    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', padding: '1rem clamp(1rem, 4vw, 2rem)', backgroundColor: '#ff4500', color: 'white' }}>
       
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <h2 style={{ margin: 0, cursor: 'pointer' }} onClick={onInicio}>
@@ -9,7 +9,7 @@ export default function Header({ onInicio, onLogout, cantidadCarrito, onAbrirCar
         </h2>
       </div>
       
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         
         {userRol !== 'VENDEDOR' && (
           <>

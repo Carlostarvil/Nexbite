@@ -3,26 +3,26 @@ import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 
 const BUSCAR_RESTAURANTES = gql`
-  query BuscarRestaurantes($termino: String!) {
-    buscarRestaurantes(termino: $termino) { id_restaurante, nombre, tipo, imagen_url }
+  query BuscarRestaurantes($termino: String!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
+    buscarRestaurantes(termino: $termino, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url }
   }
 `;
 
 const BUSCAR_PLATOS = gql`
-  query BuscarPlatos($termino: String!) {
-    buscarPlatos(termino: $termino) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url }
+  query BuscarPlatos($termino: String!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
+    buscarPlatos(termino: $termino, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url }
   }
 `;
 
 // PROPÓSITO: Recibir onSelectPlato para poder abrir la página dedicada al plato
-export default function Buscador({ onSelectRestaurante, onSelectPlato }) {
+export default function Buscador({ onSelectRestaurante, onSelectPlato, ubicacionEntrega, modoEntrega }) {
   const [tipoBusqueda, setTipoBusqueda] = useState('RESTAURANTES'); 
   const [termino, setTermino] = useState('');
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
 
   const queryOptions = {
-    variables: { termino },
-    skip: termino.length < 2,
+    variables: { termino, latitud: ubicacionEntrega?.lat, longitud: ubicacionEntrega?.lng, solo_con_entrega: modoEntrega === 'DOMICILIO' },
+    skip: termino.length < 2 || !ubicacionEntrega,
     fetchPolicy: 'network-only' 
   };
 
@@ -30,8 +30,8 @@ export default function Buscador({ onSelectRestaurante, onSelectPlato }) {
   const { data: dataPlatos, loading: loadingPlatos } = useQuery(BUSCAR_PLATOS, { ...queryOptions, skip: queryOptions.skip || tipoBusqueda !== 'PLATOS' });
 
   const cargando = loadingRest || loadingPlatos;
-  const resultadosRestaurantes = dataRestaurantes?.buscarRestaurantes || [];
-  const resultadosPlatos = dataPlatos?.buscarPlatos || [];
+  const resultadosRestaurantes = (loadingRest ? [] : dataRestaurantes?.buscarRestaurantes) || [];
+  const resultadosPlatos = (loadingPlatos ? [] : dataPlatos?.buscarPlatos) || [];
   
   const hayResultados = tipoBusqueda === 'RESTAURANTES' ? resultadosRestaurantes.length > 0 : resultadosPlatos.length > 0;
 
