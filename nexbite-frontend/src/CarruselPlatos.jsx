@@ -73,9 +73,9 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
               
               {plato.nombre_restaurante && <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '12px' }}>De: {plato.nombre_restaurante}</p>}
               
-              <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
                 <span style={{ fontWeight: 'bold', color: '#0066cc', fontSize: '1.1rem' }}>€{plato.precio?.toFixed(2)}</span>
-                <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} nombrePlato={plato.nombre} />
+                <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} />
               </div>
             </div>
           </div>

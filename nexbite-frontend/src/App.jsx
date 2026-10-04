@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import Auth from './Auth'; 
@@ -17,6 +17,8 @@ import DetallePlato from './DetallePlato';
 import PerfilUsuario from './PerfilUsuario';
 import CarruselPlatos from './CarruselPlatos';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
+import AvisoCarrito from './AvisoCarrito';
+import { EstadoCarritoContext } from './estadoCarrito';
 import SelectorUbicacion from './SelectorUbicacion';
 import { leerUbicacionEntrega, guardarUbicacionEntrega } from './ubicacionEntrega';
 
@@ -92,6 +94,10 @@ function App() {
   
   const [carrito, setCarrito] = useState([]);
   const [mostrarCarrito, setMostrarCarrito] = useState(false);
+  const [avisoCarrito, setAvisoCarrito] = useState(null);
+  const [destinoCarrito, setDestinoCarrito] = useState({ irAPago: false, idRestaurante: null });
+  const numeroAviso = useRef(0);
+  const cerrarAvisoCarrito = useCallback(() => setAvisoCarrito(null), []);
   const [mostrarFavoritos, setMostrarFavoritos] = useState(false); 
 
   const [vistaVendedor, setVistaVendedor] = useState('MIS_LOCALES'); 
@@ -113,6 +119,19 @@ function App() {
         return [...prevCarrito, { ...plato, id_restaurante: idRestauranteDelPlato, cantidad: 1 }];
       }
     });
+    numeroAviso.current += 1;
+    setAvisoCarrito({ ...plato, id_restaurante: idRestauranteDelPlato, id: numeroAviso.current });
+  };
+
+  const abrirCarrito = (irAPago = false, idRestaurante = null) => {
+    setDestinoCarrito({ irAPago, idRestaurante });
+    setMostrarCarrito(true);
+    setMostrarFavoritos(false);
+    setMostrarPerfil(false);
+    setRestauranteActivo(null);
+    setPlatoActivo(null);
+    cerrarAvisoCarrito();
+    window.scrollTo(0, 0);
   };
 
   useEffect(() => {
@@ -152,7 +171,7 @@ function App() {
 
   const handleRecomprarRapido = (e, pedido) => {
     e.stopPropagation();
-    agregarAlCarrito({ id_plato: pedido.id_plato, id_restaurante: pedido.id_restaurante, nombre: pedido.nombre_plato, precio: pedido.precio_plato });
+    agregarAlCarrito({ id_plato: pedido.id_plato, id_restaurante: pedido.id_restaurante, nombre: pedido.nombre_plato, precio: pedido.precio_plato, imagen_url: pedido.imagen_plato });
   };
 
   const abrirDetalleDesdePedido = (pedido) => {
@@ -179,6 +198,7 @@ function App() {
   }
 
   const totalArticulos = carrito.reduce((acc, p) => acc + (p.cantidad || 1), 0);
+  const platoDelAviso = avisoCarrito && carrito.find(plato => String(plato.id_plato) === String(avisoCarrito.id_plato));
 
   const generarRecomendacionesGlobales = () => {
     if (!data?.obtenerPlatosDestacados) return [];
@@ -221,13 +241,14 @@ function App() {
   }) || [];
 
   return (
+    <EstadoCarritoContext.Provider value={carrito}>
     <ErrorBoundary>
       <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: '#f8f9fa', position: 'relative' }}>
         <div inert={mostrarSelectorUbicacion}>
         <Header 
           onInicio={handleInicio} onLogout={handleCerrarSesion} 
           cantidadCarrito={totalArticulos} 
-          onAbrirCarrito={() => { setMostrarCarrito(true); setMostrarFavoritos(false); setRestauranteActivo(null); setPlatoActivo(null); setMostrarPerfil(false); }} 
+          onAbrirCarrito={() => abrirCarrito()}
           onAbrirFavoritos={() => { setMostrarFavoritos(true); setMostrarCarrito(false); setRestauranteActivo(null); setPlatoActivo(null); setMostrarPerfil(false); }}
           onSelectRestaurante={(id) => { setRestauranteActivo(id); setMostrarCarrito(false); setMostrarFavoritos(false); setPlatoActivo(null); setMostrarPerfil(false); }} 
           onAbrirPerfil={() => { setMostrarPerfil(true); setMostrarCarrito(false); setMostrarFavoritos(false); setRestauranteActivo(null); setPlatoActivo(null); }}
@@ -257,7 +278,7 @@ function App() {
             !ubicacionEntrega ? (
               <SelectorUbicacion onConfirmar={ubicacion => { guardarUbicacionEntrega(userId, ubicacion); setUbicacionEntrega(ubicacion); }} />
             ) : mostrarCarrito ? (
-              <Carrito carrito={carrito} setCarrito={setCarrito} onVolver={() => setMostrarCarrito(false)} vaciarCarrito={() => setCarrito([])} idUsuario={userId} ubicacionEntrega={ubicacionEntrega} onCambiarUbicacion={() => setMostrarSelectorUbicacion(true)} tipoEntregaInicial={modoEntrega} />
+              <Carrito key={destinoCarrito.irAPago ? 'pago-' + destinoCarrito.idRestaurante : 'carrito'} carrito={carrito} setCarrito={setCarrito} onVolver={() => setMostrarCarrito(false)} vaciarCarrito={() => setCarrito([])} idUsuario={userId} ubicacionEntrega={ubicacionEntrega} onCambiarUbicacion={() => setMostrarSelectorUbicacion(true)} tipoEntregaInicial={modoEntrega} idRestauranteInicial={destinoCarrito.idRestaurante} irAPago={destinoCarrito.irAPago} />
             ) : mostrarFavoritos ? (
               <MisFavoritos idUsuario={userId} ubicacionEntrega={ubicacionEntrega} modoEntrega={modoEntrega} onVolver={() => setMostrarFavoritos(false)} onSelectRestaurante={(id) => { setRestauranteActivo(id); setMostrarFavoritos(false); }} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={setPlatoActivo} />
             
@@ -342,10 +363,10 @@ function App() {
                               </div>
                             </div>
                             
-                            <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
                               <span style={{ fontWeight: 'bold', color: '#0066cc' }}>€{pedido.precio_plato?.toFixed(2)}</span>
                               {puedeRecomprar ? (
-                                <BotonAgregarCarrito onAgregar={event => handleRecomprarRapido(event, pedido)} nombrePlato={pedido.nombre_plato} variante="repetir" />
+                                <BotonAgregarCarrito onAgregar={event => handleRecomprarRapido(event, pedido)} idPlato={pedido.id_plato} nombrePlato={pedido.nombre_plato} variante="repetir" />
                               ) : (
                                 <span style={{ fontSize: '11px', color: '#dc3545', fontWeight: 'bold' }}>No disponible</span>
                               )}
@@ -434,8 +455,14 @@ function App() {
             }}
           />
         )}
+        {platoDelAviso && <div inert={mostrarSelectorUbicacion}>
+          <AvisoCarrito aviso={{ ...platoDelAviso, ...avisoCarrito }} cantidad={platoDelAviso.cantidad || 1}
+            onCerrar={cerrarAvisoCarrito} onVerCarrito={() => abrirCarrito()}
+            onPagar={() => abrirCarrito(true, platoDelAviso.id_restaurante)} />
+        </div>}
       </div>
     </ErrorBoundary>
+    </EstadoCarritoContext.Provider>
   );
 }
 

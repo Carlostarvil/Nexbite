@@ -1,0 +1,38 @@
+.aviso-carrito {
+  position: fixed;
+  top: 84px;
+  right: 20px;
+  z-index: 4500;
+  width: min(380px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 20px;
+  border: 1px solid #e2e8e3;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 14px 48px rgb(25 44 31 / 20%);
+  overflow: hidden;
+  animation: aviso-carrito-entrada 230ms ease-out;
+}
+
+.aviso-carrito-cerrar { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: #f2f4f3; color: #526159; cursor: pointer; }
+.aviso-carrito-mensaje h3 { display: flex; align-items: center; gap: 8px; margin: 0 22px 16px 0; font-size: 15px; font-weight: 750; color: #146c3e; }
+.aviso-carrito-exito { display: grid; place-items: center; flex: 0 0 25px; height: 25px; border-radius: 50%; background: #ddf7e8; }
+.aviso-carrito-producto { display: flex; align-items: center; gap: 12px; }
+.aviso-carrito-producto > img, .aviso-carrito-imagen { flex: 0 0 56px; width: 56px; height: 56px; border-radius: 12px; object-fit: cover; background: #fff1e8; }
+.aviso-carrito-imagen { display: grid; place-items: center; color: #c33b0c; }
+.aviso-carrito-producto > div { min-width: 0; }
+.aviso-carrito-producto strong { display: block; color: #202b25; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.aviso-carrito-producto p { margin: 5px 0 0; color: #647169; font-size: 13px; }
+.aviso-carrito-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+.aviso-carrito-acciones button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 12px; border-radius: 10px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; }
+.aviso-carrito-ver { border: 1px solid #d6ded8; background: #f7faf8; color: #26392d; }
+.aviso-carrito-ver:hover { background: #ecf3ee; }
+.aviso-carrito-pagar { border: 1px solid transparent; background: #c73b08; color: #fff; }
+.aviso-carrito-pagar:hover { background: #ae3104; }
+.aviso-carrito button:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+.aviso-carrito-tiempo { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: #168047; transform-origin: left; animation: aviso-carrito-cuenta 5s linear forwards; }
+
+@keyframes aviso-carrito-entrada { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes aviso-carrito-cuenta { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (max-width: 600px) { .aviso-carrito { top: 16px; right: auto; left: max(16px, calc(100vw - 396px)); padding: 18px; } }
+@media (prefers-reduced-motion: reduce) { .aviso-carrito { animation: none; } .aviso-carrito-tiempo { display: none; } }

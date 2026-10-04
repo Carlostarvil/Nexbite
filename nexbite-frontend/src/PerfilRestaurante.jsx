@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonFavorito from './BotonFavorito'; 
 import CarruselPlatos from './CarruselPlatos';
+import BotonAgregarCarrito from './BotonAgregarCarrito';
 import IconoInfoRestaurante from './IconoInfoRestaurante';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 import './InfoRestauranteModal.css';
@@ -238,9 +239,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   const [mostrarInfoModal, setMostrarInfoModal] = useState(false); 
   const [categoriaActiva, setCategoriaActiva] = useState(null);
   
-  // NUEVO: Estado para rastrear qué botón se está animando
-  const [botonesAnimados, setBotonesAnimados] = useState({});
-
   const restaurante = data?.obtenerRestaurantePorId;
   const menuCompleto = data?.obtenerMenuRestaurante || [];
   const platosPopulares = data?.obtenerMasVendidos || []; 
@@ -274,20 +272,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
       if (eraFavorito) setFavoritosLocales(prev => [...prev, idStr]);
       else setFavoritosLocales(prev => prev.filter(id => id !== idStr));
     }
-  };
-
-  // NUEVA FUNCIÓN: Añadir al carrito con animación visual
-  const handleAgregarAnimado = (e, plato) => {
-    e.stopPropagation();
-    onAgregarAlCarrito(plato);
-    
-    // Activa la animación para este botón específico
-    setBotonesAnimados(prev => ({ ...prev, [plato.id_plato]: true }));
-    
-    // Devuelve el botón a su estado normal tras 1.5s
-    setTimeout(() => {
-      setBotonesAnimados(prev => ({ ...prev, [plato.id_plato]: false }));
-    }, 1500);
   };
 
   const generarRecomendaciones = () => {
@@ -416,14 +400,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
           .btn-categoria:hover { background-color: #f3f4f6; color: #111; }
           .btn-categoria.activa { background-color: #eeeeee; color: #000; font-weight: 700; }
           
-          /* Animación del botón */
-          @keyframes animacionExitoBoton {
-            0% { transform: scale(1); }
-            40% { transform: scale(1.1); }
-            60% { transform: scale(0.95); }
-            100% { transform: scale(1); }
-          }
-          
           @media (max-width: 768px) {
             .menu-layout { flex-direction: column; gap: 1rem; }
             .sidebar-categorias { position: relative; top: 0; width: 100%; flex-direction: row; overflow-x: auto; padding-bottom: 10px; }
@@ -543,8 +519,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                       const esPlatoFavorito = favoritosLocales.includes(String(plato.id_plato));
                       const { descLimpia, tagsTotales } = extraerTags(plato.descripcion, plato.categoria);
                       
-                      const isAdded = botonesAnimados[plato.id_plato]; // Saber si este botón concreto se ha pulsado
-                      
                       return (
                       <div 
                         key={plato.id_plato} 
@@ -576,42 +550,16 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                             <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>{descLimpia}</p>
                           </div>
                           
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', flexWrap: 'wrap', gap: '10px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', marginTop: '1rem', gap: '10px' }}>
                             <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#0066cc' }}>€{plato.precio.toFixed(2)}</span>
                             
                             {isPausado || plato.disponible === false ? (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
                                 <span style={{ color: '#d63031', fontWeight: 'bold', fontSize: '0.85rem' }}>{plato.disponible === false ? '❌ Agotado' : '🔴 Pausado'}</span>
-                                <button onClick={(e) => { e.stopPropagation(); onAgregarAlCarrito(plato); }} style={{ padding: '0.6rem 1.2rem', background: '#ffc107', color: '#000', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', width: '100%' }}>
-                                  🛒 Reserva
-                                </button>
+                                <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} variante="reserva" />
                               </div>
                             ) : (
-                              // BOTÓN AÑADIR CON ANIMACIÓN MODERNA
-                              <button 
-                                onClick={(e) => handleAgregarAnimado(e, plato)} 
-                                style={{ 
-                                  padding: isAdded ? '0.6rem 1rem' : '0.6rem 1.2rem', 
-                                  background: isAdded ? '#00cc66' : '#ff4500', 
-                                  color: 'white', 
-                                  border: 'none', 
-                                  borderRadius: '20px', 
-                                  cursor: 'pointer', 
-                                  fontWeight: 'bold',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                                  animation: isAdded ? 'animacionExitoBoton 0.4s ease' : 'none',
-                                  boxShadow: isAdded ? '0 4px 10px rgba(0, 204, 102, 0.4)' : 'none'
-                                }}
-                              >
-                                {isAdded ? (
-                                  <>✓ Añadido</>
-                                ) : (
-                                  <>+ Añadir</>
-                                )}
-                              </button>
+                              <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} />
                             )}
                           </div>
                         </div>

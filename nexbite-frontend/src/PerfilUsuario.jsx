@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
+import BotonAgregarCarrito from './BotonAgregarCarrito';
 
 const OBTENER_PERFIL = gql`
   query ObtenerPerfilUsuario($id_usuario: ID!) {
@@ -85,7 +86,7 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
 
   const handleRecomprar = (e, pedido) => {
     e.stopPropagation(); 
-    onAgregarAlCarrito({ id_plato: pedido.id_plato, id_restaurante: pedido.id_restaurante, nombre: pedido.nombre_plato, precio: pedido.precio_plato });
+    return onAgregarAlCarrito({ id_plato: pedido.id_plato, id_restaurante: pedido.id_restaurante, nombre: pedido.nombre_plato, precio: pedido.precio_plato });
   };
 
   const inputStyle = { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ccc', marginTop: '5px', boxSizing: 'border-box', fontSize: '1rem', outline: 'none' };
@@ -175,15 +176,10 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px', width: '200px', maxWidth: '100%' }}>
                     <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#ff4500' }}>€{pedido.precio_plato?.toFixed(2)}</span>
                     {puedeRecomprar ? (
-                      <button 
-                        onClick={(e) => handleRecomprar(e, pedido)}
-                        style={{ padding: '8px 16px', background: '#00cc66', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer' }}
-                      >
-                        🔄 Volver a pedir
-                      </button>
+                      <BotonAgregarCarrito onAgregar={event => handleRecomprar(event, pedido)} idPlato={pedido.id_plato} nombrePlato={pedido.nombre_plato} variante="repetir" />
                     ) : (
                       <span style={{ fontSize: '12px', color: '#dc3545', fontWeight: 'bold' }}>⛔ {motivoBloqueo}</span>
                     )}

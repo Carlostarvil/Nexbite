@@ -1,26 +1,51 @@
-.boton-agregar-carrito { position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 96px; padding: 7px 10px; border: 0; border-radius: 20px; background: #ff4500; color: #fff; font-family: inherit; font-size: 12px; line-height: 1.2; font-weight: 700; cursor: pointer; transition: background .18s ease, box-shadow .18s ease, transform .18s ease; }
-.boton-agregar-carrito:hover { background: #d83b00; }
-.boton-agregar-carrito:focus-visible { outline: 3px solid #0066cc; outline-offset: 3px; }
-.boton-agregar-carrito-repetir { background: #18864b; }
-.boton-agregar-carrito-repetir:hover { background: #126638; }
-.boton-agregar-carrito.esta-anadido { background: #168047; box-shadow: 0 3px 12px rgba(22, 128, 71, .3); transform: scale(1.04); }
-.boton-carrito-contenido { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
-.boton-carrito-contenido svg { flex-shrink: 0; }
-.esta-anadido .boton-carrito-contenido { animation: carrito-confirmacion .42s ease; }
-.boton-carrito-pulso { position: absolute; inset: -3px; border: 2px solid #54c889; border-radius: inherit; pointer-events: none; animation: carrito-pulso .65s ease-out forwards; }
+.boton-agregar-carrito {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #d4420b, #bf3200);
+  color: #fff;
+  box-shadow: 0 5px 12px rgb(212 66 11 / 22%);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  transition: background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.boton-agregar-carrito:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 7px 16px rgb(212 66 11 / 30%); }
+.boton-agregar-carrito:active:not(:disabled) { transform: scale(.97); }
+.boton-agregar-carrito:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 3px; }
+.boton-agregar-carrito:disabled { cursor: default; }
+.boton-agregar-carrito.esta-anadido { background: linear-gradient(135deg, #168047, #106739); box-shadow: 0 5px 12px rgb(22 128 71 / 24%); }
+.boton-agregar-carrito-reserva { background: linear-gradient(135deg, #ffe077, #ffc742); color: #533600; }
+.boton-agregar-carrito-detalle { min-height: 56px; font-size: 16px; padding: 10px 16px; }
+
+.boton-carrito-contenido { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; }
+.boton-carrito-icono { display: grid; place-items: center; flex: 0 0 28px; height: 28px; border-radius: 9px; background: rgb(255 255 255 / 16%); }
+.boton-carrito-etiqueta { white-space: nowrap; }
+.boton-carrito-cantidad { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 43px; padding: 3px 5px; border-radius: 8px; background: #fff; color: #a52d06; line-height: 1.1; }
+.boton-carrito-cantidad strong { font-size: 18px; }
+.boton-carrito-cantidad > span { margin-top: 2px; font-size: 8px; font-weight: 650; white-space: nowrap; }
+.esta-anadido .boton-carrito-cantidad { color: #106739; }
+.esta-anadido .boton-carrito-contenido { animation: carrito-confirmacion 420ms ease; }
+.boton-carrito-pulso { position: absolute; inset: -3px; z-index: -1; border: 2px solid #168047; border-radius: inherit; pointer-events: none; animation: carrito-pulso 650ms ease-out forwards; }
 .boton-carrito-estado { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
-@keyframes carrito-confirmacion {
-  0% { transform: scale(.9); }
-  45% { transform: scale(1.14); }
-  100% { transform: scale(1); }
-}
-@keyframes carrito-pulso {
-  0% { opacity: .85; transform: scale(.96); }
-  100% { opacity: 0; transform: scale(1.24); }
-}
+
+@keyframes carrito-confirmacion { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.09); } 70% { transform: scale(.97); } }
+@keyframes carrito-pulso { from { opacity: .7; transform: scale(.98); } to { opacity: 0; transform: scale(1.14); } }
+
 @media (prefers-reduced-motion: reduce) {
   .boton-agregar-carrito { transition: none; }
-  .boton-agregar-carrito.esta-anadido { transform: none; }
+  .boton-agregar-carrito:hover:not(:disabled), .boton-agregar-carrito:active:not(:disabled) { transform: none; }
   .esta-anadido .boton-carrito-contenido { animation: none; }
   .boton-carrito-pulso { display: none; }
 }

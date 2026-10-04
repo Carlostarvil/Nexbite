@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
+import BotonAgregarCarrito from './BotonAgregarCarrito';
 
 const OBTENER_FAVORITOS_GENERALES = gql`
   query ObtenerFavoritosGenerales($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
@@ -61,9 +62,10 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
 
   const handleAgregarAlCarrito = (plato) => {
     if (typeof onAgregarAlCarrito === 'function') {
-      onAgregarAlCarrito(plato);
+      return onAgregarAlCarrito(plato);
     } else {
       alert("⚠️ Error: La función del carrito no está conectada correctamente en App.jsx.");
+      return false;
     }
   };
 
@@ -191,7 +193,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
                       <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#0066cc' }}>€{plato.precio.toFixed(2)}</span>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
                       <button 
                         onClick={(e) => { e.stopPropagation(); onSelectRestaurante(plato.id_restaurante); }} // Detener propagación
                         style={{ padding: '0.8rem', background: '#f5f5f5', color: '#333', border: '1px solid #ddd', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', flex: 1 }}
@@ -199,12 +201,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
                         🏪 Ver local
                       </button>
                       
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleAgregarAlCarrito(plato); }} // Detener propagación
-                        style={{ padding: '0.8rem', background: '#ff4500', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', flex: 1 }}
-                      >
-                        🛒 Añadir
-                      </button>
+                      <BotonAgregarCarrito onAgregar={() => handleAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} />
                     </div>
 
                   </div>

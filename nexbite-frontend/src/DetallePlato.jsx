@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
+import BotonAgregarCarrito from './BotonAgregarCarrito';
 
 const OBTENER_NOMBRE_RESTAURANTE = gql`
   query ObtenerNombreRestaurante($id: ID!) {
@@ -40,26 +41,22 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
     skip: !plato.id_restaurante || !!plato.nombre_restaurante 
   });
 
-  // NUEVO: Estado para gestionar la animación de éxito al hacer click en el modal
   const [animandoExito, setAnimandoExito] = useState(false);
+  const cierrePendiente = useRef(null);
+  useEffect(() => () => clearTimeout(cierrePendiente.current), []);
 
   const nombreLocal = plato.nombre_restaurante || data?.obtenerRestaurantePorId?.nombre || "Cargando local...";
   
   const { descLimpia, tagsTotales } = extraerTags(plato.descripcion, plato.categoria);
 
   const handleAgregarClick = () => {
-    // 1. Previene clics dobles activando la animación
+    if (onAgregarAlCarrito(plato) === false) return false;
     setAnimandoExito(true);
-    // 2. Lo mete al carrito instantáneamente
-    onAgregarAlCarrito(plato);
-    // 3. Espera 900ms para mostrar la animación visual y luego cierra la ventana automáticamente
-    setTimeout(() => {
-      onVolver();
-    }, 900); 
+    cierrePendiente.current = setTimeout(onVolver, 900);
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '1rem' }} onClick={onVolver}>
+    <div className="detalle-plato-modal" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '1rem' }} onClick={onVolver}>
       
       <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
         
@@ -96,34 +93,7 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
             {descLimpia || "Un plato delicioso preparado con los mejores ingredientes."}
           </p>
           
-          {/* BOTÓN GRANDE CON ANIMACIÓN INTELIGENTE */}
-          <button 
-            onClick={handleAgregarClick} 
-            disabled={animandoExito}
-            style={{ 
-              width: '100%', 
-              padding: '1.2rem', 
-              background: animandoExito ? '#00cc66' : '#ff4500', // Cambia de naranja a verde
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '12px', 
-              fontSize: '1.2rem', 
-              fontWeight: 'bold', 
-              cursor: animandoExito ? 'default' : 'pointer',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-              transform: animandoExito ? 'scale(0.97)' : 'scale(1)', // Pequeño efecto de pulsación
-              boxShadow: animandoExito ? '0 4px 15px rgba(0, 204, 102, 0.4)' : '0 4px 10px rgba(255, 69, 0, 0.2)'
-            }}
-          >
-            {animandoExito ? (
-               <span>✓ ¡Añadido al carrito!</span>
-            ) : (
-               <span>Añadir al Carrito - €{plato.precio?.toFixed(2)}</span>
-            )}
-          </button>
+          <BotonAgregarCarrito onAgregar={handleAgregarClick} idPlato={plato.id_plato} nombrePlato={plato.nombre} variante="detalle" disabled={animandoExito} />
 
         </div>
       </div>

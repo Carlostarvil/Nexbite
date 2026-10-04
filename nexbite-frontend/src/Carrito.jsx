@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import { generarOpcionesRecogida, recogidaDisponible, validarFechaRecogida } from '../../shared/horariosRecogida.js';
@@ -90,11 +90,18 @@ function TarjetaCarritoGrupo({ grupo, onSeleccionar, onEliminar }) {
   );
 }
 
-function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuario, ubicacionEntrega, onCambiarUbicacion, tipoEntregaInicial = 'DOMICILIO' }) {
+function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuario, ubicacionEntrega, onCambiarUbicacion, tipoEntregaInicial = 'DOMICILIO', idRestauranteInicial = null, irAPago = false }) {
   const stripe = useStripe();
   const elements = useElements();
 
-  const [idCartActivo, setIdCartActivo] = useState(null); 
+  const [idCartActivo, setIdCartActivo] = useState(() => idRestauranteInicial == null ? null : carrito.find(plato => String(plato.id_restaurante) === String(idRestauranteInicial))?.id_restaurante ?? null);
+  const formularioPago = useRef(null);
+  useEffect(() => {
+    if (irAPago && idCartActivo && formularioPago.current) {
+      formularioPago.current.focus({ preventScroll: true });
+      formularioPago.current.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    }
+  }, [irAPago, idCartActivo]);
   const [tipoEntrega, setTipoEntrega] = useState(tipoEntregaInicial);
   
   // Cada carrito mantiene su selección; nunca se aplica la hora de otro restaurante.
@@ -414,7 +421,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             <span>€{total.toFixed(2)}</span>
           </div>
 
-          <div style={{ backgroundColor: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div ref={formularioPago} role="region" aria-label="Completar el pedido" tabIndex={-1} style={{ backgroundColor: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '1rem', scrollMarginTop: '90px' }}>
             
             <div style={{ marginBottom: '15px' }}>
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '10px', display: 'block' }}>Forma de entrega:</label>
