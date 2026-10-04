@@ -5,6 +5,7 @@ import { gql } from '@apollo/client/core/index.js';
 import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import TituloSeccion from './TituloSeccion';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -139,7 +140,7 @@ export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega
         </div>
       </div>
       
-      <h3 style={{ color: '#333', marginTop: '2rem' }}>{soloConEntrega ? '📍 Locales que entregan aquí' : '📍 Locales cercanos para recoger'}</h3>
+      <TituloSeccion titulo={soloConEntrega ? 'Locales que entregan aquí' : 'Locales cercanos para recoger'} nivel={3} compacto />
       {loading && <p>Calculando distancias espaciales...</p>}
       {error && <p role="alert" style={{ color: '#b42318' }}>No se pudieron cargar los locales del mapa.</p>}
       {!loading && !error && data?.obtenerRestaurantesCercanos?.length === 0 && <p>No hay locales disponibles en esta zona.</p>}

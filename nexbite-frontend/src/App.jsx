@@ -16,6 +16,7 @@ import Buscador from './Buscador';
 import DetallePlato from './DetallePlato'; 
 import PerfilUsuario from './PerfilUsuario';
 import CarruselPlatos from './CarruselPlatos';
+import TituloSeccion, { ControlesCarrusel } from './TituloSeccion';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import AvisoCarrito from './AvisoCarrito';
 import { EstadoCarritoContext } from './estadoCarrito';
@@ -294,7 +295,7 @@ function App() {
               <PerfilRestaurante idRestaurante={restauranteActivo} idUsuario={userId} onVolver={() => setRestauranteActivo(null)} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={setPlatoActivo} carrito={carrito} />
             ) : (
               <>
-                <h2 style={{ color: '#333' }}>¿Qué te apetece hoy? 🔍</h2>
+                <TituloSeccion titulo="¿Qué te apetece hoy?" descripcion="Encuentra tu próximo favorito entre los locales de tu zona." nivel={1} destacado />
                 <Buscador ubicacionEntrega={ubicacionEntrega} modoEntrega={modoEntrega} onSelectRestaurante={setRestauranteActivo} onSelectPlato={setPlatoActivo} />
 
                 <div className="ocultar-scrollbar" style={{ display: 'flex', gap: '15px', overflowX: 'auto', padding: '15px 0', marginTop: '10px' }}>
@@ -325,28 +326,24 @@ function App() {
 
                 {platosRecomendados.length > 0 && !categoriaFiltroInicio && (
                   <div style={{ marginTop: '2rem', padding: '1rem', background: 'linear-gradient(to right, #fff0eb, #ffe4cc)', borderRadius: '16px' }}>
-                    <CarruselPlatos titulo="✨ Elegido para ti" platos={platosRecomendados} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                    <CarruselPlatos titulo="Elegido para ti" descripcion="Platos recomendados según tus gustos." cabeceraInicio mostrarIcono={false} platos={platosRecomendados} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
                   </div>
                 )}
 
                 {!categoriaFiltroInicio && (
                   <div style={{ marginTop: '2rem' }}>
-                    <CarruselPlatos titulo="🔥 Platos Top" platos={data?.obtenerPlatosDestacados} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                    <CarruselPlatos titulo="Platos Top" descripcion="Descubre los platos destacados de tu zona." cabeceraInicio mostrarIcono={false} platos={data?.obtenerPlatosDestacados} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
                   </div>
                 )}
 
                 {data?.obtenerUltimosPedidos && data.obtenerUltimosPedidos.length > 0 && !categoriaFiltroInicio && (
                   <div style={{ marginTop: '1rem', marginBottom: '3rem', position: 'relative' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ff4500', paddingBottom: '10px', marginBottom: '1.5rem' }}>
-                      <h2 style={{ margin: 0, color: '#333' }}>🔄 ¿Repetimos?</h2>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                          <button onClick={() => scrollRepetimos(-300)} style={{ width: '35px', height: '35px', borderRadius: '50%', border: '1px solid #ccc', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>←</button>
-                          <button onClick={() => scrollRepetimos(300)} style={{ width: '35px', height: '35px', borderRadius: '50%', border: '1px solid #ccc', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>→</button>
-                        </div>
-                        <button onClick={() => setMostrarPerfil(true)} style={{ background: 'none', border: 'none', color: '#0066cc', cursor: 'pointer', fontWeight: 'bold' }}>Ver historial completo &rarr;</button>
-                      </div>
-                    </div>
+                    <TituloSeccion titulo="¿Repetimos?" descripcion="Vuelve a pedir lo que ya te gusta." acciones={
+                      <>
+                        <ControlesCarrusel titulo="¿Repetimos?" onAnterior={() => scrollRepetimos(-300)} onSiguiente={() => scrollRepetimos(300)} />
+                        <button type="button" onClick={() => setMostrarPerfil(true)} className="titulo-seccion-enlace">Ver historial completo <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></button>
+                      </>
+                    } />
                     
                     <div ref={repetimosRef} className="ocultar-scrollbar" style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px', scrollBehavior: 'smooth' }}>
                       {data.obtenerUltimosPedidos.map(pedido => {
@@ -386,9 +383,9 @@ function App() {
                   </div>
                 )}
 
-                <h2 style={{ color: '#333', marginTop: categoriaFiltroInicio ? '0' : '2rem' }}>
-                  {categoriaFiltroInicio ? `Locales de ${categoriaFiltroInicio}` : '🏆 Los Mejores Restaurantes'}
-                </h2>
+                <div style={{ marginTop: categoriaFiltroInicio ? '0' : '2rem' }}>
+                  <TituloSeccion titulo={categoriaFiltroInicio ? `Locales de ${categoriaFiltroInicio}` : 'Los Mejores Restaurantes'} descripcion="Locales disponibles para tu ubicación." />
+                </div>
                 
                 {!loading && !error && restaurantesFiltrados.length === 0 ? (
                   <div style={{ padding: '3rem', textAlign: 'center', background: '#fff', borderRadius: '12px' }}>
@@ -426,7 +423,9 @@ function App() {
 
                 {!categoriaFiltroInicio && (
                   <>
-                    <h2 style={{ color: '#333', marginTop: '3rem' }}>Descubre qué hay cerca de ti 📍</h2>
+                    <div style={{ marginTop: '3rem' }}>
+                      <TituloSeccion titulo="Descubre qué hay cerca de ti" descripcion="Explora el mapa y encuentra los locales de tu zona." />
+                    </div>
                     <MapView key={`${ubicacionEntrega.lat}-${ubicacionEntrega.lng}-${modoEntrega}`} ubicacion={ubicacionEntrega} soloConEntrega={modoEntrega === 'DOMICILIO'} onSelectRestaurante={setRestauranteActivo} />
                   </>
                 )}

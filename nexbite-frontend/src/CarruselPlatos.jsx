@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
+import TituloSeccion, { ControlesCarrusel } from './TituloSeccion';
 
-export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgregarAlCarrito, mostrarIcono = true }) {
+export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgregarAlCarrito, mostrarIcono = true, cabeceraInicio = false, descripcion }) {
   const scrollRef = useRef(null);
 
   // Paset a mangkontrol iti panag-scroll
@@ -23,6 +24,11 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
         `}
       </style>
       
+      {cabeceraInicio ? (
+        <TituloSeccion titulo={titulo} descripcion={descripcion} acciones={
+          <ControlesCarrusel titulo={titulo} onAnterior={() => scroll(-300)} onSiguiente={() => scroll(300)} />
+        } />
+      ) : (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ff4500', paddingBottom: '10px', marginBottom: '1.5rem' }}>
         <h2 style={{ color: '#333', margin: 0 }}>
           {mostrarIcono && '⭐ '}{titulo}
@@ -48,6 +54,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
           </button>
         </div>
       </div>
+      )}
       
       <div 
         ref={scrollRef}
