@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonFavorito from './BotonFavorito'; 
 import CarruselPlatos from './CarruselPlatos';
+import { coordenadasValidas } from '../../shared/zonaEntrega.js';
+import './InfoRestauranteModal.css';
 
 const OBTENER_DATOS = gql`
   query ObtenerDatosPerfil($id: ID!, $id_usuario: ID!) {
@@ -77,100 +79,135 @@ const formatearFecha = (fechaStr) => {
 const getSeccionId = (nombre) => `seccion-${nombre.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
 function InfoRestauranteModal({ restaurante, onClose }) {
-  const [direccionTexto, setDireccionTexto] = useState('Buscando dirección exacta...');
-  const [copiado, setCopiado] = useState(false);
+  const [direccionObtenida, setDireccionObtenida] = useState(null);
+  const [estadoCopia, setEstadoCopia] = useState('');
+  const [mapaFallido, setMapaFallido] = useState('');
+  const modal = useRef(null);
+  const botonCerrar = useRef(null);
+  const temporizadorCopia = useRef(null);
+  const latitud = restaurante?.latitud;
+  const longitud = restaurante?.longitud;
+  const direccionGuardada = restaurante?.direccion?.trim() || '';
+  const tieneCoordenadas = coordenadasValidas(latitud, longitud);
 
   useEffect(() => {
-    if (restaurante?.direccion) {
-      setDireccionTexto(restaurante.direccion);
-    } 
-    else if (restaurante?.latitud && restaurante?.longitud) {
-      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${restaurante.latitud}&lon=${restaurante.longitud}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.display_name) {
-            const partes = data.display_name.split(', ');
-            const direccionCorta = partes.slice(0, 3).join(', ');
-            setDireccionTexto(direccionCorta);
-          } else {
-            setDireccionTexto('Dirección no encontrada');
-          }
-        })
-        .catch(() => setDireccionTexto('Error al obtener la dirección'));
-    } else {
-      setDireccionTexto('Ubicación no especificada');
-    }
-  }, [restaurante]);
+    const focoAnterior = document.activeElement;
+    botonCerrar.current?.focus();
+    return () => {
+      clearTimeout(temporizadorCopia.current);
+      if (focoAnterior?.isConnected) focoAnterior.focus();
+    };
+  }, []);
 
-  const copiarAlPortapapeles = () => {
-    navigator.clipboard.writeText(direccionTexto);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
-  };
+  useEffect(() => {
+    if (direccionGuardada || !tieneCoordenadas) return;
+    const controlador = new AbortController();
+    fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + latitud + '&lon=' + longitud, { signal: controlador.signal })
+      .then(res => {
+        if (!res.ok) throw new Error('No se pudo obtener la dirección');
+        return res.json();
+      })
+      .then(data => {
+        if (data?.display_name) setDireccionObtenida({
+          latitud, longitud, texto: data.display_name.split(', ').slice(0, 3).join(', '),
+        });
+      })
+      .catch(() => {});
+    return () => controlador.abort();
+  }, [direccionGuardada, tieneCoordenadas, latitud, longitud]);
 
   if (!restaurante) return null;
 
-  let horario = "Cerrado temporalmente";
-  let colorHorario = "#d63031";
-
-  if (restaurante.aceptando_pedidos) {
-    horario = "Abierto ahora";
-    colorHorario = "#00cc66";
-  } else if (restaurante.tiempo_reactivacion) {
-    horario = `Vuelve a abrir: ${formatearFecha(restaurante.tiempo_reactivacion)}`;
-  }
-
-  const urlMapa = (restaurante.latitud && restaurante.longitud) 
-    ? `https://static-maps.yandex.ru/1.x/?ll=${restaurante.longitud},${restaurante.latitud}&size=400,200&z=16&l=map&pt=${restaurante.longitud},${restaurante.latitud},pm2rdm` 
+  const coordenadasTexto = tieneCoordenadas ? Number(latitud).toFixed(5) + ', ' + Number(longitud).toFixed(5) : '';
+  const direccionResuelta = direccionObtenida && direccionObtenida.latitud === latitud && direccionObtenida.longitud === longitud
+    ? direccionObtenida.texto : '';
+  const direccionTexto = direccionGuardada || direccionResuelta || coordenadasTexto || 'Ubicación no especificada';
+  const destino = tieneCoordenadas ? Number(latitud) + ',' + Number(longitud) : direccionGuardada;
+  const urlIndicaciones = destino ? 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(destino) : null;
+  const urlMapa = tieneCoordenadas
+    ? 'https://static-maps.yandex.ru/1.x/?ll=' + longitud + ',' + latitud + '&size=400,200&z=16&l=map&pt=' + longitud + ',' + latitud + ',pm2rdm'
     : null;
+  const abierto = Boolean(restaurante.aceptando_pedidos);
+  const horario = abierto ? 'Abierto ahora' : restaurante.tiempo_reactivacion
+    ? 'Vuelve a abrir: ' + formatearFecha(restaurante.tiempo_reactivacion) : 'Cerrado temporalmente';
+
+  const copiarAlPortapapeles = async () => {
+    clearTimeout(temporizadorCopia.current);
+    try {
+      await navigator.clipboard.writeText(direccionTexto);
+      setEstadoCopia('copiado');
+      temporizadorCopia.current = setTimeout(() => setEstadoCopia(''), 2000);
+    } catch {
+      setEstadoCopia('error');
+    }
+  };
+
+  const controlarTeclado = event => {
+    if (event.key === 'Escape') { event.preventDefault(); onClose(); }
+    if (event.key !== 'Tab') return;
+    const elementos = [...modal.current.querySelectorAll('button:not(:disabled), a[href]')];
+    const primero = elementos[0];
+    const ultimo = elementos.at(-1);
+    if (event.shiftKey && document.activeElement === primero) { event.preventDefault(); ultimo?.focus(); }
+    else if (!event.shiftKey && document.activeElement === ultimo) { event.preventDefault(); primero?.focus(); }
+  };
+
+  const vistaMapa = <>
+    {urlMapa && mapaFallido !== urlMapa
+      ? <img src={urlMapa} alt="Ubicación del restaurante en el mapa" onError={() => setMapaFallido(urlMapa)} />
+      : <div className="info-restaurante-mapa-alternativo"><span aria-hidden="true">📍</span><span>{destino ? 'Ubicación del local' : 'Ubicación no disponible'}</span></div>}
+    {urlIndicaciones && <span className="info-restaurante-mapa-etiqueta">Ver ubicación <span aria-hidden="true">↗</span></span>}
+  </>;
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: '1rem' }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: '15px', right: '15px', background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: '35px', height: '35px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', cursor: 'pointer', zIndex: 10, boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>
-          ❌
-        </button>
+    <div className="info-restaurante-fondo" onClick={onClose}>
+      <div ref={modal} id="informacion-restaurante" className="info-restaurante-modal" role="dialog" aria-modal="true" aria-labelledby="info-restaurante-titulo" onKeyDown={controlarTeclado} onClick={event => event.stopPropagation()}>
+        <button ref={botonCerrar} type="button" className="info-restaurante-cerrar" aria-label="Cerrar información del restaurante" onClick={onClose}>×</button>
+        {urlIndicaciones
+          ? <a className="info-restaurante-mapa" href={urlIndicaciones} target="_blank" rel="noopener noreferrer" aria-label={'Cómo llegar a ' + restaurante.nombre + ' en Google Maps'}>{vistaMapa}</a>
+          : <div className="info-restaurante-mapa">{vistaMapa}</div>}
 
-        {urlMapa ? (
-           <img src={urlMapa} alt="Ubicación en el mapa" style={{ width: '100%', height: '160px', objectFit: 'cover' }} />
-        ) : (
-           <div style={{ width: '100%', height: '160px', backgroundColor: '#e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6c757d' }}>Mapa no disponible</div>
-        )}
+        <div className="info-restaurante-contenido">
+          <h2 id="info-restaurante-titulo">{restaurante.nombre}</h2>
+          <p className="info-restaurante-tipo">{restaurante.tipo}</p>
 
-        <div style={{ padding: '2rem' }}>
-          <h2 style={{ margin: '0 0 5px 0', color: '#333', fontSize: '1.5rem' }}>{restaurante.nombre}</h2>
-          <p style={{ margin: '0 0 20px 0', color: '#666', fontSize: '1rem' }}>{restaurante.tipo}</p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-              <span style={{ fontSize: '1.2rem', marginTop: '2px' }}>📍</span>
-              <div style={{ flexGrow: 1 }}>
-                <p style={{ margin: 0, color: '#333', fontWeight: 'bold' }}>Dirección</p>
-                <p style={{ margin: '3px 0 8px 0', color: '#666', fontSize: '14px', lineHeight: '1.4' }}>{direccionTexto}</p>
-                <button onClick={copiarAlPortapapeles} style={{ background: copiado ? '#e8f5e9' : '#f5f5f5', color: copiado ? '#2e7d32' : '#333', border: '1px solid #ddd', padding: '5px 10px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}>
-                  {copiado ? '✅ Copiado' : '📋 Copiar dirección'}
-                </button>
+          <div className="info-restaurante-datos">
+            <div className="info-restaurante-fila">
+              <span className="info-restaurante-icono info-restaurante-icono-direccion" aria-hidden="true">📍</span>
+              <div className="info-restaurante-dato">
+                <h3>Dirección</h3>
+                {urlIndicaciones
+                  ? <a className="info-restaurante-direccion" href={urlIndicaciones} target="_blank" rel="noopener noreferrer" aria-label={'Abrir ubicación de ' + restaurante.nombre + ' en Google Maps'}>{direccionTexto} <span aria-hidden="true">↗</span></a>
+                  : <p>{direccionTexto}</p>}
+                {urlIndicaciones && <div className="info-restaurante-acciones">
+                  <a className="info-restaurante-llegar" href={urlIndicaciones} target="_blank" rel="noopener noreferrer"><span aria-hidden="true">🧭</span> Cómo llegar</a>
+                  <button type="button" className="info-restaurante-copiar" onClick={copiarAlPortapapeles}><span aria-hidden="true">{estadoCopia === 'copiado' ? '✅' : '📋'}</span> {estadoCopia === 'copiado' ? 'Copiado' : 'Copiar dirección'}</button>
+                </div>}
+                <span role="status" className="info-restaurante-copia-estado">{estadoCopia === 'copiado' ? 'Dirección copiada' : estadoCopia === 'error' ? 'No se pudo copiar. Selecciona la dirección para copiarla.' : ''}</span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-              <span style={{ fontSize: '1.2rem', marginTop: '2px' }}>📞</span>
-              <div>
-                <p style={{ margin: 0, color: '#333', fontWeight: 'bold' }}>Teléfono de contacto</p>
-                <p style={{ margin: '3px 0 0 0', color: '#0066cc', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>{restaurante.telefono || "Teléfono no disponible"}</p>
+
+            <div className="info-restaurante-fila">
+              <span className="info-restaurante-icono info-restaurante-icono-telefono" aria-hidden="true">📞</span>
+              <div className="info-restaurante-dato">
+                <h3>Teléfono de contacto</h3>
+                <p>{restaurante.telefono || 'Teléfono no disponible'}</p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-              <span style={{ fontSize: '1.2rem', marginTop: '2px' }}>🕒</span>
-              <div>
-                <p style={{ margin: 0, color: '#333', fontWeight: 'bold' }}>Horario de pedidos</p>
-                <p style={{ margin: '3px 0 0 0', color: colorHorario, fontSize: '14px', fontWeight: 'bold' }}>{horario}</p>
+
+            <div className="info-restaurante-fila">
+              <span className={'info-restaurante-icono ' + (abierto ? 'info-restaurante-icono-horario' : 'info-restaurante-icono-cerrado')} aria-hidden="true">🕒</span>
+              <div className="info-restaurante-dato">
+                <h3>Horario de pedidos</h3>
+                <p className={abierto ? 'info-restaurante-abierto' : 'info-restaurante-cerrado'}>{horario}</p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-              <span style={{ fontSize: '1.2rem', marginTop: '2px' }}>🛵</span>
-              <div>
-                <p style={{ margin: 0, color: '#333', fontWeight: 'bold' }}>Cobertura de entrega</p>
-                <p style={{ margin: '3px 0 0 0', color: '#666', fontSize: '14px' }}>Aprox. {restaurante.radio_cobertura_km ? `${restaurante.radio_cobertura_km} km` : 'No definida'}</p>
+
+            <div className="info-restaurante-fila">
+              <span className="info-restaurante-icono info-restaurante-icono-entrega" aria-hidden="true">🛵</span>
+              <div className="info-restaurante-dato">
+                <h3>Cobertura de entrega</h3>
+                <p>{restaurante.radio_cobertura_km ? 'Aprox. ' + restaurante.radio_cobertura_km + ' km' : 'No definida'}</p>
               </div>
             </div>
           </div>
@@ -420,12 +457,10 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-             <div onClick={() => setMostrarInfoModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8f9fa', padding: '10px 15px', borderRadius: '12px', cursor: 'pointer', border: '1px solid #eaeaea', transition: 'background 0.2s' }}>
-                <div style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #666', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontWeight: 'bold', fontSize: '12px' }}>i</div>
-                <div>
-                   <p style={{ margin: 0, color: '#333', fontWeight: 'bold', fontSize: '14px' }}>Información</p>
-                </div>
-             </div>
+             <button type="button" className="boton-info-restaurante" aria-haspopup="dialog" aria-expanded={mostrarInfoModal} onClick={() => setMostrarInfoModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8f9fa', padding: '10px 15px', borderRadius: '12px', cursor: 'pointer', border: '1px solid #eaeaea', transition: 'background 0.2s', fontFamily: 'inherit' }}>
+                <span aria-hidden="true" style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #666', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontWeight: 'bold', fontSize: '12px' }}>i</span>
+                <span style={{ color: '#333', fontWeight: 'bold', fontSize: '14px' }}>Información</span>
+             </button>
 
              {!isPausado ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#e8f5e9', color: '#2e7d32', padding: '10px 15px', borderRadius: '12px', fontWeight: 'bold', fontSize: '14px' }}>
