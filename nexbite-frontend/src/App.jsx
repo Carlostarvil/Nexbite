@@ -123,6 +123,14 @@ function App() {
     setAvisoCarrito({ ...plato, id_restaurante: idRestauranteDelPlato, id: numeroAviso.current });
   };
 
+  const restarDelCarrito = useCallback(idPlato => {
+    setCarrito(anterior => anterior.flatMap(plato => {
+      if (String(plato.id_plato) !== String(idPlato)) return [plato];
+      const cantidad = plato.cantidad || 1;
+      return cantidad > 1 ? [{ ...plato, cantidad: cantidad - 1 }] : [];
+    }));
+  }, []);
+
   const abrirCarrito = (irAPago = false, idRestaurante = null) => {
     setDestinoCarrito({ irAPago, idRestaurante });
     setMostrarCarrito(true);
@@ -241,7 +249,7 @@ function App() {
   }) || [];
 
   return (
-    <EstadoCarritoContext.Provider value={carrito}>
+    <EstadoCarritoContext.Provider value={{ carrito, restarDelCarrito }}>
     <ErrorBoundary>
       <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: '#f8f9fa', position: 'relative' }}>
         <div inert={mostrarSelectorUbicacion}>
