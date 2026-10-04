@@ -1,5 +1,6 @@
 import { useContext, useEffect, useId, useRef, useState } from 'react';
 import { EstadoCarritoContext } from './estadoCarrito';
+import IconoCarrito from './IconoCarrito';
 import './BotonAgregarCarrito.css';
 
 export default function BotonAgregarCarrito({ onAgregar, idPlato, nombrePlato, variante, disabled = false }) {
@@ -32,9 +33,7 @@ export default function BotonAgregarCarrito({ onAgregar, idPlato, nombrePlato, v
         {anadido && <span key={'pulso-' + pulsacion} className="boton-carrito-pulso" aria-hidden="true" />}
         <span key={pulsacion} className="boton-carrito-contenido">
           <span className="boton-carrito-icono" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" focusable="false">
-              {anadido ? <path d="m5 12 4 4 10-10" /> : <><path d="M3 3h2l2.3 11.5a2 2 0 0 0 2 1.5H18a2 2 0 0 0 2-1.6L21 7H6" /><circle cx="10" cy="20" r="1" /><circle cx="18" cy="20" r="1" /><path d="M14 8v5m-2.5-2.5h5" /></>}
-            </svg>
+            {anadido ? <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" focusable="false"><path d="m5 12 4 4 10-10" /></svg> : <IconoCarrito tamano={30} conMas />}
           </span>
           <span className="boton-carrito-etiqueta">{etiqueta}</span>
         </span>
