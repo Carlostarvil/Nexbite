@@ -32,9 +32,8 @@
 .boton-carrito-contenido { position: relative; display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; }
 .boton-carrito-icono { display: grid; place-items: center; flex: 0 0 34px; height: 34px; }
 .boton-carrito-etiqueta { white-space: nowrap; }
-.boton-carrito-cantidad { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 43px; padding: 3px 5px; border-radius: 8px; background: #fff; color: #a52d06; line-height: 1.1; }
+.boton-carrito-cantidad { position: relative; display: grid; place-items: center; min-width: 32px; min-height: 32px; box-sizing: border-box; padding: 0 6px; border-radius: 8px; background: #fff; color: #a52d06; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .boton-carrito-cantidad strong { font-size: 18px; }
-.boton-carrito-cantidad > span { margin-top: 2px; font-size: 8px; font-weight: 650; white-space: nowrap; }
 .esta-anadido .boton-carrito-cantidad { color: #106739; }
 .esta-anadido .boton-carrito-contenido { animation: carrito-confirmacion 420ms ease; }
 .boton-carrito-pulso { position: absolute; inset: -3px; z-index: -1; border: 2px solid #168047; border-radius: inherit; pointer-events: none; animation: carrito-pulso 650ms ease-out forwards; }

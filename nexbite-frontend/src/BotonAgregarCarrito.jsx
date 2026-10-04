@@ -37,7 +37,7 @@ export default function BotonAgregarCarrito({ onAgregar, idPlato, nombrePlato, v
           </span>
           <span className="boton-carrito-etiqueta">{etiqueta}</span>
         </span>
-        {cantidad > 0 && <span className="boton-carrito-cantidad" aria-hidden="true"><strong>{cantidad}</strong><span>en carrito</span></span>}
+        {cantidad > 0 && <span className="boton-carrito-cantidad" aria-hidden="true"><strong>{cantidad}</strong></span>}
       </button>
       <span id={descripcionId} className="boton-carrito-estado">{cantidad} {cantidad === 1 ? 'unidad' : 'unidades'} de {nombrePlato || 'este plato'} en el carrito.</span>
     </>
