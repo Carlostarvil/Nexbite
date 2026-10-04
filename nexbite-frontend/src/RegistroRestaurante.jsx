@@ -14,7 +14,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// AÑADIDOS teléfono y dirección a la mutación
 const REGISTRAR_NEGOCIO = gql`
   mutation RegistrarNegocio($nombre: String!, $tipo: String!, $latitud: Float, $longitud: Float, $imagen_url: String, $radio_cobertura_km: Float, $telefono: String, $direccion: String, $horarios_recogida: [FranjaRecogidaInput!]!) {
     registrarNegocio(nombre: $nombre, tipo: $tipo, latitud: $latitud, longitud: $longitud, imagen_url: $imagen_url, radio_cobertura_km: $radio_cobertura_km, telefono: $telefono, direccion: $direccion, horarios_recogida: $horarios_recogida) {
@@ -43,11 +42,26 @@ const ACTUALIZAR_NEGOCIO = gql`
   }
 `;
 
+const CATEGORIAS_DISPONIBLES = [
+  { id: 'Restaurante', emoji: '🍽️' },
+  { id: 'Supermercado', emoji: '🛒' },
+  { id: 'Farmacia', emoji: '💊' },
+  { id: 'Hamburguesas', emoji: '🍔' },
+  { id: 'Pizza', emoji: '🍕' },
+  { id: 'Desayuno', emoji: '☕' },
+  { id: 'Asiática', emoji: '🍣' },
+  { id: 'Sana', emoji: '🥗' },
+  { id: 'Americana', emoji: '🌭' },
+  { id: 'Postres', emoji: '🍰' },
+  { id: 'Sándwiches', emoji: '🥪' },
+  { id: 'Mexicana', emoji: '🌮' },
+  { id: 'Pollo', emoji: '🍗' }
+];
+
 function CapturadorUbicacion({ posicion, setPosicion }) {
   useMapEvents({
     click(e) { setPosicion({ lat: e.latlng.lat, lng: e.latlng.lng }); },
   });
-
   return posicion ? <Marker position={[posicion.lat, posicion.lng]} /> : null;
 }
 
@@ -65,9 +79,18 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
     ? { lat: restaurante.latitud, lng: restaurante.longitud } : null;
   const radioInicial = restaurante?.radio_cobertura_km ?? 10;
   const radioPredefinido = [3, 5, 10, 20].includes(radioInicial);
+  
+  const normalizarTipoInicial = (tipo) => {
+    if (!tipo) return 'Restaurante';
+    if (tipo === 'RESTAURANTE') return 'Restaurante';
+    if (tipo === 'SUPERMERCADO') return 'Supermercado';
+    if (tipo === 'FARMACIA') return 'Farmacia';
+    return tipo;
+  };
+
   const [formData, setFormData] = useState(() => ({
     nombre: restaurante?.nombre ?? '',
-    tipo: restaurante?.tipo ?? 'RESTAURANTE',
+    tipo: normalizarTipoInicial(restaurante?.tipo),
     imagen_url: restaurante?.imagen_url ?? '',
     telefono: restaurante?.telefono ?? '',
     direccion: restaurante?.direccion ?? '',
@@ -75,6 +98,7 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
 
   const [radioSeleccion, setRadioSeleccion] = useState(radioPredefinido ? String(radioInicial) : 'otro');
   const [configurarHorarios, setConfigurarHorarios] = useState(!esEdicion || restaurante.horarios_recogida != null);
+  
   const [horariosRecogida, setHorariosRecogida] = useState(() =>
     DIAS_RECOGIDA.map((_, dia) => {
       const franjas = restaurante?.horarios_recogida?.filter(franja => franja.dia === dia)
@@ -85,9 +109,11 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
       };
     })
   );
+
   const actualizarDia = (dia, actualizar) => setHorariosRecogida(anterior =>
     anterior.map((horario, indice) => indice === dia ? actualizar(horario) : horario)
   );
+  
   const [radioPersonalizado, setRadioPersonalizado] = useState(radioPredefinido ? '' : String(radioInicial));
 
   const [posicion, setPosicion] = useState(ubicacionInicial);
@@ -156,20 +182,37 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
     setPosicion({ lat, lng });
     setCentroMapa([lat, lng]); 
     setBusqueda(lugar.display_name); 
-    setFormData(prev => ({ ...prev, direccion: lugar.display_name })); // Autocompletar dirección con la búsqueda
+    setFormData(prev => ({ ...prev, direccion: lugar.display_name })); 
     setSugerencias([]); 
   };
 
   const handleChangeBuscador = (e) => {
     seleccionAutomatica.current = false; 
     setBusqueda(e.target.value);
-    setFormData(prev => ({ ...prev, direccion: e.target.value })); // Mantener sincronizada la dirección escrita a mano
+    setFormData(prev => ({ ...prev, direccion: e.target.value })); 
+  };
+
+  const toggleCategoria = (catId) => {
+    const seleccionados = formData.tipo ? formData.tipo.split(',').map(t => t.trim()) : [];
+    let nuevosSeleccionados;
+    
+    if (seleccionados.includes(catId)) {
+      nuevosSeleccionados = seleccionados.filter(t => t !== catId);
+    } else {
+      nuevosSeleccionados = [...seleccionados, catId];
+    }
+    
+    setFormData({ ...formData, tipo: nuevosSeleccionados.join(', ') });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading) return;
     setErrorFormulario('');
+
+    if (!formData.tipo || formData.tipo.trim() === '') {
+      return alert('⚠️ Selecciona al menos una categoría para tu local.');
+    }
 
     if (!formData.imagen_url) {
       return alert('⚠️ Es obligatorio subir una imagen de portada para tu negocio.');
@@ -188,6 +231,7 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
       const horarios = configurarHorarios ? validarHorariosRecogida(horariosRecogida.flatMap((horario, dia) =>
         horario.activo ? horario.franjas.map(franja => ({ dia, ...franja })) : []
       )) : null;
+      
       const variables = {
         ...formData,
         radio_cobertura_km: radioFinal,
@@ -195,6 +239,7 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
         latitud: posicion.lat,
         longitud: posicion.lng,
       };
+      
       if (esEdicion) {
         const resultado = await actualizar({ variables: { ...variables, id_restaurante: restaurante.id_restaurante } });
         onGuardado?.(resultado.data.actualizarNegocio);
@@ -209,13 +254,14 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
   };
 
   const inputStyle = { padding: '12px', borderRadius: '6px', border: '1px solid #ccc', outline: 'none', fontSize: '1rem', width: '100%', boxSizing: 'border-box' };
+  const tiposActuales = formData.tipo ? formData.tipo.split(',').map(t => t.trim()) : [];
 
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto', background: '#fff', padding: '2rem', borderRadius: '12px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
       <h2 style={{ textAlign: 'center', color: '#ff4500', marginTop: 0 }}>{esEdicion ? '✏️ Editar local' : '🏪 Abre tu Negocio en NexBite'}</h2>
       {errorFormulario && <p role="alert" style={{ padding: '12px', background: '#fdecea', color: '#b71c1c', borderRadius: '6px' }}>{errorFormulario}</p>}
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
         <div>
           <label style={{ fontWeight: 'bold', color: '#555', fontSize: '14px', display: 'block', marginBottom: '5px' }}>Nombre de tu local</label>
@@ -223,63 +269,98 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
         </div>
 
         <div>
-          <label style={{ fontWeight: 'bold', color: '#555', fontSize: '14px', display: 'block', marginBottom: '5px' }}>Tipo de negocio</label>
-          <select value={formData.tipo} onChange={(e) => setFormData({...formData, tipo: e.target.value})} style={inputStyle}>
-            <option value="RESTAURANTE">Restaurante 🍔</option>
-            <option value="SUPERMERCADO">Supermercado 🛒</option>
-            <option value="FARMACIA">Farmacia 💊</option>
-          </select>
+          <label style={{ fontWeight: 'bold', color: '#555', fontSize: '14px', display: 'block', marginBottom: '8px' }}>Categorías del negocio (Elige varias)</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {CATEGORIAS_DISPONIBLES.map(cat => {
+              const isSelected = tiposActuales.includes(cat.id);
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => toggleCategoria(cat.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '20px', cursor: 'pointer',
+                    fontSize: '14px', fontWeight: isSelected ? 'bold' : 'normal',
+                    border: isSelected ? '1px solid #ff4500' : '1px solid #ddd',
+                    backgroundColor: isSelected ? '#fff0eb' : '#fff',
+                    color: isSelected ? '#ff4500' : '#444',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <span>{cat.emoji}</span> {cat.id}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <fieldset style={{ margin: 0, padding: '15px', border: '1px solid #e5e5e5', borderRadius: '8px', minWidth: 0 }}>
           <legend style={{ fontWeight: 'bold', color: '#555' }}>Horarios de recogida</legend>
-          {esEdicion && restaurante.horarios_recogida == null && <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#555', marginBottom: '12px' }}>
-            <input type="checkbox" checked={configurarHorarios} onChange={e => setConfigurarHorarios(e.target.checked)} />
-            Configurar horarios de recogida
-          </label>}
-          {!configurarHorarios && <p style={{ fontSize: '13px', color: '#666' }}>Este local aún no tiene horarios de recogida definidos. Puedes configurarlos al editarlo.</p>}
-          {configurarHorarios && <>
-          <p style={{ margin: '0 0 15px', fontSize: '13px', color: '#666' }}>
-            Selecciona los días y las horas en que los clientes pueden recoger sus pedidos (hora peninsular).
-            Puedes añadir varias franjas para separar comida y cena. Si la hora de cierre es anterior a la de apertura, termina al día siguiente.
-          </p>
-          {horariosRecogida.map((horario, dia) => (
-            <div key={dia} style={{ padding: '10px 0', borderTop: dia ? '1px solid #eee' : 'none' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#444', marginBottom: '8px' }}>
-                <input type="checkbox" checked={horario.activo} onChange={e => actualizarDia(dia, h => ({ ...h, activo: e.target.checked }))} />
-                {DIAS_RECOGIDA[dia]}
-                {!horario.activo && <span style={{ fontWeight: 'normal', color: '#888', fontSize: '13px' }}>Sin recogida</span>}
-              </label>
-              {horario.activo && <>
-                {horario.franjas.map((franja, indice) => (
-                  <div key={indice} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                    <label style={{ flex: '1 1 130px', fontSize: '13px', color: '#555' }}>
-                      Desde
-                      <input type="time" required aria-label={`${DIAS_RECOGIDA[dia]}, inicio de franja ${indice + 1}`} value={franja.inicio}
-                        onChange={e => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.map((f, i) => i === indice ? { ...f, inicio: e.target.value } : f) }))}
-                        style={{ ...inputStyle, marginTop: '4px' }} />
-                    </label>
-                    <label style={{ flex: '1 1 130px', fontSize: '13px', color: '#555' }}>
-                      Hasta
-                      <input type="time" required aria-label={`${DIAS_RECOGIDA[dia]}, fin de franja ${indice + 1}`} value={franja.fin}
-                        onChange={e => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.map((f, i) => i === indice ? { ...f, fin: e.target.value } : f) }))}
-                        style={{ ...inputStyle, marginTop: '4px' }} />
-                    </label>
-                    {horario.franjas.length > 1 && <button type="button" aria-label={`Eliminar franja ${indice + 1} del ${DIAS_RECOGIDA[dia]}`}
-                      onClick={() => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.filter((_, i) => i !== indice) }))}
-                      style={{ background: '#fff', border: '1px solid #ddd', padding: '10px', borderRadius: '6px', cursor: 'pointer', color: '#c0392b' }}>Eliminar</button>}
-                  </div>
-                ))}
-                <button type="button" disabled={horario.franjas.length >= 4}
-                  onClick={() => actualizarDia(dia, h => ({ ...h, franjas: [...h.franjas, { inicio: '', fin: '' }] }))}
-                  style={{ border: 'none', background: 'none', color: '#0066cc', padding: '4px 0', cursor: 'pointer', fontWeight: 'bold' }}>+ Añadir franja</button>
-              </>}
-            </div>
-          ))}
-          </>}
+          
+          {esEdicion && restaurante.horarios_recogida == null && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#555', marginBottom: '12px' }}>
+              <input type="checkbox" checked={configurarHorarios} onChange={e => setConfigurarHorarios(e.target.checked)} />
+              Configurar horarios de recogida
+            </label>
+          )}
+          
+          {!configurarHorarios && (
+            <p style={{ fontSize: '13px', color: '#666' }}>Este local aún no tiene horarios de recogida definidos. Puedes configurarlos al editarlo.</p>
+          )}
+
+          {configurarHorarios && (
+            <>
+              <p style={{ margin: '0 0 15px', fontSize: '13px', color: '#666' }}>
+                Selecciona los días y las horas en que los clientes pueden recoger sus pedidos (hora peninsular).
+                Puedes añadir varias franjas para separar comida y cena. Si la hora de cierre es anterior a la de apertura, termina al día siguiente.
+              </p>
+              
+              {horariosRecogida.map((horario, dia) => (
+                <div key={dia} style={{ padding: '10px 0', borderTop: dia ? '1px solid #eee' : 'none' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#444', marginBottom: '8px' }}>
+                    <input type="checkbox" checked={horario.activo} onChange={e => actualizarDia(dia, h => ({ ...h, activo: e.target.checked }))} />
+                    {DIAS_RECOGIDA[dia]}
+                    {!horario.activo && <span style={{ fontWeight: 'normal', color: '#888', fontSize: '13px' }}>Sin recogida</span>}
+                  </label>
+                  
+                  {horario.activo && (
+                    <>
+                      {horario.franjas.map((franja, indice) => (
+                        <div key={indice} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                          <label style={{ flex: '1 1 130px', fontSize: '13px', color: '#555' }}>
+                            Desde
+                            <input type="time" required aria-label={`${DIAS_RECOGIDA[dia]}, inicio de franja ${indice + 1}`} value={franja.inicio}
+                              onChange={e => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.map((f, i) => i === indice ? { ...f, inicio: e.target.value } : f) }))}
+                              style={{ ...inputStyle, marginTop: '4px' }} />
+                          </label>
+                          <label style={{ flex: '1 1 130px', fontSize: '13px', color: '#555' }}>
+                            Hasta
+                            <input type="time" required aria-label={`${DIAS_RECOGIDA[dia]}, fin de franja ${indice + 1}`} value={franja.fin}
+                              onChange={e => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.map((f, i) => i === indice ? { ...f, fin: e.target.value } : f) }))}
+                              style={{ ...inputStyle, marginTop: '4px' }} />
+                          </label>
+                          {horario.franjas.length > 1 && (
+                            <button type="button" aria-label={`Eliminar franja ${indice + 1} del ${DIAS_RECOGIDA[dia]}`}
+                              onClick={() => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.filter((_, i) => i !== indice) }))}
+                              style={{ background: '#fff', border: '1px solid #ddd', padding: '10px', borderRadius: '6px', cursor: 'pointer', color: '#c0392b' }}>
+                              Eliminar
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button type="button" disabled={horario.franjas.length >= 4}
+                        onClick={() => actualizarDia(dia, h => ({ ...h, franjas: [...h.franjas, { inicio: '', fin: '' }] }))}
+                        style={{ border: 'none', background: 'none', color: '#0066cc', padding: '4px 0', cursor: 'pointer', fontWeight: 'bold' }}>
+                        + Añadir franja
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
         </fieldset>
 
-        {/* NUEVOS CAMPOS: TELÉFONO Y DIRECCIÓN */}
         <div>
           <label style={{ fontWeight: 'bold', color: '#555', fontSize: '14px', display: 'block', marginBottom: '5px' }}>Teléfono de contacto</label>
           <input type="tel" placeholder="Ej: +34 600 123 456" required value={formData.telefono} onChange={(e) => setFormData({...formData, telefono: e.target.value})} style={inputStyle} />
