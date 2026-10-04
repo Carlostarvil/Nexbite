@@ -231,20 +231,15 @@ function App() {
           onSelectRestaurante={(id) => { setRestauranteActivo(id); setMostrarCarrito(false); setMostrarFavoritos(false); setPlatoActivo(null); setMostrarPerfil(false); }} 
           onAbrirPerfil={() => { setMostrarPerfil(true); setMostrarCarrito(false); setMostrarFavoritos(false); setRestauranteActivo(null); setPlatoActivo(null); }}
           userRol={userRol}
+          ubicacionEntrega={ubicacionEntrega}
+          modoEntrega={modoEntrega}
+          onCambiarUbicacion={() => {
+            if (ubicacionEntrega) setMostrarSelectorUbicacion(true);
+            else { handleInicio(); document.getElementById('direccion-entrega')?.focus(); }
+          }}
+          onCambiarModoEntrega={modo => { setModoEntrega(modo); handleInicio(); }}
         />
         </div>
-
-        {userRol !== 'VENDEDOR' && ubicacionEntrega && <div className="ubicacion-barra" inert={mostrarSelectorUbicacion}>
-          <div className="ubicacion-direccion">
-            <strong>📍 {modoEntrega === 'DOMICILIO' ? 'Entregar en' : 'Buscar cerca de'}</strong>
-            <p>{ubicacionEntrega.direccion}</p>
-            <button type="button" className="ubicacion-cambiar" onClick={() => setMostrarSelectorUbicacion(true)}>Cambiar ubicación</button>
-          </div>
-          <div className="ubicacion-modos" aria-label="Tipo de pedido">
-            <button type="button" aria-pressed={modoEntrega === 'DOMICILIO'} onClick={() => { setModoEntrega('DOMICILIO'); handleInicio(); }}>A domicilio</button>
-            <button type="button" aria-pressed={modoEntrega === 'RECOGIDA'} onClick={() => { setModoEntrega('RECOGIDA'); handleInicio(); }}>Recogida</button>
-          </div>
-        </div>}
 
         <main inert={mostrarSelectorUbicacion} style={{ padding: 'clamp(1rem, 4vw, 2rem)', maxWidth: '1200px', margin: '0 auto' }}>
           

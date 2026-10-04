@@ -1,46 +1,32 @@
-// AÑADIDO: onAbrirPerfil en las propiedades
-export default function Header({ onInicio, onLogout, cantidadCarrito, onAbrirCarrito, userRol, onAbrirFavoritos, onAbrirPerfil }) {
+import './Header.css';
+
+export default function Header({ onInicio, onLogout, cantidadCarrito, onAbrirCarrito, userRol, onAbrirFavoritos, onAbrirPerfil, ubicacionEntrega, modoEntrega = 'DOMICILIO', onCambiarUbicacion, onCambiarModoEntrega }) {
+  const esCliente = userRol !== 'VENDEDOR';
+
   return (
-    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', padding: '1rem clamp(1rem, 4vw, 2rem)', backgroundColor: '#ff4500', color: 'white' }}>
-      
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <h2 style={{ margin: 0, cursor: 'pointer' }} onClick={onInicio}>
-          NexBite
-        </h2>
-      </div>
-      
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        
-        {userRol !== 'VENDEDOR' && (
-          <>
-            <button onClick={onAbrirFavoritos} style={btnStyle}>❤️ Favoritos</button>
-            <button onClick={onAbrirCarrito} style={btnStyle}>
-              🛒 Carrito ({cantidadCarrito})
-            </button>
-          </>
-        )}
-        
-        {/* NUEVO: Botón de Mi Perfil para todos los usuarios */}
-        <button onClick={onAbrirPerfil} style={{ ...btnStyle, backgroundColor: '#0066cc' }}>
-          👤 Mi Perfil
-        </button>
+    <header className={`nexbite-header${esCliente ? '' : ' nexbite-header-vendedor'}`}>
+      <button type="button" className="header-marca" onClick={onInicio}>NexBite</button>
 
-        <button onClick={onLogout} style={{ ...btnStyle, backgroundColor: '#d63031' }}>
-          Cerrar Sesión
+      {esCliente && <div className="header-entrega">
+        <div className="header-modos" role="group" aria-label="Tipo de pedido">
+          <button type="button" aria-pressed={modoEntrega === 'DOMICILIO'} onClick={() => onCambiarModoEntrega('DOMICILIO')}>A domicilio</button>
+          <button type="button" aria-pressed={modoEntrega === 'RECOGIDA'} onClick={() => onCambiarModoEntrega('RECOGIDA')}>Recogida</button>
+        </div>
+        <button type="button" className="header-ubicacion" aria-label="Cambiar ubicación" aria-describedby="direccion-header" aria-haspopup={ubicacionEntrega ? 'dialog' : undefined} title={ubicacionEntrega?.direccion || 'Seleccionar ubicación'} onClick={onCambiarUbicacion}>
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></svg>
+          <span id="direccion-header" className="header-direccion">{ubicacionEntrega?.direccion || 'Seleccionar ubicación'}</span>
+          <span className="header-desplegar" aria-hidden="true">⌄</span>
         </button>
+      </div>}
 
-      </div>
+      <nav className="header-acciones" aria-label="Tu cuenta">
+        {esCliente && <>
+          <button type="button" onClick={onAbrirFavoritos}>❤️ Favoritos</button>
+          <button type="button" onClick={onAbrirCarrito}>🛒 Carrito ({cantidadCarrito})</button>
+        </>}
+        <button type="button" onClick={onAbrirPerfil} className="header-perfil">👤 Mi Perfil</button>
+        <button type="button" onClick={onLogout} className="header-sesion">Cerrar Sesión</button>
+      </nav>
     </header>
   );
 }
-
-const btnStyle = { 
-  background: 'rgba(255,255,255,0.2)', 
-  border: 'none', 
-  color: 'white', 
-  padding: '8px 15px', 
-  borderRadius: '20px', 
-  cursor: 'pointer', 
-  fontWeight: 'bold',
-  transition: 'background 0.2s ease'
-};

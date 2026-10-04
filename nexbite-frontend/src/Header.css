@@ -1,0 +1,36 @@
+.nexbite-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 14px 20px; background: #ff4500; color: #fff; }
+.nexbite-header button { font-family: inherit; cursor: pointer; }
+.nexbite-header button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.header-marca { border: 0; padding: 0; background: none; color: #fff; font-size: 23px; font-weight: 750; text-align: left; }
+.header-entrega { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.header-modos { display: flex; flex-shrink: 0; padding: 3px; border-radius: 24px; background: #fff; }
+.header-modos button { border: 0; border-radius: 20px; background: transparent; color: #444; padding: 8px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.header-modos button[aria-pressed="true"] { background: #333; color: #fff; }
+.header-modos button:focus-visible { outline-color: #0066cc; }
+.header-ubicacion { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; border: 0; border-radius: 8px; padding: 9px 8px; background: rgba(255,255,255,.12); color: #fff; text-align: left; }
+.header-ubicacion:hover { background: rgba(255,255,255,.22); }
+.header-ubicacion svg, .header-desplegar { flex-shrink: 0; }
+.header-direccion { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.header-desplegar { margin-left: auto; }
+.header-acciones { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; }
+.header-acciones button { border: 0; color: #fff; background: rgba(255,255,255,.2); border-radius: 20px; padding: 8px 11px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.header-acciones .header-perfil { background: #0066cc; }
+.header-acciones .header-sesion { background: #d63031; }
+.nexbite-header-vendedor { grid-template-columns: auto 1fr; }
+@media (max-width: 1000px) {
+  .nexbite-header { grid-template-columns: auto 1fr; gap: 12px; }
+  .header-marca { grid-column: 1; grid-row: 1; }
+  .header-entrega { grid-column: 1 / -1; grid-row: 2; }
+  .header-acciones { grid-column: 2; grid-row: 1; }
+}
+@media (max-width: 600px) {
+  .nexbite-header { grid-template-areas: 'marca modos' 'direccion direccion' 'acciones acciones'; padding: 12px 16px; gap: 10px; }
+  .header-marca { grid-area: marca; font-size: 21px; }
+  .header-entrega { display: contents; }
+  .header-modos { grid-area: modos; justify-self: end; }
+  .header-modos button { padding: 7px 10px; font-size: 12px; }
+  .header-ubicacion { grid-area: direccion; width: 100%; box-sizing: border-box; }
+  .header-acciones { grid-area: acciones; justify-content: flex-start; gap: 6px; }
+  .header-acciones button { padding: 7px 9px; }
+  .nexbite-header-vendedor { grid-template-areas: 'marca marca' 'acciones acciones'; }
+}
