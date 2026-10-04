@@ -153,7 +153,7 @@ export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega
           >
             <h4 style={{ margin: '0 0 10px 0' }}>{rest.nombre}</h4>
             <span style={{ background: '#cce7ff', color: '#0066cc', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>{rest.tipo}</span>
-            <p style={{ margin: '10px 0 0 0', fontSize: '14px', color: '#555' }}>🚗 Distancia: <b>{rest.distancia_km.toFixed(1)} km</b></p>
+            <p style={{ margin: '10px 0 0 0', fontSize: '14px', color: '#555' }}>Distancia: <b>{rest.distancia_km.toFixed(1)} km</b></p>
           </div>
         ))}
       </div>

@@ -123,7 +123,6 @@ export default function SelectorUbicacion({ ubicacion, onConfirmar, onCancelar }
         {onCancelar && <button type="button" className="ubicacion-boton ubicacion-secundario" onClick={onCancelar}>Cancelar</button>}
         <button type="button" className="ubicacion-boton" disabled={!candidato || Boolean(estado)} onClick={() => onConfirmar({ direccion: candidato.direccion, lat: candidato.lat, lng: candidato.lng })}>Usar esta dirección</button>
       </div>
-      <small className="ubicacion-creditos">Direcciones: <a href="https://photon.komoot.io" target="_blank" rel="noreferrer">Photon</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a></small>
     </section>
   );
 }

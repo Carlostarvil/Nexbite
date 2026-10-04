@@ -16,8 +16,6 @@
 .ubicacion-resultados button:hover { background: #fff0eb; }
 .ubicacion-confirmacion { background: #f0f8ff; border-radius: 8px; padding: 16px; margin: 16px 0; overflow-wrap: anywhere; }
 .ubicacion-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 24px; }
-.ubicacion-creditos { display: block; margin-top: 20px; color: #666; }
-.ubicacion-creditos a { color: #005d99; }
 .ubicacion-modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 6000; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .ubicacion-modal .ubicacion-selector { width: 100%; max-height: calc(100dvh - 32px); overflow-y: auto; margin: 0; }
 .ubicacion-cambiar { background: none; border: 0; padding: 0; color: #0066cc; font: inherit; cursor: pointer; text-decoration: underline; }
