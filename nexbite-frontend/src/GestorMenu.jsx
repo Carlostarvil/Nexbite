@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
+import { nombreCategoria } from './categoriasPlatos';
 
 const CREAR_PLATO = gql`
   mutation CrearPlato($id_restaurante: ID!, $nombre: String!, $descripcion: String!, $precio: Float!, $categoria: [String]!, $imagen_url: String, $platos_existentes: [ID!]) { 
@@ -64,7 +65,7 @@ function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato })
             const esBase = OPCIONES_CATEGORIAS.includes(cat);
             return (
               <span key={cat} style={{ fontSize: '10px', background: esBase ? '#ffe4cc' : '#e3f2fd', color: esBase ? '#ff4500' : '#0066cc', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                {cat}
+                {nombreCategoria(cat)}
               </span>
             );
           })}
@@ -227,7 +228,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
               {OPCIONES_CATEGORIAS.map(cat => (
                 <label key={cat} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', cursor: 'pointer', background: formData.categoria.includes(cat) ? '#ff4500' : '#f0f0f0', color: formData.categoria.includes(cat) ? '#fff' : '#333', padding: '6px 12px', borderRadius: '20px', transition: 'all 0.2s', fontWeight: formData.categoria.includes(cat) ? 'bold' : 'normal' }}>
                   <input type="checkbox" checked={formData.categoria.includes(cat)} onChange={() => manejarCambioCheckbox(cat)} style={{ display: 'none' }} />
-                  {cat}
+                  {nombreCategoria(cat)}
                 </label>
               ))}
             </div>

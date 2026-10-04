@@ -25,7 +25,7 @@
   background: linear-gradient(180deg, #ff702f, #d4420b);
 }
 
-.titulo-seccion .titulo-seccion-nombre {
+.titulo-seccion .titulo-seccion-nombre, .titulo-menu-seccion {
   margin: 0;
   color: #202923;
   font-size: clamp(24px, 2.7vw, 32px);
@@ -88,12 +88,8 @@
 .titulo-seccion-enlace:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 .titulo-seccion-destacado { margin-bottom: 24px; }
-.titulo-seccion-destacado .titulo-seccion-nombre { font-size: clamp(32px, 4vw, 44px); letter-spacing: -1.4px; }
-.titulo-seccion-destacado .titulo-seccion-texto::before { top: 5px; height: 42px; }
 .titulo-seccion-destacado .titulo-seccion-descripcion { font-size: 15px; }
 .titulo-seccion-compacto { margin-top: 32px; margin-bottom: 18px; }
-.titulo-seccion-compacto .titulo-seccion-nombre { font-size: 24px; letter-spacing: -.6px; }
-.titulo-seccion-compacto .titulo-seccion-texto::before { height: 24px; }
 
 @media (max-width: 640px) {
   .titulo-seccion { flex-wrap: wrap; gap: 16px; margin-bottom: 18px; }
@@ -101,8 +97,6 @@
   .titulo-seccion-texto::before { width: 5px; height: 26px; }
   .titulo-seccion-acciones { width: 100%; justify-content: space-between; gap: 12px; }
   .titulo-seccion-enlace { font-size: 13px; }
-  .titulo-seccion-destacado .titulo-seccion-texto::before { height: 32px; }
-  .titulo-seccion-compacto .titulo-seccion-nombre { font-size: 22px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

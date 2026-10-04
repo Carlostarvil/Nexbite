@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
+import BotonCorazon from './BotonCorazon';
 
 const OBTENER_FAVORITOS_GENERALES = gql`
   query ObtenerFavoritosGenerales($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
@@ -158,7 +159,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
           {platos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem', background: '#fff', borderRadius: '12px' }}>
               <h3>No hay platos favoritos disponibles aquí</h3>
-              <p style={{ color: '#666' }}>Entra en los menús de los restaurantes y marca el 🤍 para guardar tus platos preferidos aquí.</p>
+              <p style={{ color: '#666' }}>Entra en los menús de los restaurantes y pulsa el corazón para guardar tus platos preferidos aquí.</p>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
@@ -177,15 +178,9 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
                   )}
 
                   <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                       <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem' }}>{plato.nombre}</h3>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleEliminarPlato(plato.id_plato); }} // Detener propagación
-                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.5rem', padding: '0 0 0 10px' }}
-                        title="Quitar de favoritos"
-                      >
-                        ❤️
-                      </button>
+                      <BotonCorazon activo onClick={() => handleEliminarPlato(plato.id_plato)} nombre={plato.nombre} />
                     </div>
                     <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0', flexGrow: 1 }}>{plato.descripcion}</p>
                     

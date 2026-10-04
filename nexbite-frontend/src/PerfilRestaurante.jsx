@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonFavorito from './BotonFavorito'; 
+import BotonCorazon from './BotonCorazon';
+import { nombreCategoria } from './categoriasPlatos';
 import CarruselPlatos from './CarruselPlatos';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import IconoInfoRestaurante from './IconoInfoRestaurante';
@@ -420,15 +422,13 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
               ←
            </button>
            <div style={{ position: 'absolute', top: '15px', right: '15px', display: 'flex', gap: '10px' }}>
-              <div style={{ background: 'white', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>
-                 <BotonFavorito idRestaurante={idRestaurante} idUsuario={idUsuarioActual} esFavoritoInicial={esFavoritoInicial} />
-              </div>
+              <BotonFavorito idRestaurante={idRestaurante} idUsuario={idUsuarioActual} esFavoritoInicial={esFavoritoInicial} nombreRestaurante={restaurante?.nombre} />
            </div>
         </div>
 
         <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <div>
-            <h1 style={{ margin: '0 0 5px 0', fontSize: '2.5rem', color: '#333' }}>{restaurante?.nombre}</h1>
+            <h1 className="titulo-menu-seccion" style={{ margin: '0 0 5px 0', color: '#333' }}>{restaurante?.nombre}</h1>
             <p style={{ margin: 0, color: '#666', fontSize: '1.1rem' }}>{restaurante?.tipo}</p>
           </div>
 
@@ -475,7 +475,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                 className={`btn-categoria ${categoriaActiva === cat ? 'activa' : ''}`}
                 onClick={() => scrollToCategoria(cat)}
               >
-                {cat}
+                {nombreCategoria(cat).toUpperCase()}
               </button>
             ))}
           </div>
@@ -512,7 +512,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
 
               return (
                 <div key={cat} id={getSeccionId(cat)} className="seccion-scroll" data-categoria={cat} style={{ marginBottom: '4rem', scrollMarginTop: '120px' }}>
-                  <h2 style={{ fontSize: '1.8rem', color: '#333', marginBottom: '1.5rem', fontWeight: 'bold' }}>{cat}</h2>
+                  <h2 className="titulo-menu-seccion" style={{ color: '#333', marginBottom: '1.5rem' }}>{nombreCategoria(cat)}</h2>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
                     {platosCat.map((plato) => {
@@ -541,11 +541,9 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                               ))}
                             </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                               <h3 style={{ margin: '0 0 10px 0', flexGrow: 1 }}>{plato.nombre}</h3>
-                              <button onClick={(e) => { e.stopPropagation(); handleCorazonClick(plato.id_plato); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.5rem', padding: '0 0 0 10px', transition: 'transform 0.2s ease', transform: esPlatoFavorito ? 'scale(1.2)' : 'scale(1)' }}>
-                                {esPlatoFavorito ? '❤️' : '🤍'}
-                              </button>
+                              <BotonCorazon activo={esPlatoFavorito} onClick={() => handleCorazonClick(plato.id_plato)} nombre={plato.nombre} />
                             </div>
                             <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>{descLimpia}</p>
                           </div>

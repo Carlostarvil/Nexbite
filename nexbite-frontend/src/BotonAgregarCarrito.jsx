@@ -56,7 +56,7 @@ export default function BotonAgregarCarrito({ onAgregar, idPlato, nombrePlato, v
           className={'boton-agregar-carrito' + (variante ? ' boton-agregar-carrito-' + variante : '')}>
           <span className="boton-carrito-contenido">
             <span className="boton-carrito-etiqueta">{variante === 'reserva' ? 'Reservar' : 'Añadir al carrito'}</span>
-            <span className="boton-carrito-icono" aria-hidden="true"><IconoCarrito tamano={30} /></span>
+            <span className="boton-carrito-icono" aria-hidden="true"><IconoCarrito tamano={20} /></span>
           </span>
         </button>
       ) : (

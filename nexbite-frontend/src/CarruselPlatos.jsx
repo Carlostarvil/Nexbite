@@ -30,7 +30,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
         } />
       ) : (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ff4500', paddingBottom: '10px', marginBottom: '1.5rem' }}>
-        <h2 style={{ color: '#333', margin: 0 }}>
+        <h2 className="titulo-menu-seccion" style={{ color: '#333', margin: 0 }}>
           {mostrarIcono && '⭐ '}{titulo}
         </h2>
         

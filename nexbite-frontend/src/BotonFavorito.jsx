@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
+import BotonCorazon from './BotonCorazon';
 
 const ALTERNAR_FAVORITO = gql`
   mutation AlternarFavorito($id_restaurante: ID!) {
@@ -14,7 +15,7 @@ const OBTENER_FAVORITOS = gql`
   }
 `;
 
-export default function BotonFavorito({ idRestaurante, idUsuario, esFavoritoInicial }) {
+export default function BotonFavorito({ idRestaurante, idUsuario, esFavoritoInicial, nombreRestaurante }) {
   const [esFavorito, setEsFavorito] = useState(esFavoritoInicial || false);
 
   // MODIFICACIÓN 3: ¡Clave! Obligamos al botón a actualizar su color si GraphQL detecta que los datos por detrás cambiaron
@@ -43,21 +44,6 @@ export default function BotonFavorito({ idRestaurante, idUsuario, esFavoritoInic
   };
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      title={esFavorito ? "Quitar de favoritos" : "Añadir a favoritos"}
-      style={{
-        background: 'none',
-        border: 'none',
-        cursor: 'pointer',
-        fontSize: '2rem',
-        padding: '5px',
-        transition: 'transform 0.2s ease',
-        transform: esFavorito ? 'scale(1.1)' : 'scale(1)'
-      }}
-    >
-      {esFavorito ? '❤️' : '🤍'}
-    </button>
+    <BotonCorazon activo={esFavorito} onClick={handleClick} disabled={loading} nombre={nombreRestaurante} />
   );
 }
