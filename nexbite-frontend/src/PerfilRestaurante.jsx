@@ -14,6 +14,24 @@ import './PerfilRestaurante.css';
 
 const NOMBRES_SIDEBAR = { 'Elegido para ti': 'Para ti', 'Lo más pedido aquí': 'Top ventas' };
 
+const ICONOS_CATEGORIA_MENU = {
+  'Elegido para ti': 'm12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z',
+  'Lo más pedido aquí': 'm3 17 6-6 4 4 8-10M15 5h6v6',
+  ENTRANTE: 'M3 12h18c0 5-4 8-9 8s-9-3-9-8ZM6 22h12M8 3v4M12 2v5M16 3v4',
+  COMPARTIR: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
+  PLATO: 'M5 3v6M2 3v4a3 3 0 0 0 6 0V3M5 10v11M21 3c-3 1-4 4-4 9h4V3Zm0 9v9M13 6a7 7 0 0 0 0 12',
+  BEBIDA: 'M6 7h12l-2 14H8L6 7Zm6 0V3l5-1M7 12h10',
+  POSTRE: 'M6 11h12l-2 10H8L6 11Zm0 0a4 4 0 0 1 1-7 5 5 0 0 1 10 0 4 4 0 0 1 1 7M10 14v4M14 14v4',
+  OFERTA: 'm3 3 9 0 9 9-9 9-9-9V3Zm4 4h.01M10 15l5-5M10 10h.01M15 15h.01',
+  MENU: 'M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM8 8h8M8 12h8M8 16h5',
+};
+
+function IconoCategoriaMenu({ categoria }) {
+  return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d={ICONOS_CATEGORIA_MENU[categoria] || 'M3 3h9l9 9-9 9-9-9V3ZM7 7h.01'} />
+  </svg>;
+}
+
 const OBTENER_DATOS = gql`
   query ObtenerDatosPerfil($id: ID!, $id_usuario: ID!) {
     obtenerRestaurantePorId(id_restaurante: $id) { 
@@ -488,7 +506,9 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                 aria-controls={getSeccionId(cat)}
                 onClick={() => scrollToCategoria(cat)}
               >
-                {(NOMBRES_SIDEBAR[cat] || nombreCategoria(cat)).toUpperCase()}
+                <span className="menu-categoria-icono"><IconoCategoriaMenu categoria={cat} /></span>
+                <span className="menu-categoria-texto">{(NOMBRES_SIDEBAR[cat] || nombreCategoria(cat)).toUpperCase()}</span>
+                <svg className="menu-categoria-flecha" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7" /></svg>
               </button>
             ))}
             </div>
@@ -502,12 +522,12 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
               <>
                 {recomendacionesParaTi.length > 0 && (
                   <div id={getSeccionId('Elegido para ti')} className="seccion-scroll" data-categoria="Elegido para ti" style={{ marginBottom: '3rem' }}>
-                    <CarruselPlatos titulo="Para ti" mostrarIcono={false} platos={recomendacionesParaTi} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
+                    <CarruselPlatos titulo="PARA TI" mostrarIcono={false} platos={recomendacionesParaTi} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
                   </div>
                 )}
                 {platosPopulares.length > 0 && (
                   <div id={getSeccionId('Lo más pedido aquí')} className="seccion-scroll" data-categoria="Lo más pedido aquí" style={{ marginBottom: '3rem' }}>
-                    <CarruselPlatos titulo="Top ventas" mostrarIcono={false} platos={platosPopulares} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
+                    <CarruselPlatos titulo="TOP VENTAS" mostrarIcono={false} platos={platosPopulares} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
                   </div>
                 )}
               </>
@@ -522,7 +542,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
               return (
                 <div key={cat} id={getSeccionId(cat)} className="seccion-scroll" data-categoria={cat} style={{ marginBottom: '4rem' }}>
                   <div className="restaurante-seccion-cabecera">
-                    <h2 className="titulo-menu-seccion">{nombreCategoria(cat)}</h2>
+                    <h2 className="titulo-menu-seccion">{nombreCategoria(cat).toUpperCase()}</h2>
                   </div>
                   
                   <div className="restaurante-platos-grid">
