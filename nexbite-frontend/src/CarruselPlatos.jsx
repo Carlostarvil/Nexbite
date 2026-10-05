@@ -29,7 +29,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
           <ControlesCarrusel titulo={titulo} onAnterior={() => scroll(-300)} onSiguiente={() => scroll(300)} />
         } />
       ) : (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ff4500', paddingBottom: '10px', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 'var(--carrusel-borde-cabecera, 2px solid #ff4500)', paddingBottom: '10px', marginBottom: '1.5rem' }}>
         <h2 className="titulo-menu-seccion" style={{ color: '#333', margin: 0 }}>
           {mostrarIcono && '⭐ '}{titulo}
         </h2>
@@ -65,7 +65,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
           <div 
             key={plato.id_plato} 
             onClick={() => onSelectPlato(plato)}
-            style={{ minWidth: '220px', maxWidth: '220px', backgroundColor: '#fff', border: '1px solid #eaeaea', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column' }}
+            style={{ position: 'relative', minWidth: '220px', maxWidth: '220px', backgroundColor: '#fff', border: '1px solid #eaeaea', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column' }}
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(0,0,0,0.1)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.05)'; }}
           >

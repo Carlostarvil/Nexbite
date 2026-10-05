@@ -10,6 +10,7 @@ import BotonAgregarCarrito from './BotonAgregarCarrito';
 import IconoInfoRestaurante from './IconoInfoRestaurante';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 import './InfoRestauranteModal.css';
+import './PerfilRestaurante.css';
 
 const NOMBRES_SIDEBAR = { 'Elegido para ti': 'Para ti', 'Lo más pedido aquí': 'Top ventas' };
 
@@ -241,6 +242,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   const [alternarFavoritoPlato, { loading: guardandoFavorito }] = useMutation(ALTERNAR_FAVORITO_PLATO);
   const favoritoEnCurso = useRef(false);
   const anclaFavorito = useRef(null);
+  const perfil = useRef(null);
   const [busquedaPlato, setBusquedaPlato] = useState('');
   const [favoritosLocales, setFavoritosLocales] = useState([]);
   const [mostrarInfoModal, setMostrarInfoModal] = useState(false); 
@@ -360,14 +362,13 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   const recomendacionesParaTi = generarRecomendaciones();
 
   // CONSTRUCCIÓN DEL MENÚ LATERAL
-  const categoriasConPlatos = listaFinalCategorias.filter(cat => {
-    return menuCompleto.some(p => {
-      const { descLimpia, tagsTotales } = extraerTags(p.descripcion, p.categoria);
-      const coincideCategoria = tagsTotales.includes(cat);
-      const coincideTexto = busquedaPlato === '' || p.nombre.toLowerCase().includes(busquedaPlato.toLowerCase()) || descLimpia.toLowerCase().includes(busquedaPlato.toLowerCase());
-      return coincideCategoria && coincideTexto;
-    });
+  const platosDeCategoria = cat => menuCompleto.filter(p => {
+    const { descLimpia, tagsTotales } = extraerTags(p.descripcion, p.categoria);
+    const coincideCategoria = tagsTotales.includes(cat);
+    const coincideTexto = busquedaPlato === '' || p.nombre.toLowerCase().includes(busquedaPlato.toLowerCase()) || descLimpia.toLowerCase().includes(busquedaPlato.toLowerCase());
+    return coincideCategoria && coincideTexto;
   });
+  const categoriasConPlatos = listaFinalCategorias.filter(cat => platosDeCategoria(cat).length > 0);
 
   const seccionesSidebar = [];
   if (busquedaPlato === '') {
@@ -375,31 +376,40 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
     if (platosPopulares.length > 0) seccionesSidebar.push('Lo más pedido aquí');
   }
   seccionesSidebar.push(...categoriasConPlatos);
+  const categoriaSeleccionada = seccionesSidebar.includes(categoriaActiva) ? categoriaActiva : seccionesSidebar[0];
+  const tiposLocal = [...new Set((restaurante?.tipo || '').split(',').map(tipo => tipo.trim()).filter(Boolean))];
 
   // Scroll Spy: Detecta qué sección está en pantalla leyendo el DOM directamente
   useEffect(() => {
     const handleScroll = () => {
       let categoriaActual = null;
-      const secciones = document.querySelectorAll('.seccion-scroll');
+      if (!perfil.current) return;
+      const limite = parseFloat(getComputedStyle(perfil.current).getPropertyValue('--restaurante-scroll-offset')) || 120;
+      const secciones = perfil.current.querySelectorAll('.seccion-scroll');
       
       secciones.forEach(elemento => {
         const rect = elemento.getBoundingClientRect();
-        if (rect.top <= 300) { 
+        if (rect.top <= limite + 12) {
           categoriaActual = elemento.getAttribute('data-categoria');
         }
       });
       
-      if (categoriaActual) setCategoriaActiva(categoriaActual);
+      const primeraCategoria = secciones[0]?.getAttribute('data-categoria');
+      if (categoriaActual || primeraCategoria) setCategoriaActiva(categoriaActual || primeraCategoria);
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, [data, busquedaPlato]);
 
   const scrollToCategoria = (cat) => {
     const elemento = document.getElementById(getSeccionId(cat));
     if (elemento) {
-      elemento.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      elemento.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
       setCategoriaActiva(cat);
     }
   };
@@ -408,97 +418,56 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   if (error && !data) return <div style={{ padding: '2rem', color: 'red' }}>Error: {error.message}</div>;
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
-      
-      {/* CSS INYECTADO: Estilo Sidebar y Animación de Botones */}
-      <style>
-        {`
-          .menu-layout { display: flex; gap: 3rem; align-items: flex-start; margin-top: 2rem; }
-          .sidebar-categorias { 
-            position: sticky; 
-            top: 100px; 
-            width: 250px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 4px; 
-            flex-shrink: 0; 
-          }
-          .contenido-platos { flex-grow: 1; min-width: 0; }
-          .btn-categoria { 
-            text-align: left; 
-            padding: 10px 16px; 
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            font-weight: 500; 
-            font-size: 15px; 
-            background-color: transparent;
-            color: #555;
-            transition: all 0.2s ease; 
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis; 
-          }
-          .btn-categoria:hover { background-color: #f3f4f6; color: #111; }
-          .btn-categoria.activa { background-color: #eeeeee; color: #000; font-weight: 700; }
-          
-          @media (max-width: 768px) {
-            .menu-layout { flex-direction: column; gap: 1rem; }
-            .sidebar-categorias { position: relative; top: 0; width: 100%; flex-direction: row; overflow-x: auto; padding-bottom: 10px; }
-            .sidebar-categorias::-webkit-scrollbar { display: none; }
-          }
-        `}
-      </style>
+    <div ref={perfil} className="perfil-restaurante">
 
       {/* CABECERA DEL RESTAURANTE */}
-      <div style={{ marginBottom: '1rem', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#fff', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', position: 'relative' }}>
-        <div style={{ height: '250px', width: '100%', position: 'relative', backgroundColor: '#f5f5f5' }}>
+      <div className="restaurante-cabecera">
+        <div className="restaurante-portada">
            {restaurante?.imagen_url ? (
-              <img src={restaurante.imagen_url} alt={restaurante.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={restaurante.imagen_url} alt={restaurante.nombre} />
            ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '4rem' }}>🏪</div>
+              <div className="restaurante-portada-alternativa" aria-hidden="true">
+                <svg viewBox="0 0 80 80" width="80" height="80" fill="none" stroke="#9e8f80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 33v32h50V33M12 33l6-17h44l6 17M12 33a7 7 0 0 0 14 0 7 7 0 0 0 14 0 7 7 0 0 0 14 0 7 7 0 0 0 14 0M29 16l-3 17M51 16l3 17M40 16v17M23 65V45h17v20M48 44h10v10H48z" />
+                </svg>
+              </div>
            )}
-           <button onClick={onVolver} style={{ position: 'absolute', top: '15px', left: '15px', width: '40px', height: '40px', borderRadius: '50%', background: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>
-              ←
+           <button type="button" className="restaurante-volver" aria-label="Volver a los restaurantes" title="Volver a los restaurantes" onClick={onVolver}>
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 12H4m7-7-7 7 7 7" /></svg>
            </button>
-           <div style={{ position: 'absolute', top: '15px', right: '15px', display: 'flex', gap: '10px' }}>
+           <div className="restaurante-favorito">
               <BotonFavorito idRestaurante={idRestaurante} idUsuario={idUsuarioActual} esFavoritoInicial={esFavoritoInicial} nombreRestaurante={restaurante?.nombre} />
            </div>
         </div>
 
-        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <div>
-            <h1 className="titulo-menu-seccion" style={{ margin: '0 0 5px 0', color: '#333' }}>{restaurante?.nombre}</h1>
-            <p style={{ margin: 0, color: '#666', fontSize: '1.1rem' }}>{restaurante?.tipo}</p>
+        <div className="restaurante-presentacion">
+          <div className="restaurante-nombre-fila">
+            <h1 className="restaurante-nombre" id="nombre-restaurante">{restaurante?.nombre}</h1>
+            <button type="button" className="boton-info-restaurante" aria-label="Información" title="Información del local" aria-haspopup="dialog" aria-controls="informacion-restaurante" aria-expanded={mostrarInfoModal} onClick={() => setMostrarInfoModal(true)}>
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M12 11v6" /><circle cx="12" cy="7" r="1" fill="currentColor" stroke="none" /></svg>
+            </button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-             <button type="button" className="boton-info-restaurante" aria-haspopup="dialog" aria-expanded={mostrarInfoModal} onClick={() => setMostrarInfoModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8f9fa', padding: '10px 15px', borderRadius: '12px', cursor: 'pointer', border: '1px solid #eaeaea', transition: 'background 0.2s', fontFamily: 'inherit' }}>
-                <span aria-hidden="true" style={{ width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #666', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontWeight: 'bold', fontSize: '12px' }}>i</span>
-                <span style={{ color: '#333', fontWeight: 'bold', fontSize: '14px' }}>Información</span>
-             </button>
-
-             {!isPausado ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#e8f5e9', color: '#2e7d32', padding: '10px 15px', borderRadius: '12px', fontWeight: 'bold', fontSize: '14px' }}>
-                   <span>🟢</span> Abierto
-                </div>
-             ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffebee', color: '#c62828', padding: '10px 15px', borderRadius: '12px', fontWeight: 'bold', fontSize: '14px' }}>
-                   <span>🔴</span> Vuelve a abrir: {formatearFecha(restaurante.tiempo_reactivacion)}
-                </div>
-             )}
+          <div className="restaurante-resumen">
+            {tiposLocal.length > 0 && <div className="restaurante-tipos" aria-label="Tipo de local">
+              {tiposLocal.map(tipo => <span className="restaurante-tipo" key={tipo}>{tipo}</span>)}
+            </div>}
+            <div className={'restaurante-estado' + (isPausado ? ' restaurante-estado-pausado' : '')}>
+              <span className="restaurante-estado-punto" aria-hidden="true" />
+              {isPausado ? 'Vuelve a abrir: ' + formatearFecha(restaurante.tiempo_reactivacion) : 'Abierto'}
+            </div>
           </div>
         </div>
       </div>
 
       {/* BUSCADOR */}
-      <div style={{ marginBottom: '1rem' }}>
+      <div className="restaurante-buscador">
         <input
-          type="text"
-          placeholder={`🔍 Busca platos en ${restaurante?.nombre} (Ej. Pizza, salsa...)`}
+          type="search"
+          aria-label={'Buscar platos en ' + restaurante?.nombre}
+          placeholder={`Busca platos en ${restaurante?.nombre} (Ej. Pizza, salsa...)`}
           value={busquedaPlato}
           onChange={(e) => setBusquedaPlato(e.target.value)}
-          style={{ width: '100%', padding: '15px 20px', fontSize: '1.05rem', borderRadius: '12px', border: '1px solid #ccc', boxSizing: 'border-box', outline: 'none' }}
         />
       </div>
 
@@ -508,17 +477,29 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
         <div className="menu-layout">
           
           {/* BARRA LATERAL (SIDEBAR) */}
-          <div className="sidebar-categorias">
-            {seccionesSidebar.map(cat => (
+          <nav className="sidebar-categorias" aria-label="Categorías del menú">
+            <p className="menu-navegacion-titulo">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false"><path d="M9 6h12M9 12h12M9 18h12M3 6h1M3 12h1M3 18h1" /></svg>
+              Explora el menú
+            </p>
+            <div className="menu-categorias-lista">
+            {seccionesSidebar.map(cat => {
+              const cantidad = cat === 'Elegido para ti' ? recomendacionesParaTi.length : cat === 'Lo más pedido aquí' ? platosPopulares.length : platosDeCategoria(cat).length;
+              return (
               <button 
+                type="button"
                 key={cat} 
-                className={`btn-categoria ${categoriaActiva === cat ? 'activa' : ''}`}
+                className={`btn-categoria ${categoriaSeleccionada === cat ? 'activa' : ''}`}
+                aria-current={categoriaSeleccionada === cat ? 'location' : undefined}
+                aria-controls={getSeccionId(cat)}
                 onClick={() => scrollToCategoria(cat)}
               >
-                {(NOMBRES_SIDEBAR[cat] || nombreCategoria(cat)).toUpperCase()}
+                <span className="menu-categoria-texto">{(NOMBRES_SIDEBAR[cat] || nombreCategoria(cat)).toUpperCase()}</span>
+                <span className="menu-categoria-cantidad" aria-hidden="true">{cantidad}</span>
               </button>
-            ))}
-          </div>
+            );})}
+            </div>
+          </nav>
 
           {/* CONTENIDO PRINCIPAL (PLATOS) */}
           <div className="contenido-platos">
@@ -527,12 +508,12 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
             {busquedaPlato === '' && (
               <>
                 {recomendacionesParaTi.length > 0 && (
-                  <div id={getSeccionId('Elegido para ti')} className="seccion-scroll" data-categoria="Elegido para ti" style={{ marginBottom: '3rem', scrollMarginTop: '120px' }}>
+                  <div id={getSeccionId('Elegido para ti')} className="seccion-scroll" data-categoria="Elegido para ti" style={{ marginBottom: '3rem' }}>
                     <CarruselPlatos titulo="Elegido para ti" mostrarIcono={false} platos={recomendacionesParaTi} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
                   </div>
                 )}
                 {platosPopulares.length > 0 && (
-                  <div id={getSeccionId('Lo más pedido aquí')} className="seccion-scroll" data-categoria="Lo más pedido aquí" style={{ marginBottom: '3rem', scrollMarginTop: '120px' }}>
+                  <div id={getSeccionId('Lo más pedido aquí')} className="seccion-scroll" data-categoria="Lo más pedido aquí" style={{ marginBottom: '3rem' }}>
                     <CarruselPlatos titulo="Lo más pedido aquí" mostrarIcono={false} platos={platosPopulares} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
                   </div>
                 )}
@@ -541,20 +522,18 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
 
             {/* Listado de Platos agrupados por Categoría */}
             {categoriasConPlatos.map(cat => {
-              const platosCat = menuCompleto.filter(p => {
-                const { descLimpia, tagsTotales } = extraerTags(p.descripcion, p.categoria);
-                const coincideCategoria = tagsTotales.includes(cat);
-                const coincideTexto = busquedaPlato === '' || p.nombre.toLowerCase().includes(busquedaPlato.toLowerCase()) || descLimpia.toLowerCase().includes(busquedaPlato.toLowerCase());
-                return coincideCategoria && coincideTexto;
-              });
+              const platosCat = platosDeCategoria(cat);
 
               if (platosCat.length === 0) return null;
 
               return (
-                <div key={cat} id={getSeccionId(cat)} className="seccion-scroll" data-categoria={cat} style={{ marginBottom: '4rem', scrollMarginTop: '120px' }}>
-                  <h2 className="titulo-menu-seccion" style={{ color: '#333', marginBottom: '1.5rem' }}>{nombreCategoria(cat)}</h2>
+                <div key={cat} id={getSeccionId(cat)} className="seccion-scroll" data-categoria={cat} style={{ marginBottom: '4rem' }}>
+                  <div className="restaurante-seccion-cabecera">
+                    <h2 className="titulo-menu-seccion">{nombreCategoria(cat)}</h2>
+                    <span className="restaurante-seccion-cantidad">{platosCat.length} {platosCat.length === 1 ? 'plato' : 'platos'}</span>
+                  </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                  <div className="restaurante-platos-grid">
                     {platosCat.map((plato) => {
                       const esPlatoFavorito = favoritosLocales.includes(String(plato.id_plato));
                       const { descLimpia, tagsTotales } = extraerTags(plato.descripcion, plato.categoria);
@@ -579,7 +558,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                             {/* FILTRO DE ETIQUETAS: Oculta "Entrante", "Compartir", etc. */}
                             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '10px' }}>
                               {tagsTotales.filter(tag => !OPCIONES_CATEGORIAS.includes(tag)).map(tag => (
-                                <span key={tag} style={{ fontSize: '11px', background: '#e3f2fd', color: '#0066cc', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                <span key={tag} className="plato-etiqueta">
                                   {tag}
                                 </span>
                               ))}
