@@ -3,6 +3,8 @@ import { useMutation, useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import { generarOpcionesRecogida, recogidaDisponible, validarFechaRecogida } from '../../shared/horariosRecogida.js';
 import { coordenadasValidas, validarZonaEntrega } from '../../shared/zonaEntrega.js';
+import MensajeAccion, { IconoEstado } from './MensajeAccion';
+import DireccionLocal from './DireccionLocal';
 
 // Importaciones de Stripe
 import { loadStripe } from '@stripe/stripe-js';
@@ -106,7 +108,7 @@ function TarjetaCarritoGrupo({ grupo, onSeleccionar, onEliminar }) {
   );
 }
 
-function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuario, ubicacionEntrega, onCambiarUbicacion, tipoEntregaInicial = 'DOMICILIO', idRestauranteInicial = null, irAPago = false }) {
+function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuario, ubicacionEntrega, onCambiarUbicacion, tipoEntregaInicial = 'DOMICILIO', idRestauranteInicial = null, irAPago = false, onPedidoConfirmado }) {
   const stripe = useStripe();
   const elements = useElements();
 
@@ -168,6 +170,15 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const pagoEnCurso = useRef(false);
   const intentosPago = useRef(new Map());
   const [pedidoPagadoSinRegistrar, setPedidoPagadoSinRegistrar] = useState(null);
+  const [mensajePago, setMensajePago] = useState(null);
+  const mensajePagoRef = useRef(null);
+  useEffect(() => {
+    if (mensajePago && mensajePagoRef.current) {
+      mensajePagoRef.current.focus({ preventScroll: true });
+      mensajePagoRef.current.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+  }, [mensajePago]);
+  const mostrarMensajePago = (titulo, descripcion, tipo = 'error') => setMensajePago({ titulo, descripcion, tipo, idRestaurante: idCartActivo });
 
   const [direccionResuelta, setDireccionResuelta] = useState(null);
 
@@ -257,6 +268,8 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const direccionRestaurante = direccionGuardadaLocal ||
     (direccionResuelta && direccionResuelta.latitud === latitudLocal && direccionResuelta.longitud === longitudLocal ? direccionResuelta.texto : '') ||
     (tieneCoordenadasLocal ? Number(latitudLocal).toFixed(5) + ', ' + Number(longitudLocal).toFixed(5) : 'Ubicación del local no especificada');
+  const destinoLocal = tieneCoordenadasLocal ? latitudLocal + ',' + longitudLocal : direccionGuardadaLocal;
+  const urlUbicacionLocal = destinoLocal ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(destinoLocal) : null;
   const opcionesRecogida = useMemo(() => restaurante ? generarOpcionesRecogida(restaurante.horarios_recogida, ahora) : [], [restaurante, ahora]);
   const diasDisponibles = opcionesRecogida;
   const horasDisponiblesList = diasDisponibles.find(dia => dia.valor === diaProgramado)?.horas || [];
@@ -301,7 +314,8 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     if (pagoEnCurso.current || guardadoEnCurso.current || eliminandoTarjeta) return;
     if (pedidoPagadoSinRegistrar === idCartActivo) return;
     if (metodoPago === 'TARJETA' && (cargandoTarjetas || errorTarjetas)) return;
-    if (carritoEnUso.length === 0) return alert("Tu carrito está vacío.");
+    if (carritoEnUso.length === 0) return mostrarMensajePago('Tu carrito está vacío', 'Añade un plato para continuar con el pedido.');
+    setMensajePago(null);
     pagoEnCurso.current = true;
     setProcesandoStripe(true);
     let pagoConfirmado = false;
@@ -309,20 +323,19 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     try {
 
       if (tipoEntrega === 'DOMICILIO') {
-        if (!direccion.trim()) return alert("Por favor ingresa la calle principal de envío.");
-        if (!coordenadasEnvio) return alert('Selecciona la dirección de entrega.');
+        if (!direccion.trim() || !coordenadasEnvio) return mostrarMensajePago('Elige dónde recibir tu pedido', 'Selecciona una dirección de entrega antes de continuar.');
         setComprobandoHorario(true);
         try {
           const { data } = await refrescarRestaurante();
           validarZonaEntrega(data?.obtenerRestaurantePorId, coordenadasEnvio.lat, coordenadasEnvio.lng);
         } catch (error) {
-          return alert(error.message);
+          return mostrarMensajePago('Revisa la dirección de entrega', error.message);
         } finally {
           setComprobandoHorario(false);
         }
       }
 
-      if (platosIndefinidos.length > 0) return alert("Debes eliminar los productos agotados antes de continuar.");
+      if (platosIndefinidos.length > 0) return mostrarMensajePago('Hay platos que ya no están disponibles', 'Elimina los productos agotados del carrito antes de continuar.');
 
       const direccionFinal = tipoEntrega === 'RECOGIDA' 
         ? 'Recogida en el local' 
@@ -339,15 +352,15 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
           if (modoRecogida === 'AHORA' && !local.aceptando_pedidos) throw new Error('El local no acepta pedidos inmediatos.');
           fechaFinalBackend = validarFechaRecogida(local.horarios_recogida, modoRecogida === 'PROGRAMADO' ? horaProgramada : fechaParaProgramar);
         } catch (error) {
-          return alert(error.message);
+          return mostrarMensajePago('Revisa la hora de recogida', error.message);
         } finally {
           setComprobandoHorario(false);
         }
       }
 
       if (metodoPago === 'TARJETA') {
-        if (!tarjetaSeleccionada) return alert("💳 Por favor, selecciona o añade una tarjeta para pagar.");
-        if (!stripe) return alert("El sistema de pagos no está listo. Inténtalo de nuevo en unos segundos.");
+        if (!tarjetaSeleccionada) return mostrarMensajePago('Añade una tarjeta para continuar', 'Guarda una tarjeta de crédito o débito, o elige pagar en efectivo.');
+        if (!stripe) return mostrarMensajePago('El pago todavía está cargando', 'Espera unos segundos y vuelve a pulsar Pagar.', 'info');
         const huella = JSON.stringify([idUsuario, idCartActivo, total, carritoEnUso.map(p => [p.id_plato, p.cantidad || 1]), direccionFinal, fechaFinalBackend]);
         huellaPago = huella;
         try {
@@ -364,16 +377,16 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             const estado = await stripe.retrievePaymentIntent(intento.secreto);
             if (estado.error) throw new Error(estado.error.message);
             if (estado.paymentIntent?.status === 'succeeded') pagoConfirmado = true;
-            if (estado.paymentIntent?.status === 'processing') return alert('Tu banco sigue confirmando este pago. Espera unos segundos y vuelve a consultar.');
+            if (estado.paymentIntent?.status === 'processing') return mostrarMensajePago('Tu banco está confirmando el pago', 'Espera unos segundos y vuelve a consultar pulsando Pagar.', 'info');
             if (estado.paymentIntent?.status === 'canceled') {
               intentosPago.current.delete(huella);
-              return alert('El intento de pago se ha cancelado. Vuelve a pulsar Pagar para iniciar otro.');
+              return mostrarMensajePago('El intento de pago se ha cancelado', 'Vuelve a pulsar Pagar para iniciar otro intento.', 'aviso');
             }
           }
           if (!pagoConfirmado) {
             const resultado = await stripe.confirmCardPayment(intento.secreto, { payment_method: tarjetaSeleccionada });
             if (resultado.error) throw new Error(resultado.error.message);
-            if (resultado.paymentIntent?.status !== 'succeeded') return alert('El pago todavía no está confirmado. Espera unos segundos y vuelve a consultar.');
+            if (resultado.paymentIntent?.status !== 'succeeded') return mostrarMensajePago('El pago aún no está confirmado', 'Espera unos segundos y vuelve a consultar pulsando Pagar.', 'info');
             pagoConfirmado = true;
           }
         } catch (error) {
@@ -382,7 +395,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             await refrescarTarjetas().catch(() => {});
             setMostrarModalTarjeta(true);
           }
-          return alert('No se ha completado el pago: ' + error.message);
+          return mostrarMensajePago('No se ha completado el pago', error.message);
         }
       }
 
@@ -413,16 +426,25 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         const carritoRestante = carrito.filter(p => p.id_restaurante !== idCartActivo);
         setCarrito(carritoRestante);
 
-        if (fechaFinalBackend) alert("📅 ¡Reserva confirmada! El restaurante te espera a la hora programada.");
-        else alert(tipoEntrega === 'RECOGIDA' ? "✅ ¡Pago realizado con éxito! Tu pedido se preparará para recoger lo antes posible." : "✅ ¡Pago realizado con éxito! En breve llegará tu comida.");
+        onPedidoConfirmado?.({
+          nombreRestaurante: restaurante?.nombre,
+          total,
+          articulos: carritoEnUso.reduce((suma, plato) => suma + (plato.cantidad || 1), 0),
+          metodoPago,
+          tipoEntrega,
+          fechaProgramada: fechaFinalBackend,
+          direccionLocal: direccionRestaurante,
+          urlMapa: urlUbicacionLocal,
+          direccionEntrega: direccionFinal,
+        });
 
         if (carritoRestante.length > 0) setIdCartActivo(null); 
         else { vaciarCarrito(); onVolver(); }
       } catch(e) {
         if (pagoConfirmado) {
           setPedidoPagadoSinRegistrar(idCartActivo);
-          alert('El pago está confirmado, pero no se ha podido registrar todo el pedido. Revisa Mis pedidos y contacta con el local antes de volver a pagar.');
-        } else alert("Error al procesar tu pedido: " + e.message.replace("GraphQL error: ", ""));
+          mostrarMensajePago('El pago está confirmado: revisa tu pedido', 'No se ha podido registrar todo el pedido. Revisa Mis pedidos y contacta con el local antes de volver a pagar.', 'aviso');
+        } else mostrarMensajePago('No se ha podido confirmar el pedido', e.message.replace('GraphQL error: ', ''));
       }
     } finally {
       pagoEnCurso.current = false;
@@ -448,7 +470,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const recogidaBloqueada = tipoEntrega === 'RECOGIDA' && (cargandoRestaurante || errorRestaurante || !restaurante || (modoRecogida === 'AHORA' ? !recogidaAhoraDisponible : !opcionProgramada));
   const entregaBloqueada = tipoEntrega === 'DOMICILIO' && (cargandoRestaurante || errorRestaurante || !restaurante || Boolean(errorZonaEntrega));
   const bloqueado = procesandoPago || procesandoStripe || comprobandoHorario || guardandoTarjeta || Boolean(eliminandoTarjeta) || recogidaBloqueada || entregaBloqueada || pedidoPagadoSinRegistrar === idCartActivo || (metodoPago === 'TARJETA' && (cargandoTarjetas || Boolean(errorTarjetas)));
-  const urlMapaRestaurante = (restaurante?.latitud && restaurante?.longitud) ? `https://static-maps.yandex.ru/1.x/?ll=${restaurante.longitud},${restaurante.latitud}&size=600,150&z=16&l=map&pt=${restaurante.longitud},${restaurante.latitud},pm2rdm` : null;
+  const urlMapaRestaurante = tieneCoordenadasLocal ? `https://static-maps.yandex.ru/1.x/?ll=${longitudLocal},${latitudLocal}&size=600,150&z=16&l=map&pt=${longitudLocal},${latitudLocal},pm2rdm` : null;
 
   return (
     <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '800px', margin: '0 auto', position: 'relative' }}>
@@ -541,10 +563,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                   )}
                   <div style={{ padding: '15px' }}>
                     <h4 style={{ margin: '0 0 5px 0', color: '#333', fontSize: '1.1rem' }}>Recoger en {restaurante?.nombre || 'el local'}</h4>
-                    <p style={{ margin: 0, color: '#666', fontSize: '14px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                       <span style={{ marginTop: '2px' }}>📍</span>
-                       <span>{direccionRestaurante}</span>
-                    </p>
+                    <DireccionLocal key={direccionRestaurante} direccion={direccionRestaurante} urlMapa={urlUbicacionLocal} />
                   </div>
                 </div>
 
@@ -626,10 +645,11 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
               </div>
             )}
 
-            {pedidoPagadoSinRegistrar === idCartActivo && <p role="alert" style={{ color: '#a42318' }}>El pago está confirmado, pero falta comprobar el pedido. Revisa Mis pedidos y contacta con el local antes de volver a pagar.</p>}
-            <button onClick={() => handlePagar(null)} disabled={bloqueado} style={{ padding: '1.2rem', background: '#28a745', color: '#fff', border: 'none', borderRadius: '8px', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.2rem', marginTop: '1rem' }}>
-              {procesandoPago || procesandoStripe || comprobandoHorario ? 'Procesando...' : `Pagar €${total.toFixed(2)}`}
+            <button type="button" className="boton-con-estado" onClick={() => handlePagar(null)} disabled={bloqueado} aria-busy={procesandoPago || procesandoStripe || comprobandoHorario} style={{ padding: '1.2rem', background: '#16864a', color: '#fff', border: 'none', borderRadius: '10px', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.2rem', marginTop: '1rem' }}>
+              {(procesandoPago || procesandoStripe || comprobandoHorario) && <IconoEstado tipo="cargando" tamano={22} />}
+              {comprobandoHorario ? 'Comprobando tu pedido...' : procesandoPago ? 'Confirmando tu pedido...' : procesandoStripe ? metodoPago === 'TARJETA' ? 'Procesando el pago...' : 'Confirmando tu pedido...' : `Pagar €${total.toFixed(2)}`}
             </button>
+            {mensajePago?.idRestaurante === idCartActivo && <div ref={mensajePagoRef} tabIndex={-1} style={{ outline: 'none' }}><MensajeAccion mensaje={mensajePago} onCerrar={pedidoPagadoSinRegistrar === idCartActivo ? undefined : () => setMensajePago(null)} /></div>}
           </div>
         </>
       )}

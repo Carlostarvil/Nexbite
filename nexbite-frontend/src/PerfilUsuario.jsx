@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
+import MensajeAccion, { IconoEstado } from './MensajeAccion';
 
 const OBTENER_PERFIL = gql`
   query ObtenerPerfilUsuario($id_usuario: ID!) {
@@ -46,6 +47,7 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
 
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
+  const [mensajePerfil, setMensajePerfil] = useState(null);
   const [sugerencias, setSugerencias] = useState([]);
   const [buscandoDireccion, setBuscandoDireccion] = useState(false);
   const [timeoutId, setTimeoutId] = useState(null);
@@ -57,14 +59,25 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
     }
   }, [dataPerfil]);
 
+  useEffect(() => {
+    if (mensajePerfil?.tipo !== 'exito') return;
+    const timer = setTimeout(() => setMensajePerfil(null), 5000);
+    return () => clearTimeout(timer);
+  }, [mensajePerfil]);
+
   const handleGuardarCambios = async () => {
+    if (guardando) return;
+    setMensajePerfil(null);
     try {
       await actualizarPerfil({ variables: { id_usuario: idUsuarioActual, telefono, direccion } });
-      alert('✅ ¡Datos guardados correctamente!');
-    } catch (err) { alert('Hubo un error al guardar.'); }
+      setMensajePerfil({ tipo: 'exito', titulo: '¡Cambios guardados!', descripcion: 'Tu teléfono y dirección se han actualizado correctamente.' });
+    } catch {
+      setMensajePerfil({ tipo: 'error', titulo: 'No se pudieron guardar los cambios', descripcion: 'Comprueba tu conexión y vuelve a intentarlo. Los datos que has escrito siguen aquí.' });
+    }
   };
 
   const manejarCambioDireccion = (texto) => {
+    setMensajePerfil(null);
     setDireccion(texto);
     if (timeoutId) clearTimeout(timeoutId);
     if (texto.length < 4) { setSugerencias([]); setBuscandoDireccion(false); return; }
@@ -80,6 +93,7 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
   };
 
   const seleccionarDireccion = (direccionElegida) => {
+    setMensajePerfil(null);
     setDireccion(direccionElegida.display_name);
     setSugerencias([]); 
   };
@@ -102,22 +116,19 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
         <button onClick={onVolver} style={{ background: 'none', border: 'none', color: '#0066cc', cursor: 'pointer', marginBottom: '1.5rem', fontSize: '1rem', fontWeight: 'bold' }}>&larr; Volver</button>
         <div style={{ background: 'white', borderRadius: '16px', padding: '2rem', boxShadow: '0 8px 25px rgba(0,0,0,0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '2rem', borderBottom: '1px solid #eee', paddingBottom: '1.5rem' }}>
-            <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#ff4500', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', fontWeight: 'bold' }}>
+            <div style={{ width: '80px', height: '80px', flexShrink: 0, borderRadius: '50%', backgroundColor: '#ff4500', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', fontWeight: 'bold' }}>
               {perfil.nombre ? perfil.nombre.charAt(0).toUpperCase() : '👤'}
             </div>
             <div>
               <h1 style={{ margin: '0 0 5px 0', color: '#333' }}>{perfil.nombre}</h1>
-              <span style={{ background: '#eee', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', color: '#666' }}>
-                Rol: {perfil.rol === 'VENDEDOR' ? '👨‍🍳 Vendedor' : '🍔 Cliente'}
-              </span>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div><label style={{ fontWeight: 'bold', color: '#555' }}>✉️ Correo Electrónico</label><input type="email" value={perfil.email} disabled style={{ ...inputStyle, backgroundColor: '#f5f5f5', color: '#888', cursor: 'not-allowed' }} /></div>
-            <div><label style={{ fontWeight: 'bold', color: '#555' }}>📞 Teléfono de Contacto</label><input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} style={inputStyle} onFocus={(e) => e.target.style.borderColor = '#ff4500'} onBlur={(e) => e.target.style.borderColor = '#ccc'} /></div>
+            <div><label htmlFor="perfil-email" style={{ fontWeight: 'bold', color: '#555' }}>✉️ Correo Electrónico</label><input id="perfil-email" type="email" value={perfil.email} disabled style={{ ...inputStyle, backgroundColor: '#f5f5f5', color: '#888', cursor: 'not-allowed' }} /></div>
+            <div><label htmlFor="perfil-telefono" style={{ fontWeight: 'bold', color: '#555' }}>📞 Teléfono de Contacto</label><input id="perfil-telefono" type="tel" value={telefono} disabled={guardando} onChange={(e) => { setTelefono(e.target.value); setMensajePerfil(null); }} style={inputStyle} onFocus={(e) => e.target.style.borderColor = '#ff4500'} onBlur={(e) => e.target.style.borderColor = '#ccc'} /></div>
             <div style={{ position: 'relative' }}>
-              <label style={{ fontWeight: 'bold', color: '#555' }}>📍 Dirección de Entrega Principal</label>
-              <input type="text" value={direccion} onChange={(e) => manejarCambioDireccion(e.target.value)} style={inputStyle} onFocus={(e) => e.target.style.borderColor = '#ff4500'} onBlur={(e) => setTimeout(() => setSugerencias([]), 200)} />
+              <label htmlFor="perfil-direccion" style={{ fontWeight: 'bold', color: '#555' }}>📍 Dirección de Entrega Principal</label>
+              <input id="perfil-direccion" type="text" value={direccion} disabled={guardando} onChange={(e) => manejarCambioDireccion(e.target.value)} style={inputStyle} onFocus={(e) => e.target.style.borderColor = '#ff4500'} onBlur={(e) => setTimeout(() => setSugerencias([]), 200)} />
               {sugerencias.length > 0 && (
                 <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '8px', zIndex: 100, listStyle: 'none', padding: 0, margin: '5px 0 0 0', boxShadow: '0 8px 15px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
                   {sugerencias.map((sug, index) => (
@@ -129,15 +140,17 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
                 </ul>
               )}
             </div>
-            <button onClick={handleGuardarCambios} disabled={guardando} style={{ marginTop: '1rem', padding: '1rem', background: '#00cc66', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1 }}>
-              {guardando ? 'Guardando...' : 'Guardar Cambios'}
+            <button type="button" className="boton-con-estado" onClick={handleGuardarCambios} disabled={guardando} aria-busy={guardando} style={{ marginTop: '1rem', padding: '1rem', background: '#16864a', color: 'white', border: 'none', borderRadius: '10px', fontSize: '1.1rem', fontWeight: 'bold', cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1 }}>
+              {(guardando || mensajePerfil?.tipo === 'exito') && <IconoEstado tipo={guardando ? 'cargando' : 'exito'} tamano={22} />}
+              {guardando ? 'Guardando...' : mensajePerfil?.tipo === 'exito' ? 'Cambios guardados' : 'Guardar Cambios'}
             </button>
+            <MensajeAccion mensaje={mensajePerfil} onCerrar={() => setMensajePerfil(null)} />
           </div>
         </div>
       </div>
 
       <div>
-        <h2 style={{ color: '#333', borderBottom: '2px solid #ff4500', paddingBottom: '10px', display: 'inline-block' }}>🕒 Tus Pedidos Anteriores</h2>
+        <h2 style={{ color: '#333', borderBottom: '2px solid #ff4500', paddingBottom: '10px', display: 'inline-block' }}>Tus Pedidos Anteriores</h2>
         {loadingPedidos ? <p>Cargando tu historial...</p> : pedidos.length === 0 ? (
           <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', textAlign: 'center', color: '#666', border: '1px dashed #ccc' }}>Aún no has realizado ningún pedido.</div>
         ) : (

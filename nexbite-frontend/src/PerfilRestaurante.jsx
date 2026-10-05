@@ -4,11 +4,14 @@ import { gql } from '@apollo/client/core/index.js';
 import BotonFavorito from './BotonFavorito'; 
 import BotonCorazon from './BotonCorazon';
 import { nombreCategoria } from './categoriasPlatos';
+
 import CarruselPlatos from './CarruselPlatos';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import IconoInfoRestaurante from './IconoInfoRestaurante';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 import './InfoRestauranteModal.css';
+
+const NOMBRES_SIDEBAR = { 'Elegido para ti': 'Para ti', 'Lo más pedido aquí': 'Top ventas' };
 
 const OBTENER_DATOS = gql`
   query ObtenerDatosPerfil($id: ID!, $id_usuario: ID!) {
@@ -512,7 +515,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                 className={`btn-categoria ${categoriaActiva === cat ? 'activa' : ''}`}
                 onClick={() => scrollToCategoria(cat)}
               >
-                {nombreCategoria(cat).toUpperCase()}
+                {(NOMBRES_SIDEBAR[cat] || nombreCategoria(cat)).toUpperCase()}
               </button>
             ))}
           </div>

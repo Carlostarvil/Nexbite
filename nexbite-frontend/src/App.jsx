@@ -18,6 +18,7 @@ import CarruselPlatos from './CarruselPlatos';
 import TituloSeccion, { ControlesCarrusel } from './TituloSeccion';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import AvisoCarrito from './AvisoCarrito';
+import ConfirmacionPedido from './ConfirmacionPedido';
 import { EstadoCarritoContext } from './estadoCarrito';
 import SelectorUbicacion from './SelectorUbicacion';
 import { leerUbicacionEntrega, guardarUbicacionEntrega } from './ubicacionEntrega';
@@ -94,6 +95,7 @@ function App() {
   
   const [carrito, setCarrito] = useState([]);
   const [mostrarCarrito, setMostrarCarrito] = useState(false);
+  const [confirmacionPedido, setConfirmacionPedido] = useState(null);
   const [avisoCarrito, setAvisoCarrito] = useState(null);
   const [destinoCarrito, setDestinoCarrito] = useState({ irAPago: false, idRestaurante: null });
   const numeroAviso = useRef(0);
@@ -252,7 +254,7 @@ function App() {
     <EstadoCarritoContext.Provider value={{ carrito, restarDelCarrito }}>
     <ErrorBoundary>
       <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: '#f8f9fa', position: 'relative' }}>
-        <div className="header-contenedor" inert={mostrarSelectorUbicacion}>
+        <div className="header-contenedor" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)}>
         <Header 
           onInicio={handleInicio} onLogout={handleCerrarSesion} 
           cantidadCarrito={totalArticulos} 
@@ -273,7 +275,7 @@ function App() {
         />
         </div>
 
-        <main inert={mostrarSelectorUbicacion} style={{ padding: 'clamp(1rem, 4vw, 2rem)', maxWidth: '1200px', margin: '0 auto' }}>
+        <main inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)} style={{ padding: 'clamp(1rem, 4vw, 2rem)', maxWidth: '1200px', margin: '0 auto' }}>
           
           {mostrarPerfil ? (
             <PerfilUsuario onVolver={() => setMostrarPerfil(false)} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={abrirDetalleDesdePedido} />
@@ -288,7 +290,7 @@ function App() {
             !ubicacionEntrega ? (
               <SelectorUbicacion onConfirmar={ubicacion => { guardarUbicacionEntrega(userId, ubicacion); setUbicacionEntrega(ubicacion); }} />
             ) : mostrarCarrito ? (
-              <Carrito key={destinoCarrito.irAPago ? 'pago-' + destinoCarrito.idRestaurante : 'carrito'} carrito={carrito} setCarrito={setCarrito} onVolver={() => setMostrarCarrito(false)} vaciarCarrito={() => setCarrito([])} idUsuario={userId} ubicacionEntrega={ubicacionEntrega} onCambiarUbicacion={() => setMostrarSelectorUbicacion(true)} tipoEntregaInicial={modoEntrega} idRestauranteInicial={destinoCarrito.idRestaurante} irAPago={destinoCarrito.irAPago} />
+              <Carrito key={destinoCarrito.irAPago ? 'pago-' + destinoCarrito.idRestaurante : 'carrito'} carrito={carrito} setCarrito={setCarrito} onVolver={() => setMostrarCarrito(false)} vaciarCarrito={() => setCarrito([])} idUsuario={userId} ubicacionEntrega={ubicacionEntrega} onCambiarUbicacion={() => setMostrarSelectorUbicacion(true)} tipoEntregaInicial={modoEntrega} idRestauranteInicial={destinoCarrito.idRestaurante} irAPago={destinoCarrito.irAPago} onPedidoConfirmado={pedido => { cerrarAvisoCarrito(); setConfirmacionPedido(pedido); }} />
             ) : mostrarFavoritos ? (
               <MisFavoritos idUsuario={userId} ubicacionEntrega={ubicacionEntrega} modoEntrega={modoEntrega} onVolver={() => setMostrarFavoritos(false)} onSelectRestaurante={(id) => { setRestauranteActivo(id); setMostrarFavoritos(false); }} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={setPlatoActivo} />
             
@@ -338,12 +340,7 @@ function App() {
 
                 {data?.obtenerUltimosPedidos && data.obtenerUltimosPedidos.length > 0 && !categoriaFiltroInicio && (
                   <div style={{ marginTop: '1rem', marginBottom: '3rem', position: 'relative' }}>
-                    <TituloSeccion titulo="¿Repetimos?" descripcion="Vuelve a pedir lo que ya te gusta." acciones={
-                      <>
-                        <ControlesCarrusel titulo="¿Repetimos?" onAnterior={() => scrollRepetimos(-300)} onSiguiente={() => scrollRepetimos(300)} />
-                        <button type="button" onClick={() => setMostrarPerfil(true)} className="titulo-seccion-enlace">Ver historial completo <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></button>
-                      </>
-                    } />
+                    <TituloSeccion titulo="¿Repetimos?" descripcion="Vuelve a pedir lo que ya te gusta." acciones={<ControlesCarrusel titulo="¿Repetimos?" onAnterior={() => scrollRepetimos(-300)} onSiguiente={() => scrollRepetimos(300)} />} />
                     
                     <div ref={repetimosRef} className="ocultar-scrollbar" style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px', scrollBehavior: 'smooth' }}>
                       {data.obtenerUltimosPedidos.map(pedido => {
@@ -379,6 +376,9 @@ function App() {
                           </div>
                         );
                       })}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '12px' }}>
+                      <button type="button" onClick={() => setMostrarPerfil(true)} className="titulo-seccion-enlace">Ver historial completo <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></button>
                     </div>
                   </div>
                 )}
@@ -462,11 +462,12 @@ function App() {
             }}
           />
         )}
-        {platoDelAviso && <div inert={mostrarSelectorUbicacion}>
+        {platoDelAviso && <div inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)}>
           <AvisoCarrito aviso={{ ...platoDelAviso, ...avisoCarrito }} cantidad={platoDelAviso.cantidad || 1}
             onCerrar={cerrarAvisoCarrito} onVerCarrito={() => abrirCarrito()}
             onPagar={() => abrirCarrito(true, platoDelAviso.id_restaurante)} />
         </div>}
+        {confirmacionPedido && <ConfirmacionPedido pedido={confirmacionPedido} onCerrar={() => setConfirmacionPedido(null)} onVerPedidos={() => { setConfirmacionPedido(null); handleInicio(); setMostrarPerfil(true); window.scrollTo(0, 0); }} />}
       </div>
     </ErrorBoundary>
     </EstadoCarritoContext.Provider>

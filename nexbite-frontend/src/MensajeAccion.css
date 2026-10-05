@@ -1,0 +1,17 @@
+.mensaje-accion { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border: 1px solid #dce5ef; border-radius: 14px; background: #f1f6fc; color: #234565; text-align: left; animation: mensaje-aparecer .22s ease-out; }
+.mensaje-accion-exito { border-color: #bce3cb; background: #effaf3; color: #16623a; }
+.mensaje-accion-error { border-color: #f1c6c6; background: #fff3f3; color: #9b2727; }
+.mensaje-accion-aviso { border-color: #eddaa9; background: #fff8e8; color: #80550d; }
+.mensaje-accion-icono { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: rgb(0 0 0 / 4%); }
+.mensaje-accion-texto { flex: 1; min-width: 0; }
+.mensaje-accion-texto strong { display: block; font-size: 15px; line-height: 1.5; }
+.mensaje-accion-texto p { margin: 4px 0 0; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.mensaje-accion-cerrar { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: inherit; cursor: pointer; }
+.mensaje-accion-cerrar:hover { background: rgb(0 0 0 / 6%); }
+.mensaje-accion-cerrar:focus-visible, .boton-con-estado:focus-visible { outline: 3px solid #0066cc; outline-offset: 3px; }
+.boton-con-estado { display: flex; align-items: center; justify-content: center; gap: 10px; font-family: inherit; transition: transform .15s ease, background .15s ease; }
+.boton-con-estado:not(:disabled):hover { transform: translateY(-1px); }
+.icono-girando { flex-shrink: 0; animation: icono-girar 1s linear infinite; }
+@keyframes icono-girar { to { transform: rotate(360deg); } }
+@keyframes mensaje-aparecer { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .mensaje-accion, .icono-girando { animation: none; } .boton-con-estado { transition: none; } .boton-con-estado:not(:disabled):hover { transform: none; } }
