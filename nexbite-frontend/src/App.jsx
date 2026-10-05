@@ -3,6 +3,7 @@ import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import Auth from './Auth'; 
 import Header from './Header'; 
+import Footer from './Footer';
 import MapView from './MapView'; 
 import RegistroRestaurante from './RegistroRestaurante';
 import PerfilRestaurante from './PerfilRestaurante';
@@ -179,6 +180,21 @@ function App() {
     setCategoriaFiltroInicio(null); 
   };
 
+  const navegarDesdeFooter = destino => {
+    if (destino === 'carrito') return abrirCarrito();
+    if (destino === 'ubicacion') {
+      if (ubicacionEntrega) setMostrarSelectorUbicacion(true);
+      else { handleInicio(); document.getElementById('direccion-entrega')?.focus(); }
+      return;
+    }
+    handleInicio();
+    cerrarAvisoCarrito();
+    if (destino === 'perfil' || destino === 'pedidos') setMostrarPerfil(true);
+    if (destino === 'favoritos') setMostrarFavoritos(true);
+    if (destino === 'registrar' && userRol === 'VENDEDOR') setVistaVendedor('REGISTRAR');
+    window.scrollTo(0, 0);
+  };
+
   const handleRecomprarRapido = (e, pedido) => {
     e.stopPropagation();
     agregarAlCarrito({ id_plato: pedido.id_plato, id_restaurante: pedido.id_restaurante, nombre: pedido.nombre_plato, precio: pedido.precio_plato, imagen_url: pedido.imagen_plato });
@@ -199,12 +215,20 @@ function App() {
   };
 
   if (!isLoggedIn) {
-    return <Auth onLogin={() => {
-      const token = localStorage.getItem('nexbite_token');
-      const datos = obtenerDatosDesdeToken(token);
-      setUbicacionEntrega(leerUbicacionEntrega(datos?.id_usuario));
-      setUserId(datos?.id_usuario); setUserRol(datos?.rol); setIsLoggedIn(true);
-    }} />;
+    return <div className="nexbite-acceso">
+      <main className="nexbite-acceso-contenido">
+        <Auth onLogin={() => {
+          const token = localStorage.getItem('nexbite_token');
+          const datos = obtenerDatosDesdeToken(token);
+          setUbicacionEntrega(leerUbicacionEntrega(datos?.id_usuario));
+          setUserId(datos?.id_usuario); setUserRol(datos?.rol); setIsLoggedIn(true);
+        }} />
+      </main>
+      <Footer onAcceder={() => {
+        window.scrollTo(0, 0);
+        document.querySelector('.nexbite-acceso-contenido input')?.focus({ preventScroll: true });
+      }} />
+    </div>;
   }
 
   const totalArticulos = carrito.reduce((acc, p) => acc + (p.cantidad || 1), 0);
@@ -275,7 +299,7 @@ function App() {
         />
         </div>
 
-        <main inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)} style={{ padding: 'clamp(1rem, 4vw, 2rem)', maxWidth: '1200px', margin: '0 auto' }}>
+        <main className="nexbite-contenido" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)} style={{ padding: 'clamp(1rem, 4vw, 2rem)', maxWidth: '1200px', margin: '0 auto' }}>
           
           {mostrarPerfil ? (
             <PerfilUsuario onVolver={() => setMostrarPerfil(false)} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={abrirDetalleDesdePedido} />
@@ -437,6 +461,9 @@ function App() {
             )
           )}
         </main>
+
+        <Footer userRol={userRol} onNavegar={navegarDesdeFooter}
+          bloqueado={mostrarSelectorUbicacion || Boolean(confirmacionPedido) || Boolean(platoActivo)} />
 
         {mostrarSelectorUbicacion && userRol !== 'VENDEDOR' && <div className="ubicacion-modal" role="dialog" aria-modal="true" aria-labelledby="titulo-ubicacion">
           <SelectorUbicacion ubicacion={ubicacionEntrega} onCancelar={() => setMostrarSelectorUbicacion(false)} onConfirmar={ubicacion => {
