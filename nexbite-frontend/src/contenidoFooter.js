@@ -1,4 +1,4 @@
-export const informacionFooter = {
+export const contenidoFooter = {
   sobre: {
     titulo: 'Sobre NexBite',
     descripcion: 'Una forma de descubrir qué comer cerca de ti y conectar con los restaurantes de tu zona.',

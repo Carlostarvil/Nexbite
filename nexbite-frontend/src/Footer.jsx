@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import InformacionFooter from './InformacionFooter';
+import InformacionFooter from './InformacionFooter.jsx';
 import './Footer.css';
 
 function IconoFooter({ tipo }) {

@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { informacionFooter } from './informacionFooter';
+import { contenidoFooter } from './contenidoFooter.js';
 
 export default function InformacionFooter({ tema, onCerrar }) {
   const dialogo = useRef(null);
   const titulo = useRef(null);
-  const informacion = informacionFooter[tema];
+  const informacion = contenidoFooter[tema];
 
   useEffect(() => {
     const elemento = dialogo.current;
