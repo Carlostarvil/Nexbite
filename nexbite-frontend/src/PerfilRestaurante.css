@@ -60,7 +60,7 @@
 .btn-categoria.activa .menu-categoria-flecha { opacity: 1; }
 .perfil-restaurante .contenido-platos { flex-grow: 1; min-width: 0; }
 .perfil-restaurante .seccion-scroll { position: relative; scroll-margin-top: var(--restaurante-scroll-offset); }
-.perfil-restaurante .titulo-menu-seccion { min-width: 0; margin: 0; color: #202923; font-family: 'Questrial', sans-serif; font-size: 21px; font-weight: 400; line-height: 1.35; letter-spacing: .6px; text-transform: uppercase; overflow-wrap: anywhere; }
+.perfil-restaurante .titulo-menu-seccion { min-width: 0; margin: 0; color: #202923; font-family: 'Questrial', sans-serif; font-size: 21px; font-weight: 700; font-synthesis: weight; line-height: 1.35; letter-spacing: .6px; text-transform: uppercase; overflow-wrap: anywhere; }
 .restaurante-seccion-cabecera { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #dedfdc; }
 .perfil-restaurante .restaurante-seccion-carrusel div:has(> .titulo-menu-seccion) { justify-content: space-between !important; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid #dedfdc !important; padding-bottom: 12px !important; margin-bottom: 20px !important; }
 .restaurante-platos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 20px; }
