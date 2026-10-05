@@ -16,6 +16,7 @@ import ErrorBoundary from './ErrorBoundary';
 import DetallePlato from './DetallePlato'; 
 import PerfilUsuario from './PerfilUsuario';
 import CarruselPlatos from './CarruselPlatos';
+import CategoriasInicio from './CategoriasInicio';
 import TituloSeccion, { ControlesCarrusel } from './TituloSeccion';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import AvisoCarrito from './AvisoCarrito';
@@ -37,20 +38,6 @@ const OBTENER_DATOS_INICIO = gql`
     obtenerPlatosFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato }
   }
 `;
-
-// Burbujas de categorías para la portada (Estilo Uber Eats)
-const CATEGORIAS_PORTADA = [
-  { id: 'Hamburguesas', emoji: '🍔' },
-  { id: 'Pizza', emoji: '🍕' },
-  { id: 'Desayuno', emoji: '☕' },
-  { id: 'Asiática', emoji: '🍣' },
-  { id: 'Sana', emoji: '🥗' },
-  { id: 'Americana', emoji: '🌭' },
-  { id: 'Postres', emoji: '🍰' },
-  { id: 'Sándwiches', emoji: '🥪' },
-  { id: 'Mexicana', emoji: '🌮' },
-  { id: 'Pollo', emoji: '🍗' }
-];
 
 const obtenerDatosDesdeToken = (token) => {
   try {
@@ -324,31 +311,8 @@ function App() {
               <>
                 <TituloSeccion titulo="¿Qué te apetece hoy?" descripcion="Encuentra tu próximo favorito entre los locales de tu zona." nivel={1} destacado />
 
-                <div className="ocultar-scrollbar" style={{ display: 'flex', gap: '15px', overflowX: 'auto', padding: '15px 0', marginTop: '10px' }}>
-                  <style>{`.ocultar-scrollbar::-webkit-scrollbar { display: none; } .ocultar-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
-                  
-                  {CATEGORIAS_PORTADA.map(cat => {
-                    const isSelected = categoriaFiltroInicio === cat.id;
-                    return (
-                      <div 
-                        key={cat.id} 
-                        onClick={() => setCategoriaFiltroInicio(isSelected ? null : cat.id)}
-                        style={{ 
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', cursor: 'pointer', minWidth: '75px',
-                          transform: isSelected ? 'scale(1.05)' : 'scale(1)', transition: 'all 0.2s'
-                        }}
-                      >
-                        <div style={{ 
-                          width: '65px', height: '65px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem',
-                          backgroundColor: isSelected ? '#ff4500' : '#fff', boxShadow: '0 4px 10px rgba(0,0,0,0.08)', border: isSelected ? '2px solid #ff4500' : '2px solid transparent'
-                        }}>
-                          <span style={{ filter: isSelected ? 'brightness(0) invert(1)' : 'none' }}>{cat.emoji}</span>
-                        </div>
-                        <span style={{ fontSize: '13px', fontWeight: isSelected ? 'bold' : '600', color: isSelected ? '#ff4500' : '#444' }}>{cat.id}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <style>{`.ocultar-scrollbar::-webkit-scrollbar { display: none; } .ocultar-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
+                <CategoriasInicio seleccionada={categoriaFiltroInicio} onSeleccionar={setCategoriaFiltroInicio} />
 
                 {platosRecomendados.length > 0 && !categoriaFiltroInicio && (
                   <div style={{ marginTop: '2rem', padding: '1rem', background: 'linear-gradient(to right, #fff0eb, #ffe4cc)', borderRadius: '16px' }}>
