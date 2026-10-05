@@ -521,12 +521,12 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
             {busquedaPlato === '' && (
               <>
                 {recomendacionesParaTi.length > 0 && (
-                  <div id={getSeccionId('Elegido para ti')} className="seccion-scroll" data-categoria="Elegido para ti" style={{ marginBottom: '3rem' }}>
+                  <div id={getSeccionId('Elegido para ti')} className="seccion-scroll restaurante-seccion-carrusel" data-categoria="Elegido para ti" style={{ marginBottom: '3rem' }}>
                     <CarruselPlatos titulo="PARA TI" mostrarIcono={false} platos={recomendacionesParaTi} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
                   </div>
                 )}
                 {platosPopulares.length > 0 && (
-                  <div id={getSeccionId('Lo más pedido aquí')} className="seccion-scroll" data-categoria="Lo más pedido aquí" style={{ marginBottom: '3rem' }}>
+                  <div id={getSeccionId('Lo más pedido aquí')} className="seccion-scroll restaurante-seccion-carrusel" data-categoria="Lo más pedido aquí" style={{ marginBottom: '3rem' }}>
                     <CarruselPlatos titulo="TOP VENTAS" mostrarIcono={false} platos={platosPopulares} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
                   </div>
                 )}
@@ -541,9 +541,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
 
               return (
                 <div key={cat} id={getSeccionId(cat)} className="seccion-scroll" data-categoria={cat} style={{ marginBottom: '4rem' }}>
-                  <div className="restaurante-seccion-cabecera">
-                    <h2 className="titulo-menu-seccion">{nombreCategoria(cat).toUpperCase()}</h2>
-                  </div>
+                  <h2 className="restaurante-titulo-accesible">{nombreCategoria(cat).toUpperCase()}</h2>
                   
                   <div className="restaurante-platos-grid">
                     {platosCat.map((plato) => {

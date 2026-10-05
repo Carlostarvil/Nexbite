@@ -1,11 +1,3 @@
-@font-face {
-  font-family: 'Archivo Black';
-  src: url('./assets/fonts/archivo-black/ArchivoBlack-Regular.ttf') format('truetype');
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
-
 .perfil-restaurante {
   --restaurante-menu-top: 92px;
   --restaurante-scroll-offset: 104px;
@@ -59,10 +51,10 @@
 .btn-categoria.activa .menu-categoria-icono { background: #ff6125; color: #fff; }
 .btn-categoria.activa .menu-categoria-flecha { opacity: 1; }
 .perfil-restaurante .contenido-platos { flex-grow: 1; min-width: 0; }
-.perfil-restaurante .seccion-scroll { scroll-margin-top: var(--restaurante-scroll-offset); }
-.perfil-restaurante .titulo-menu-seccion { display: flex; align-items: center; gap: 10px; margin: 0; color: #202923; font-family: 'Archivo Black', 'Arial Black', sans-serif; font-size: 21px; font-weight: 400; line-height: 1.3; letter-spacing: .7px; text-transform: uppercase; }
-.perfil-restaurante .titulo-menu-seccion::before { content: ''; flex-shrink: 0; width: 5px; height: 24px; border-radius: 4px; background: linear-gradient(180deg, #ff793f, #d74b11); }
-.restaurante-seccion-cabecera { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding-bottom: 13px; border-bottom: 1px solid #e8e8e8; }
+.perfil-restaurante .seccion-scroll { position: relative; scroll-margin-top: var(--restaurante-scroll-offset); }
+.perfil-restaurante .titulo-menu-seccion,
+.perfil-restaurante .restaurante-titulo-accesible { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.perfil-restaurante .restaurante-seccion-carrusel div:has(> .titulo-menu-seccion) { justify-content: flex-end !important; border-bottom: 0 !important; padding-bottom: 0 !important; margin-bottom: 14px !important; }
 .restaurante-platos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 20px; }
 .plato-etiqueta { display: inline-block; max-width: 100%; padding: 3px 8px; border: 1px solid #dce6f0; border-radius: 7px; background: #f2f6fa; color: #42617b; font-size: 10px; font-weight: 700; line-height: 1.5; letter-spacing: .4px; text-transform: uppercase; overflow-wrap: anywhere; }
 
@@ -98,8 +90,6 @@
   .restaurante-nombre { font-size: 25px; }
   .restaurante-resumen { margin-top: 12px; gap: 8px; }
   .restaurante-buscador input { padding: 13px 14px; font-size: 13px; }
-  .perfil-restaurante .titulo-menu-seccion { gap: 8px; font-size: 18px; letter-spacing: .5px; }
-  .perfil-restaurante .titulo-menu-seccion::before { height: 22px; }
   .perfil-restaurante .btn-categoria { font-size: 11px; }
   .restaurante-platos-grid { gap: 16px; }
 }
