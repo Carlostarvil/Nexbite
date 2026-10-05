@@ -478,14 +478,8 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
           
           {/* BARRA LATERAL (SIDEBAR) */}
           <nav className="sidebar-categorias" aria-label="Categorías del menú">
-            <p className="menu-navegacion-titulo">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false"><path d="M9 6h12M9 12h12M9 18h12M3 6h1M3 12h1M3 18h1" /></svg>
-              Explora el menú
-            </p>
             <div className="menu-categorias-lista">
-            {seccionesSidebar.map(cat => {
-              const cantidad = cat === 'Elegido para ti' ? recomendacionesParaTi.length : cat === 'Lo más pedido aquí' ? platosPopulares.length : platosDeCategoria(cat).length;
-              return (
+            {seccionesSidebar.map(cat => (
               <button 
                 type="button"
                 key={cat} 
@@ -494,10 +488,9 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                 aria-controls={getSeccionId(cat)}
                 onClick={() => scrollToCategoria(cat)}
               >
-                <span className="menu-categoria-texto">{(NOMBRES_SIDEBAR[cat] || nombreCategoria(cat)).toUpperCase()}</span>
-                <span className="menu-categoria-cantidad" aria-hidden="true">{cantidad}</span>
+                {(NOMBRES_SIDEBAR[cat] || nombreCategoria(cat)).toUpperCase()}
               </button>
-            );})}
+            ))}
             </div>
           </nav>
 
@@ -509,12 +502,12 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
               <>
                 {recomendacionesParaTi.length > 0 && (
                   <div id={getSeccionId('Elegido para ti')} className="seccion-scroll" data-categoria="Elegido para ti" style={{ marginBottom: '3rem' }}>
-                    <CarruselPlatos titulo="Elegido para ti" mostrarIcono={false} platos={recomendacionesParaTi} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
+                    <CarruselPlatos titulo="Para ti" mostrarIcono={false} platos={recomendacionesParaTi} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
                   </div>
                 )}
                 {platosPopulares.length > 0 && (
                   <div id={getSeccionId('Lo más pedido aquí')} className="seccion-scroll" data-categoria="Lo más pedido aquí" style={{ marginBottom: '3rem' }}>
-                    <CarruselPlatos titulo="Lo más pedido aquí" mostrarIcono={false} platos={platosPopulares} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
+                    <CarruselPlatos titulo="Top ventas" mostrarIcono={false} platos={platosPopulares} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
                   </div>
                 )}
               </>
@@ -530,7 +523,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                 <div key={cat} id={getSeccionId(cat)} className="seccion-scroll" data-categoria={cat} style={{ marginBottom: '4rem' }}>
                   <div className="restaurante-seccion-cabecera">
                     <h2 className="titulo-menu-seccion">{nombreCategoria(cat)}</h2>
-                    <span className="restaurante-seccion-cantidad">{platosCat.length} {platosCat.length === 1 ? 'plato' : 'platos'}</span>
                   </div>
                   
                   <div className="restaurante-platos-grid">
