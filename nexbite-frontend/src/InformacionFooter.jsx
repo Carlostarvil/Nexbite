@@ -40,7 +40,6 @@ export default function InformacionFooter({ tema, onCerrar }) {
     }}>
     <div className="footer-informacion-cabecera">
       <div>
-        <span className="footer-informacion-marca">NexBite</span>
         <h2 ref={titulo} id="footer-informacion-titulo" tabIndex={-1}>{informacion.titulo}</h2>
       </div>
       <button type="button" className="footer-informacion-cerrar" aria-label="Cerrar información" onClick={onCerrar}>
