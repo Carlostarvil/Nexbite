@@ -541,7 +541,9 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
 
               return (
                 <div key={cat} id={getSeccionId(cat)} className="seccion-scroll" data-categoria={cat} style={{ marginBottom: '4rem' }}>
-                  <h2 className="restaurante-titulo-accesible">{nombreCategoria(cat).toUpperCase()}</h2>
+                  <div className="restaurante-seccion-cabecera">
+                    <h2 className="titulo-menu-seccion">{nombreCategoria(cat).toUpperCase()}</h2>
+                  </div>
                   
                   <div className="restaurante-platos-grid">
                     {platosCat.map((plato) => {
