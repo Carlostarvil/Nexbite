@@ -12,7 +12,6 @@ import MisLocales from './MisLocales';
 import GestorMenu from './GestorMenu'; 
 import GestorPedidos from './GestorPedidos'; 
 import ErrorBoundary from './ErrorBoundary'; 
-import Buscador from './Buscador'; 
 import DetallePlato from './DetallePlato'; 
 import PerfilUsuario from './PerfilUsuario';
 import CarruselPlatos from './CarruselPlatos';
@@ -253,14 +252,16 @@ function App() {
     <EstadoCarritoContext.Provider value={{ carrito, restarDelCarrito }}>
     <ErrorBoundary>
       <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: '#f8f9fa', position: 'relative' }}>
-        <div inert={mostrarSelectorUbicacion}>
+        <div className="header-contenedor" inert={mostrarSelectorUbicacion}>
         <Header 
           onInicio={handleInicio} onLogout={handleCerrarSesion} 
           cantidadCarrito={totalArticulos} 
           onAbrirCarrito={() => abrirCarrito()}
           onAbrirFavoritos={() => { setMostrarFavoritos(true); setMostrarCarrito(false); setRestauranteActivo(null); setPlatoActivo(null); setMostrarPerfil(false); }}
-          onSelectRestaurante={(id) => { setRestauranteActivo(id); setMostrarCarrito(false); setMostrarFavoritos(false); setPlatoActivo(null); setMostrarPerfil(false); }} 
+          onSelectRestaurante={id => { handleInicio(); setRestauranteActivo(id); cerrarAvisoCarrito(); window.scrollTo(0, 0); }}
+          onSelectPlato={plato => { handleInicio(); setRestauranteActivo(plato.id_restaurante); setPlatoActivo(plato); cerrarAvisoCarrito(); window.scrollTo(0, 0); }}
           onAbrirPerfil={() => { setMostrarPerfil(true); setMostrarCarrito(false); setMostrarFavoritos(false); setRestauranteActivo(null); setPlatoActivo(null); }}
+          vistaActiva={mostrarPerfil ? 'perfil' : mostrarCarrito ? 'carrito' : mostrarFavoritos ? 'favoritos' : 'inicio'}
           userRol={userRol}
           ubicacionEntrega={ubicacionEntrega}
           modoEntrega={modoEntrega}
@@ -296,7 +297,6 @@ function App() {
             ) : (
               <>
                 <TituloSeccion titulo="¿Qué te apetece hoy?" descripcion="Encuentra tu próximo favorito entre los locales de tu zona." nivel={1} destacado />
-                <Buscador ubicacionEntrega={ubicacionEntrega} modoEntrega={modoEntrega} onSelectRestaurante={setRestauranteActivo} onSelectPlato={setPlatoActivo} />
 
                 <div className="ocultar-scrollbar" style={{ display: 'flex', gap: '15px', overflowX: 'auto', padding: '15px 0', marginTop: '10px' }}>
                   <style>{`.ocultar-scrollbar::-webkit-scrollbar { display: none; } .ocultar-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>

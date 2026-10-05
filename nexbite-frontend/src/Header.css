@@ -1,36 +1,50 @@
-.nexbite-header { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 16px; padding: 14px 20px; background: #ff4500; color: #fff; }
+body { margin: 0; }
+.header-contenedor { position: sticky; top: 0; z-index: 1200; }
+.nexbite-header { display: grid; grid-template-columns: auto auto minmax(180px, 1fr) auto; grid-template-areas: 'marca entrega buscador acciones'; align-items: center; gap: 20px; width: 100%; box-sizing: border-box; margin: 0; padding: 12px clamp(16px, 3vw, 32px); border: 0; border-radius: 0; box-shadow: none; background: #fff; color: #1b1b1b; text-align: left; }
 .nexbite-header button { font-family: inherit; cursor: pointer; }
-.nexbite-header button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
-.header-marca { border: 0; padding: 0; background: none; color: #fff; font-size: 23px; font-weight: 750; text-align: left; }
-.header-entrega { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.header-modos { display: flex; flex-shrink: 0; padding: 3px; border-radius: 24px; background: #fff; }
-.header-modos button { border: 0; border-radius: 20px; background: transparent; color: #444; padding: 8px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.header-modos button[aria-pressed="true"] { background: #333; color: #fff; }
-.header-modos button:focus-visible { outline-color: #0066cc; }
-.header-ubicacion { position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 36px; border: 0; border-radius: 8px; padding: 0; background: rgba(255,255,255,.12); color: #fff; }
-.header-ubicacion:hover { background: rgba(255,255,255,.22); }
+.nexbite-header button:focus-visible { outline: 3px solid #0066cc; outline-offset: 3px; }
+.header-marca { grid-area: marca; border: 0; padding: 0; background: none; color: #171717; font-size: 25px; font-weight: 800; letter-spacing: -1px; line-height: 1.2; text-align: left; }
+.header-entrega { grid-area: entrega; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.header-modos { display: flex; flex-shrink: 0; padding: 3px; border-radius: 24px; background: #f1f1f1; }
+.header-modos button { min-height: 34px; border: 0; border-radius: 20px; background: transparent; color: #565656; padding: 7px 11px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.header-modos button[aria-pressed="true"] { background: #fff; color: #171717; }
+.header-modos button:hover { color: #171717; }
+.header-ubicacion { position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: #1b1b1b; }
+.header-ubicacion:hover { background: #f1f1f1; }
 .header-direccion { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
-.header-acciones { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; }
-.header-acciones button { border: 0; color: #fff; background: rgba(255,255,255,.2); border-radius: 20px; padding: 8px 11px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.header-acciones .header-perfil { background: #0066cc; }
-.header-acciones .header-sesion { background: #d63031; }
-.nexbite-header-vendedor { grid-template-columns: auto 1fr; }
-@media (max-width: 800px) {
-  .nexbite-header { grid-template-columns: auto 1fr; gap: 12px; }
-  .header-marca { grid-column: 1; grid-row: 1; }
-  .header-entrega { grid-column: 1 / -1; grid-row: 2; }
-  .header-acciones { grid-column: 2; grid-row: 1; }
+.header-buscador { grid-area: buscador; width: 100%; min-width: 0; justify-self: center; }
+.header-acciones { grid-area: acciones; display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.header-icono { position: relative; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: #1b1b1b; transition: color .15s ease, background .15s ease; }
+.header-icono:hover { background: #f1f1f1; }
+.header-icono[aria-current="page"] { background: #fff1eb; color: #c43c00; }
+.header-favoritos[aria-current="page"] { background: #fff0f3; color: #d7193f; }
+.header-carrito-contador { position: absolute; top: 0; right: -1px; display: flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border: 2px solid #fff; border-radius: 20px; background: #ff4500; color: #fff; font-size: 10px; font-weight: 750; line-height: 1; }
+.header-sesion { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-height: 40px; border: 0; border-radius: 20px; padding: 8px 10px; background: transparent; color: #616161; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.header-sesion:hover { background: #fff0f0; color: #b42318; }
+.header-icono-sesion { display: none; }
+.nexbite-header-vendedor { grid-template-columns: auto 1fr; grid-template-areas: 'marca acciones'; }
+@media (max-width: 1040px) {
+  .nexbite-header:not(.nexbite-header-vendedor) { grid-template-columns: auto 1fr auto; grid-template-areas: 'marca entrega acciones' 'buscador buscador buscador'; gap: 10px 16px; }
 }
-@media (max-width: 600px) {
-  .nexbite-header { grid-template-areas: 'marca entrega' 'acciones acciones'; padding: 12px 16px; gap: 10px; }
-  .header-marca { grid-area: marca; font-size: 21px; }
-  .header-entrega { grid-area: entrega; gap: 8px; justify-self: end; }
-  .header-modos button { padding: 7px 10px; font-size: 12px; }
-  .header-acciones { grid-area: acciones; justify-content: flex-start; gap: 6px; }
-  .header-acciones button { padding: 7px 9px; }
-  .nexbite-header-vendedor { grid-template-areas: 'marca marca' 'acciones acciones'; }
+@media (max-width: 650px) {
+  .nexbite-header:not(.nexbite-header-vendedor) { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: 'marca entrega entrega' 'buscador buscador acciones'; gap: 8px; padding: 10px 16px; }
+  .header-marca { font-size: 21px; letter-spacing: -.7px; }
+  .header-entrega { justify-self: end; gap: 6px; }
+  .header-modos button { min-height: 32px; padding: 6px 8px; font-size: 11.5px; }
+  .header-ubicacion { width: 36px; height: 36px; }
+  .header-acciones { gap: 4px; }
+  .header-icono { width: 40px; height: 40px; }
+  .header-sesion { width: 36px; min-height: 40px; padding: 0; }
+  .header-sesion-texto { display: none; }
+  .header-icono-sesion { display: block; }
+  .nexbite-header-vendedor { gap: 8px; padding: 12px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .header-icono { transition: none; }
 }
 @media (max-width: 360px) {
-  .nexbite-header:not(.nexbite-header-vendedor) { grid-template-areas: 'marca marca' 'entrega entrega' 'acciones acciones'; }
-  .header-entrega { justify-self: start; }
+  .header-marca { font-size: 20px; }
+  .header-entrega { gap: 4px; }
+  .header-modos button { padding-inline: 6px; font-size: 10.5px; }
+  .header-ubicacion { width: 32px; }
 }
