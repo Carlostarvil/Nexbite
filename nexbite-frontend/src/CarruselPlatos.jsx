@@ -1,22 +1,108 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
-import TituloSeccion, { ControlesCarrusel } from './TituloSeccion';
+import TituloSeccion from './TituloSeccion'; 
 
-export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgregarAlCarrito, mostrarIcono = true, cabeceraInicio = false, descripcion }) {
+const formatearFecha = (fechaStr) => {
+  if (!fechaStr || String(fechaStr).includes('Indefinido')) return null;
+  const timestamp = !isNaN(fechaStr) && String(fechaStr).trim() !== '' ? Number(fechaStr) : fechaStr;
+  const fecha = new Date(timestamp);
+  if (isNaN(fecha.getTime())) return null; 
+
+  const hoy = new Date();
+  const esHoy = fecha.getDate() === hoy.getDate() && 
+                fecha.getMonth() === hoy.getMonth() && 
+                fecha.getFullYear() === hoy.getFullYear();
+
+  if (esHoy) {
+    return fecha.toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+  } else {
+    return fecha.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+};
+
+// NUEVO: Función para extraer el precio antiguo de la descripción
+const extraerPrecioAnterior = (descripcion) => {
+  if (!descripcion) return null;
+  const match = descripcion.match(/\|ANTES:\s*([\d.,]+)/i);
+  return match ? parseFloat(match[1].replace(',', '.')) : null;
+};
+
+export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgregarAlCarrito, mostrarIcono = true, cabeceraInicio = false, descripcion, restaurantePausado = false, tiempoReactivacionRestaurante = null }) {
   const scrollRef = useRef(null);
+  const intervaloRef = useRef(null);
 
-  // Paset a mangkontrol iti panag-scroll
   const scroll = (desplazamiento) => {
     if (scrollRef.current) {
       scrollRef.current.scrollBy({ left: desplazamiento, behavior: 'smooth' });
     }
   };
 
+  const iniciarScrollContinuo = (desplazamiento) => {
+    scroll(desplazamiento); 
+    intervaloRef.current = setInterval(() => {
+      scroll(desplazamiento);
+    }, 250);
+  };
+
+  const detenerScrollContinuo = () => {
+    if (intervaloRef.current) {
+      clearInterval(intervaloRef.current);
+      intervaloRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => detenerScrollContinuo();
+  }, []);
+
   if (!platos || platos.length === 0) return null;
+
+  const BotonesScroll = () => (
+    <div style={{ display: 'flex', gap: '8px' }}>
+      <button 
+        onMouseDown={() => iniciarScrollContinuo(-250)}
+        onMouseUp={detenerScrollContinuo}
+        onTouchStart={() => iniciarScrollContinuo(-250)}
+        onTouchEnd={detenerScrollContinuo}
+        style={{ 
+          width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #eaeaea', 
+          background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', 
+          justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.02)', color: '#000',
+          userSelect: 'none', WebkitUserSelect: 'none', transition: 'background 0.2s' 
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+        onMouseLeave={(e) => { 
+          e.currentTarget.style.backgroundColor = 'white'; 
+          detenerScrollContinuo(); 
+        }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+
+      <button 
+        onMouseDown={() => iniciarScrollContinuo(250)}
+        onMouseUp={detenerScrollContinuo}
+        onTouchStart={() => iniciarScrollContinuo(250)}
+        onTouchEnd={detenerScrollContinuo}
+        style={{ 
+          width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #eaeaea', 
+          background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', 
+          justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.02)', color: '#000',
+          userSelect: 'none', WebkitUserSelect: 'none', transition: 'background 0.2s' 
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+        onMouseLeave={(e) => { 
+          e.currentTarget.style.backgroundColor = 'white'; 
+          detenerScrollContinuo(); 
+        }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+  );
 
   return (
     <div style={{ marginBottom: '2.5rem', position: 'relative' }}>
-      {/* CSS tapno mailemmeng ti default a scrollbar */}
       <style>
         {`
           .ocultar-scrollbar::-webkit-scrollbar { display: none; }
@@ -25,34 +111,13 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
       </style>
       
       {cabeceraInicio ? (
-        <TituloSeccion titulo={titulo} descripcion={descripcion} acciones={
-          <ControlesCarrusel titulo={titulo} onAnterior={() => scroll(-300)} onSiguiente={() => scroll(300)} />
-        } />
+        <TituloSeccion titulo={titulo} descripcion={descripcion} acciones={<BotonesScroll />} />
       ) : (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 'var(--carrusel-borde-cabecera, 2px solid #ff4500)', paddingBottom: '10px', marginBottom: '1.5rem' }}>
-        <h2 className="titulo-menu-seccion" style={{ color: '#333', margin: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eaeaea', paddingBottom: '10px', marginBottom: '1.5rem' }}>
+        <h2 className="titulo-menu-seccion" style={{ color: '#000', margin: 0, fontWeight: 800 }}>
           {mostrarIcono && '⭐ '}{titulo}
         </h2>
-        
-        {/* Dagiti napindut a palaso (Clickable arrows) */}
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button 
-            onClick={() => scroll(-300)} 
-            style={{ width: '35px', height: '35px', borderRadius: '50%', border: '1px solid #ccc', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', transition: 'background 0.2s' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-          >
-            ←
-          </button>
-          <button 
-            onClick={() => scroll(300)} 
-            style={{ width: '35px', height: '35px', borderRadius: '50%', border: '1px solid #ccc', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', transition: 'background 0.2s' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-          >
-            →
-          </button>
-        </div>
+        <BotonesScroll />
       </div>
       )}
       
@@ -61,13 +126,31 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
         className="ocultar-scrollbar"
         style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '15px', scrollBehavior: 'smooth' }}
       >
-        {platos.map(plato => (
+        {platos.map(plato => {
+          const estaNoDisponible = restaurantePausado || plato.disponible === false || plato.restaurante_abierto === false;
+          const precioAnterior = extraerPrecioAnterior(plato.descripcion);
+          
+          let textoEstado = '';
+          if (restaurantePausado || plato.restaurante_abierto === false) {
+             const t = formatearFecha(tiempoReactivacionRestaurante || plato.tiempo_reactivacion_restaurante);
+             textoEstado = t ? `🔴 Pausado hasta ${t}` : '🔴 Local Pausado';
+          } else if (plato.disponible === false) {
+             const t = formatearFecha(plato.tiempo_disponible);
+             textoEstado = t ? `⏳ Agotado hasta ${t}` : '❌ Agotado';
+          }
+
+          return (
           <div 
             key={plato.id_plato} 
             onClick={() => onSelectPlato(plato)}
-            style={{ position: 'relative', minWidth: '220px', maxWidth: '220px', backgroundColor: '#fff', border: '1px solid #eaeaea', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column' }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(0,0,0,0.1)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.05)'; }}
+            style={{ 
+              minWidth: '220px', maxWidth: '220px', backgroundColor: '#fff', border: '1px solid #eaeaea', 
+              borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 10px rgba(0,0,0,0.02)', 
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column',
+              opacity: estaNoDisponible ? 0.7 : 1
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(0,0,0,0.05)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.02)'; }}
           >
             {plato.imagen_url ? (
               <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '140px', objectFit: 'cover' }} />
@@ -75,18 +158,37 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
               <div style={{ width: '100%', height: '140px', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>🍽️</div>
             )}
             
-            <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-              <h4 style={{ margin: '0 0 5px 0', color: '#333', fontSize: '15px' }}>{plato.nombre}</h4>
+            <div style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+              <h4 style={{ margin: '0 0 5px 0', color: '#000', fontSize: '15px', fontWeight: 700 }}>{plato.nombre}</h4>
               
               {plato.nombre_restaurante && <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '12px' }}>De: {plato.nombre_restaurante}</p>}
               
               <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
-                <span style={{ fontWeight: 'bold', color: '#0066cc', fontSize: '1.1rem' }}>€{plato.precio?.toFixed(2)}</span>
-                <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} />
+                
+                {/* LÓGICA DEL PRECIO EN EL CARRUSEL */}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontWeight: '800', color: '#000', fontSize: '1.2rem' }}>€{plato.precio?.toFixed(2)}</span>
+                  {precioAnterior && precioAnterior > plato.precio && (
+                    <span style={{ fontWeight: '600', color: '#999', fontSize: '0.95rem', textDecoration: 'line-through' }}>
+                      €{precioAnterior.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+                
+                {estaNoDisponible ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
+                    <span style={{ color: '#d63031', fontWeight: 'bold', fontSize: '0.85rem', textAlign: 'right' }}>
+                      {textoEstado}
+                    </span>
+                    <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} variante="reserva" />
+                  </div>
+                ) : (
+                  <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} />
+                )}
               </div>
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );

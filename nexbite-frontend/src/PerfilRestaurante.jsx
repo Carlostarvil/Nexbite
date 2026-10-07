@@ -48,7 +48,9 @@ const OBTENER_DATOS = gql`
       direccion
     }
     obtenerMenuRestaurante(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, categoria, imagen_url, disponible, tiempo_disponible }
-    obtenerMasVendidos(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, disponible }
+    
+    obtenerMasVendidos(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, disponible, tiempo_disponible }
+    
     obtenerFavoritos(id_usuario: $id_usuario) { id_restaurante }
     obtenerPlatosFavoritos(id_usuario: $id_usuario) { id_plato }
   }
@@ -71,7 +73,7 @@ const OBTENER_HISTORIAL_COMPRAS = gql`
   }
 `;
 
-const OPCIONES_CATEGORIAS = ['ENTRANTE', 'COMPARTIR', 'PLATO', 'BEBIDA', 'POSTRE', 'OFERTA', 'MENU'];
+const OPCIONES_CATEGORIAS = ['OFERTA', 'ENTRANTE', 'COMPARTIR', 'PLATO', 'BEBIDA', 'POSTRE', 'MENU'];
 
 const parseCategorias = (catData) => {
   if (!catData) return [];
@@ -82,26 +84,49 @@ const parseCategorias = (catData) => {
   return [];
 };
 
+// NUEVO: Ahora extrae también el precio anterior de la descripción y lo limpia
 const extraerTags = (descripcion, categoriasBackend) => {
   let descLimpia = descripcion || '';
   let tagsExtra = [];
+  let precioAnterior = null;
+
+  const matchAntes = descLimpia.match(/\|ANTES:\s*([\d.,]+)/i);
+  if (matchAntes) {
+    precioAnterior = parseFloat(matchAntes[1].replace(',', '.'));
+    descLimpia = descLimpia.replace(matchAntes[0], '').trim();
+  }
+
   if (descLimpia.includes(' |TAGS:')) {
     const partes = descLimpia.split(' |TAGS:');
     descLimpia = partes[0];
     tagsExtra = partes[1].split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+  } else if (descLimpia.includes('|TAGS:')) {
+    const partes = descLimpia.split('|TAGS:');
+    descLimpia = partes[0].trim();
+    tagsExtra = partes[1].split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
   }
-  return { descLimpia, tagsTotales: [...parseCategorias(categoriasBackend), ...tagsExtra] };
+
+  return { descLimpia, tagsTotales: [...parseCategorias(categoriasBackend), ...tagsExtra], precioAnterior };
 };
 
 const formatearFecha = (fechaStr) => {
-  if (!fechaStr || String(fechaStr).includes('Indefinido')) return 'Sin estimación exacta';
+  if (!fechaStr || String(fechaStr).includes('Indefinido')) return null;
   const timestamp = !isNaN(fechaStr) && String(fechaStr).trim() !== '' ? Number(fechaStr) : fechaStr;
   const fecha = new Date(timestamp);
-  if (isNaN(fecha.getTime())) return String(fechaStr); 
-  return fecha.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  if (isNaN(fecha.getTime())) return null; 
+
+  const hoy = new Date();
+  const esHoy = fecha.getDate() === hoy.getDate() && 
+                fecha.getMonth() === hoy.getMonth() && 
+                fecha.getFullYear() === hoy.getFullYear();
+
+  if (esHoy) {
+    return fecha.toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+  } else {
+    return fecha.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
 };
 
-// Generador de IDs seguros para el HTML (necesario para el Scroll Spy)
 const getSeccionId = (nombre) => `seccion-${nombre.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
 function InfoRestauranteModal({ restaurante, onClose }) {
@@ -154,8 +179,9 @@ function InfoRestauranteModal({ restaurante, onClose }) {
     ? 'https://static-maps.yandex.ru/1.x/?ll=' + longitud + ',' + latitud + '&size=400,200&z=16&l=map&pt=' + longitud + ',' + latitud + ',pm2rdm'
     : null;
   const abierto = Boolean(restaurante.aceptando_pedidos);
-  const horario = abierto ? 'Abierto ahora' : restaurante.tiempo_reactivacion
-    ? 'Vuelve a abrir: ' + formatearFecha(restaurante.tiempo_reactivacion) : 'Cerrado temporalmente';
+  
+  const tiempoReact = formatearFecha(restaurante.tiempo_reactivacion);
+  const horario = abierto ? 'Abierto ahora' : tiempoReact ? `Vuelve a abrir: ${tiempoReact}` : 'Cerrado temporalmente';
 
   const copiarAlPortapapeles = async () => {
     clearTimeout(temporizadorCopia.current);
@@ -277,7 +303,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
     if (platosFavoritos) setFavoritosLocales(platosFavoritos.map(fav => String(fav.id_plato)));
   }, [platosFavoritos]);
 
-  // Si aparece o desaparece "Elegido para ti", el plato pulsado conserva su sitio.
   useLayoutEffect(() => {
     const ancla = anclaFavorito.current;
     anclaFavorito.current = null;
@@ -294,6 +319,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   const listaFinalCategorias = [...categoriasBaseOrdenadas, ...categoriasCustom];
 
   const isPausado = restaurante?.aceptando_pedidos === false;
+  const tiempoReact = formatearFecha(restaurante?.tiempo_reactivacion);
 
   const handleCorazonClick = async (idPlato, evento) => {
     if (favoritoEnCurso.current) return;
@@ -312,7 +338,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
       await alternarFavoritoPlato({
         variables: { id_plato: idPlato },
         update(cache) {
-          // Actualiza los favoritos guardados sin desmontar ni volver a cargar el menú.
           cache.updateQuery({ query: OBTENER_DATOS, variables: { id: idRestaurante, id_usuario: idUsuarioActual } }, datos => {
             if (!datos) return datos;
             const favoritos = datos.obtenerPlatosFavoritos || [];
@@ -379,14 +404,16 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
 
   const recomendacionesParaTi = generarRecomendaciones();
 
-  // CONSTRUCCIÓN DEL MENÚ LATERAL
   const platosDeCategoria = cat => menuCompleto.filter(p => {
     const { descLimpia, tagsTotales } = extraerTags(p.descripcion, p.categoria);
     const coincideCategoria = tagsTotales.includes(cat);
     const coincideTexto = busquedaPlato === '' || p.nombre.toLowerCase().includes(busquedaPlato.toLowerCase()) || descLimpia.toLowerCase().includes(busquedaPlato.toLowerCase());
     return coincideCategoria && coincideTexto;
   });
+  
   const categoriasConPlatos = listaFinalCategorias.filter(cat => platosDeCategoria(cat).length > 0);
+
+  const tieneOfertas = categoriasConPlatos.includes('OFERTA');
 
   const seccionesSidebar = [];
   if (busquedaPlato === '') {
@@ -397,7 +424,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   const categoriaSeleccionada = seccionesSidebar.includes(categoriaActiva) ? categoriaActiva : seccionesSidebar[0];
   const tiposLocal = [...new Set((restaurante?.tipo || '').split(',').map(tipo => tipo.trim()).filter(Boolean))];
 
-  // Scroll Spy: Detecta qué sección está en pantalla leyendo el DOM directamente
   useEffect(() => {
     const handleScroll = () => {
       let categoriaActual = null;
@@ -438,7 +464,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   return (
     <div ref={perfil} className="perfil-restaurante">
 
-      {/* CABECERA DEL RESTAURANTE */}
       <div className="restaurante-cabecera">
         <div className="restaurante-portada">
            {restaurante?.imagen_url ? (
@@ -470,15 +495,21 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
             {tiposLocal.length > 0 && <div className="restaurante-tipos" aria-label="Tipo de local">
               {tiposLocal.map(tipo => <span className="restaurante-tipo" key={tipo}>{tipo}</span>)}
             </div>}
+            
+            {tieneOfertas && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffebee', color: '#c62828', padding: '6px 12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '13px' }}>
+                <span>🎟️</span> Ofertas activas
+              </div>
+            )}
+
             <div className={'restaurante-estado' + (isPausado ? ' restaurante-estado-pausado' : '')}>
               <span className="restaurante-estado-punto" aria-hidden="true" />
-              {isPausado ? 'Vuelve a abrir: ' + formatearFecha(restaurante.tiempo_reactivacion) : 'Abierto'}
+              {isPausado ? 'Vuelve a abrir: ' + (tiempoReact || '') : 'Abierto'}
             </div>
           </div>
         </div>
       </div>
 
-      {/* BUSCADOR */}
       <div className="restaurante-buscador">
         <input
           type="search"
@@ -494,7 +525,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
       ) : (
         <div className="menu-layout">
           
-          {/* BARRA LATERAL (SIDEBAR) */}
           <nav className="sidebar-categorias" aria-label="Categorías del menú">
             <div className="menu-categorias-lista">
             {seccionesSidebar.map(cat => (
@@ -514,26 +544,23 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
             </div>
           </nav>
 
-          {/* CONTENIDO PRINCIPAL (PLATOS) */}
           <div className="contenido-platos">
             
-            {/* Carruseles Especiales (Solo si no hay búsqueda activa) */}
             {busquedaPlato === '' && (
               <>
                 {recomendacionesParaTi.length > 0 && (
                   <div id={getSeccionId('Elegido para ti')} className="seccion-scroll restaurante-seccion-carrusel" data-categoria="Elegido para ti" style={{ marginBottom: '3rem' }}>
-                    <CarruselPlatos titulo="PARA TI" mostrarIcono={false} platos={recomendacionesParaTi} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
+                    <CarruselPlatos titulo="PARA TI" mostrarIcono={false} platos={recomendacionesParaTi} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} restaurantePausado={isPausado} tiempoReactivacionRestaurante={restaurante?.tiempo_reactivacion} />
                   </div>
                 )}
                 {platosPopulares.length > 0 && (
                   <div id={getSeccionId('Lo más pedido aquí')} className="seccion-scroll restaurante-seccion-carrusel" data-categoria="Lo más pedido aquí" style={{ marginBottom: '3rem' }}>
-                    <CarruselPlatos titulo="TOP VENTAS" mostrarIcono={false} platos={platosPopulares} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} />
+                    <CarruselPlatos titulo="TOP VENTAS" mostrarIcono={false} platos={platosPopulares} onSelectPlato={onSelectPlato} onAgregarAlCarrito={onAgregarAlCarrito} restaurantePausado={isPausado} tiempoReactivacionRestaurante={restaurante?.tiempo_reactivacion} />
                   </div>
                 )}
               </>
             )}
 
-            {/* Listado de Platos agrupados por Categoría */}
             {categoriasConPlatos.map(cat => {
               const platosCat = platosDeCategoria(cat);
 
@@ -548,7 +575,16 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                   <div className="restaurante-platos-grid">
                     {platosCat.map((plato) => {
                       const esPlatoFavorito = favoritosLocales.includes(String(plato.id_plato));
-                      const { descLimpia, tagsTotales } = extraerTags(plato.descripcion, plato.categoria);
+                      const { descLimpia, tagsTotales, precioAnterior } = extraerTags(plato.descripcion, plato.categoria);
+                      
+                      const estaNoDisponible = isPausado || plato.disponible === false;
+                      let textoEstado = '';
+                      if (isPausado) {
+                        textoEstado = tiempoReact ? `🔴 Pausado hasta ${tiempoReact}` : '🔴 Local Pausado';
+                      } else if (plato.disponible === false) {
+                        const tPlato = formatearFecha(plato.tiempo_disponible);
+                        textoEstado = tPlato ? `⏳ Agotado hasta ${tPlato}` : '❌ Agotado';
+                      }
                       
                       return (
                       <div 
@@ -557,7 +593,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                         onClick={() => onSelectPlato && onSelectPlato(plato)}
                         onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.1)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-                        style={{ position: 'relative', border: '1px solid #e0e0e0', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#fff', opacity: (isPausado || plato.disponible === false) ? 0.7 : 1, cursor: 'pointer', transition: 'all 0.2s ease' }}
+                        style={{ position: 'relative', border: '1px solid #e0e0e0', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#fff', opacity: estaNoDisponible ? 0.7 : 1, cursor: 'pointer', transition: 'all 0.2s ease' }}
                       >
                         <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 2 }}>
                           <BotonCorazon activo={esPlatoFavorito} disabled={guardandoFavorito} onClick={evento => handleCorazonClick(plato.id_plato, evento)} nombre={plato.nombre} />
@@ -567,7 +603,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                         <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'space-between' }}>
                           <div>
                             
-                            {/* FILTRO DE ETIQUETAS: Oculta "Entrante", "Compartir", etc. */}
                             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '10px' }}>
                               {tagsTotales.filter(tag => !OPCIONES_CATEGORIAS.includes(tag)).map(tag => (
                                 <span key={tag} className="plato-etiqueta">
@@ -583,11 +618,20 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                           </div>
                           
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', marginTop: '1rem', gap: '10px' }}>
-                            <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#0066cc' }}>€{plato.precio.toFixed(2)}</span>
                             
-                            {isPausado || plato.disponible === false ? (
+                            {/* LÓGICA DEL PRECIO EN EL LISTADO DEL RESTAURANTE */}
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                              <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#000' }}>€{plato.precio.toFixed(2)}</span>
+                              {precioAnterior && precioAnterior > plato.precio && (
+                                <span style={{ fontSize: '1rem', fontWeight: '600', color: '#999', textDecoration: 'line-through' }}>
+                                  €{precioAnterior.toFixed(2)}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {estaNoDisponible ? (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
-                                <span style={{ color: '#d63031', fontWeight: 'bold', fontSize: '0.85rem' }}>{plato.disponible === false ? '❌ Agotado' : '🔴 Pausado'}</span>
+                                <span style={{ color: '#d63031', fontWeight: 'bold', fontSize: '0.85rem', textAlign: 'right' }}>{textoEstado}</span>
                                 <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} variante="reserva" />
                               </div>
                             ) : (

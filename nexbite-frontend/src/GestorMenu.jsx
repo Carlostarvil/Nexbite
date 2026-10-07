@@ -26,15 +26,24 @@ const parseCategorias = (catData) => {
   return [];
 };
 
+// NUEVO: Lee el precio anterior de la descripción
 const extraerTags = (descripcion, categoriasBackend) => {
   let descLimpia = descripcion || '';
   let tagsExtra = [];
+  let precioAnterior = null;
+
+  const matchAntes = descLimpia.match(/\|ANTES:\s*([\d.,]+)/i);
+  if (matchAntes) {
+    precioAnterior = parseFloat(matchAntes[1].replace(',', '.'));
+    descLimpia = descLimpia.replace(matchAntes[0], '').trim();
+  }
+
   if (descLimpia.includes(' |TAGS:')) {
     const partes = descLimpia.split(' |TAGS:');
     descLimpia = partes[0];
     tagsExtra = partes[1].split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
   }
-  return { descLimpia, tagsTotales: [...parseCategorias(categoriasBackend), ...tagsExtra] };
+  return { descLimpia, tagsTotales: [...parseCategorias(categoriasBackend), ...tagsExtra], precioAnterior };
 };
 
 const formatearFecha = (fechaStr) => {
@@ -54,7 +63,7 @@ function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato })
     marcarAgotado({ variables: { id_plato: plato.id_plato, disponible: estadoNuevo, tiempo: estadoNuevo ? null : tiempo } });
   };
 
-  const { tagsTotales } = extraerTags(plato.descripcion, plato.categoria);
+  const { tagsTotales, precioAnterior } = extraerTags(plato.descripcion, plato.categoria);
 
   return (
     <div style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', opacity: plato.disponible === false ? 0.7 : 1, backgroundColor: '#fff' }}>
@@ -71,7 +80,16 @@ function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato })
           })}
         </div>
         <h4 style={{ margin: '5px 0' }}>{plato.nombre}</h4>
-        <b style={{ color: '#0066cc' }}>€{plato.precio}</b>
+        
+        {/* LÓGICA VISUAL DEL PRECIO REBAJADO PARA EL VENDEDOR */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+          <b style={{ color: '#0066cc' }}>€{plato.precio}</b>
+          {precioAnterior && (
+            <span style={{ fontSize: '0.85rem', color: '#999', textDecoration: 'line-through' }}>
+              €{precioAnterior}
+            </span>
+          )}
+        </div>
         
         <div style={{ margin: '15px 0', marginTop: 'auto' }}>
           {plato.disponible === false ? (
@@ -98,7 +116,8 @@ function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato })
 }
 
 export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
-  const [formData, setFormData] = useState({ nombre: '', descripcion: '', precio: '', categoria: ['ENTRANTE'], imagen_url: '' });
+  // NUEVO: Estado extra para manejar el precio inicial de las ofertas
+  const [formData, setFormData] = useState({ nombre: '', descripcion: '', precio: '', precioAnterior: '', categoria: ['ENTRANTE'], imagen_url: '' });
   const fileInputRef = useRef(null);
   
   const [platosSeleccionados, setPlatosSeleccionados] = useState([]);
@@ -127,7 +146,6 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
     });
   };
 
-  // Convertimos en función externa para usarla tanto con Enter como al salir del recuadro
   const procesarNuevaEtiqueta = () => {
     const newTag = inputValueTag.trim().toUpperCase();
     if (newTag && !formData.categoria.includes(newTag)) {
@@ -152,7 +170,8 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
     setFormData(prev => ({
       ...prev,
       descripcion: nombres.length > 0 ? "Incluye: " + nombres.join(', ') : prev.descripcion, 
-      precio: sumaPrecios > 0 ? (sumaPrecios * 0.85).toFixed(2) : prev.precio 
+      precio: sumaPrecios > 0 ? (sumaPrecios * 0.85).toFixed(2) : prev.precio,
+      precioAnterior: sumaPrecios > 0 ? sumaPrecios.toFixed(2) : '' // Autocompleta el precio sin rebaja
     }));
   };
 
@@ -167,7 +186,6 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Capturamos cualquier etiqueta que el usuario haya escrito pero no haya confirmado con Enter
     let categoriasFinales = [...formData.categoria];
     const tagPendiente = inputValueTag.trim().toUpperCase();
     if (tagPendiente && !categoriasFinales.includes(tagPendiente)) {
@@ -180,9 +198,18 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
     if (categoriasBase.length === 0 && categoriasExtra.length === 0) return alert("Debes seleccionar al menos una categoría.");
     if (categoriasFinales.includes('MENU') && platosSeleccionados.length === 0) return alert("Un menú debe incluir platos.");
 
-    // EL TRUCO: Camuflamos los tags en la descripción
+    // EL TRUCO: Inyectamos tanto los TAGS extra como el precio antiguo de oferta de manera invisible en la descripción
     const catParaEnviar = categoriasBase.length > 0 ? categoriasBase : ['PLATO'];
-    const descFinal = categoriasExtra.length > 0 ? `${formData.descripcion} |TAGS:${categoriasExtra.join(',')}` : formData.descripcion;
+    
+    let descFinal = formData.descripcion;
+    // Si han marcado "OFERTA" y han puesto un precio anterior, lo guardamos
+    if (categoriasFinales.includes('OFERTA') && formData.precioAnterior && parseFloat(formData.precioAnterior) > 0) {
+      descFinal += ` |ANTES: ${formData.precioAnterior}`;
+    }
+    // Añadimos los tags extra al final
+    if (categoriasExtra.length > 0) {
+      descFinal += ` |TAGS:${categoriasExtra.join(',')}`;
+    }
 
     try {
       await crearPlato({ 
@@ -195,7 +222,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
           platos_existentes: categoriasFinales.includes('MENU') ? platosSeleccionados : []
         } 
       });
-      setFormData({ nombre: '', descripcion: '', precio: '', categoria: ['ENTRANTE'], imagen_url: '' });
+      setFormData({ nombre: '', descripcion: '', precio: '', precioAnterior: '', categoria: ['ENTRANTE'], imagen_url: '' });
       setPlatosSeleccionados([]);
       setInputValueTag('');
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -203,14 +230,22 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
   };
 
   const cargarParaEditar = (plato) => {
-    const { descLimpia, tagsTotales } = extraerTags(plato.descripcion, plato.categoria);
-    setFormData({ nombre: plato.nombre, descripcion: descLimpia, precio: plato.precio, categoria: tagsTotales, imagen_url: plato.imagen_url || '' });
+    const { descLimpia, tagsTotales, precioAnterior } = extraerTags(plato.descripcion, plato.categoria);
+    setFormData({ 
+      nombre: plato.nombre, 
+      descripcion: descLimpia, 
+      precio: plato.precio, 
+      precioAnterior: precioAnterior || '', // Cargamos el precio antiguo si existe
+      categoria: tagsTotales, 
+      imagen_url: plato.imagen_url || '' 
+    });
     setPlatosSeleccionados(Array.isArray(plato.platos_existentes) ? plato.platos_existentes : []);
     eliminarPlato({ variables: { id: plato.id_plato } });
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
 
   const esMenu = formData.categoria.includes('MENU');
+  const esOferta = formData.categoria.includes('OFERTA');
 
   return (
     <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
@@ -220,7 +255,15 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
           <h3 style={{ marginTop: 0, color: '#333' }}>✨ Añadir Nuevo Plato o Combo</h3>
           <input type="text" placeholder="Nombre del plato" value={formData.nombre} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required style={inputStyle} />
           <textarea placeholder="Descripción (Ingredientes, tamaño...)" value={formData.descripcion} onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })} required style={{ ...inputStyle, minHeight: '80px', fontFamily: 'inherit' }} />
-          <input type="number" step="0.01" placeholder="Precio (€)" value={formData.precio} onChange={(e) => setFormData({ ...formData, precio: e.target.value })} required style={inputStyle} />
+          
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input type="number" step="0.01" placeholder="Precio Final (€)" value={formData.precio} onChange={(e) => setFormData({ ...formData, precio: e.target.value })} required style={{...inputStyle, flex: 1}} />
+            
+            {/* NUEVO: Campo de precio anterior, solo visible si se ha marcado como Oferta o Menu */}
+            {(esOferta || esMenu) && (
+              <input type="number" step="0.01" placeholder="Precio Antes (€)" value={formData.precioAnterior} onChange={(e) => setFormData({ ...formData, precioAnterior: e.target.value })} style={{...inputStyle, flex: 1, backgroundColor: '#fff0eb', borderColor: '#ffcdd2'}} />
+            )}
+          </div>
           
           <div style={{ ...inputStyle, display: 'flex', flexDirection: 'column', gap: '12px', background: '#fff' }}>
             <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#555' }}>Categorías Base:</span>

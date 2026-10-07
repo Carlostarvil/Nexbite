@@ -27,9 +27,9 @@ import { leerUbicacionEntrega, guardarUbicacionEntrega } from './ubicacionEntreg
 
 const OBTENER_DATOS_INICIO = gql`
   query ObtenerDatosInicio($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
-    obtenerMejoresRestaurantes(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url }
-    obtenerFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url }
-    obtenerPlatosDestacados(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, nombre_restaurante, categoria }
+    obtenerMejoresRestaurantes(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion }
+    obtenerFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion }
+    obtenerPlatosDestacados(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, nombre_restaurante, categoria, disponible, tiempo_disponible }
     obtenerUltimosPedidos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) {
       id_pedido, id_restaurante, id_plato, nombre_plato, precio_plato
       estado, nombre_restaurante, imagen_restaurante, plato_disponible, restaurante_abierto
@@ -38,6 +38,24 @@ const OBTENER_DATOS_INICIO = gql`
     obtenerPlatosFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato }
   }
 `;
+
+const formatearFecha = (fechaStr) => {
+  if (!fechaStr || String(fechaStr).includes('Indefinido')) return null;
+  const timestamp = !isNaN(fechaStr) && String(fechaStr).trim() !== '' ? Number(fechaStr) : fechaStr;
+  const fecha = new Date(timestamp);
+  if (isNaN(fecha.getTime())) return null; 
+
+  const hoy = new Date();
+  const esHoy = fecha.getDate() === hoy.getDate() && 
+                fecha.getMonth() === hoy.getMonth() && 
+                fecha.getFullYear() === hoy.getFullYear();
+
+  if (esHoy) {
+    return fecha.toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+  } else {
+    return fecha.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+};
 
 const obtenerDatosDesdeToken = (token) => {
   try {
@@ -55,15 +73,29 @@ const parseCategorias = (catData) => {
   return [];
 };
 
+// NUEVO: Ahora extrae también el precio anterior de la descripción y lo limpia
 const extraerTags = (descripcion, categoriasBackend) => {
   let descLimpia = descripcion || '';
   let tagsExtra = [];
+  let precioAnterior = null;
+
+  const matchAntes = descLimpia.match(/\|ANTES:\s*([\d.,]+)/i);
+  if (matchAntes) {
+    precioAnterior = parseFloat(matchAntes[1].replace(',', '.'));
+    descLimpia = descLimpia.replace(matchAntes[0], '').trim();
+  }
+
   if (descLimpia.includes(' |TAGS:')) {
     const partes = descLimpia.split(' |TAGS:');
     descLimpia = partes[0];
     tagsExtra = partes[1].split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+  } else if (descLimpia.includes('|TAGS:')) {
+    const partes = descLimpia.split('|TAGS:');
+    descLimpia = partes[0].trim();
+    tagsExtra = partes[1].split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
   }
-  return { descLimpia, tagsTotales: [...parseCategorias(categoriasBackend), ...tagsExtra] };
+
+  return { descLimpia, tagsTotales: [...parseCategorias(categoriasBackend), ...tagsExtra], precioAnterior };
 };
 
 function App() {
@@ -261,10 +293,28 @@ function App() {
     return rest.tipo?.toLowerCase().includes(categoriaFiltroInicio.toLowerCase());
   }) || [];
 
+  const asignarEstadoRestaurante = (listaPlatos) => {
+    if (!listaPlatos) return [];
+    const restaurantes = data?.obtenerMejoresRestaurantes || [];
+    return listaPlatos.map(plato => {
+      const rest = restaurantes.find(r => String(r.id_restaurante) === String(plato.id_restaurante));
+      return {
+        ...plato,
+        restaurante_abierto: rest ? rest.aceptando_pedidos : true,
+        tiempo_reactivacion_restaurante: rest ? rest.tiempo_reactivacion : null
+      };
+    });
+  };
+
+  const platosEnOferta = data?.obtenerPlatosDestacados?.filter(plato => {
+    const { tagsTotales } = extraerTags(plato.descripcion, plato.categoria);
+    return tagsTotales.includes('OFERTA');
+  }) || [];
+
   return (
     <EstadoCarritoContext.Provider value={{ carrito, restarDelCarrito }}>
     <ErrorBoundary>
-      <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: '#f8f9fa', position: 'relative' }}>
+      <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: '#ffffff', position: 'relative' }}>
         <div className="header-contenedor" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)}>
         <Header 
           onInicio={handleInicio} onLogout={handleCerrarSesion} 
@@ -314,15 +364,21 @@ function App() {
                 <style>{`.ocultar-scrollbar::-webkit-scrollbar { display: none; } .ocultar-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
                 <CategoriasInicio seleccionada={categoriaFiltroInicio} onSeleccionar={setCategoriaFiltroInicio} />
 
+                {platosEnOferta.length > 0 && !categoriaFiltroInicio && (
+                  <div style={{ marginTop: '2rem', padding: '1rem', background: '#ffebee', borderRadius: '16px', border: '1px solid #ffcdd2' }}>
+                    <CarruselPlatos titulo="🏷️ Ofertas Especiales" descripcion="Aprovecha estos descuentos y chollos increíbles." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(platosEnOferta)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                  </div>
+                )}
+
                 {platosRecomendados.length > 0 && !categoriaFiltroInicio && (
                   <div style={{ marginTop: '2rem', padding: '1rem', background: 'linear-gradient(to right, #fff0eb, #ffe4cc)', borderRadius: '16px' }}>
-                    <CarruselPlatos titulo="Elegido para ti" descripcion="Platos recomendados según tus gustos." cabeceraInicio mostrarIcono={false} platos={platosRecomendados} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                    <CarruselPlatos titulo="Elegido para ti" descripcion="Platos recomendados según tus gustos." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(platosRecomendados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
                   </div>
                 )}
 
                 {!categoriaFiltroInicio && (
                   <div style={{ marginTop: '2rem' }}>
-                    <CarruselPlatos titulo="Platos Top" descripcion="Descubre los platos destacados de tu zona." cabeceraInicio mostrarIcono={false} platos={data?.obtenerPlatosDestacados} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                    <CarruselPlatos titulo="Platos Top" descripcion="Descubre los platos destacados de tu zona." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(data?.obtenerPlatosDestacados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
                   </div>
                 )}
 
@@ -337,7 +393,7 @@ function App() {
                           <div 
                             key={`reciente-${pedido.id_pedido}`} 
                             onClick={() => abrirDetalleDesdePedido(pedido)}
-                            style={{ minWidth: '280px', maxWidth: '300px', backgroundColor: '#fff', border: '1px solid #eaeaea', borderRadius: '12px', padding: '1.2rem', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s' }}
+                            style={{ minWidth: '280px', maxWidth: '300px', backgroundColor: '#fff', border: '1px solid #eaeaea', borderRadius: '12px', padding: '1.2rem', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s', opacity: puedeRecomprar ? 1 : 0.7 }}
                             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.08)'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.05)'; }}
                           >
@@ -354,19 +410,19 @@ function App() {
                             </div>
                             
                             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
-                              <span style={{ fontWeight: 'bold', color: '#0066cc' }}>€{pedido.precio_plato?.toFixed(2)}</span>
+                              <span style={{ fontWeight: 'bold', color: '#000000' }}>€{pedido.precio_plato?.toFixed(2)}</span>
                               {puedeRecomprar ? (
                                 <BotonAgregarCarrito onAgregar={event => handleRecomprarRapido(event, pedido)} idPlato={pedido.id_plato} nombrePlato={pedido.nombre_plato} variante="repetir" />
                               ) : (
-                                <span style={{ fontSize: '11px', color: '#dc3545', fontWeight: 'bold' }}>No disponible</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
+                                  <span style={{ fontSize: '11px', color: '#dc3545', fontWeight: 'bold' }}>No disponible</span>
+                                  <BotonAgregarCarrito onAgregar={event => handleRecomprarRapido(event, pedido)} idPlato={pedido.id_plato} nombrePlato={pedido.nombre_plato} variante="reserva" />
+                                </div>
                               )}
                             </div>
                           </div>
                         );
                       })}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '12px' }}>
-                      <button type="button" onClick={() => setMostrarPerfil(true)} className="titulo-seccion-enlace">Ver historial completo <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></button>
                     </div>
                   </div>
                 )}
@@ -376,7 +432,7 @@ function App() {
                 </div>
                 
                 {!loading && !error && restaurantesFiltrados.length === 0 ? (
-                  <div style={{ padding: '3rem', textAlign: 'center', background: '#fff', borderRadius: '12px' }}>
+                  <div style={{ padding: '3rem', textAlign: 'center', background: '#fff', borderRadius: '12px', border: '1px solid #eaeaea' }}>
                     <p style={{ fontSize: '1.2rem', color: '#666' }}>{categoriaFiltroInicio ? `No hay locales de ${categoriaFiltroInicio} disponibles aquí.` : modoEntrega === 'DOMICILIO' ? 'Todavía no hay locales que entreguen en esta dirección.' : 'Todavía no hay locales para recoger a menos de 50 km.'}</p>
                     {categoriaFiltroInicio && <button onClick={() => setCategoriaFiltroInicio(null)} className="ubicacion-boton" style={{ marginTop: '16px' }}>Ver todos</button>}
                     <button onClick={() => setMostrarSelectorUbicacion(true)} className="ubicacion-cambiar" style={{ display: 'block', margin: '16px auto 0' }}>Cambiar ubicación</button>
@@ -384,21 +440,29 @@ function App() {
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
                     {restaurantesFiltrados.map((restaurante) => (
-                      <div key={restaurante.id_restaurante} onClick={() => setRestauranteActivo(restaurante.id_restaurante)} style={{ backgroundColor: '#fff', border: '1px solid #eaeaea', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', cursor: 'pointer' }}>
+                      <div key={restaurante.id_restaurante} onClick={() => setRestauranteActivo(restaurante.id_restaurante)} style={{ backgroundColor: '#fff', border: '1px solid #eaeaea', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: 'pointer', transition: 'all 0.2s ease', opacity: restaurante.aceptando_pedidos === false ? 0.7 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(0,0,0,0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}>
                         {restaurante.imagen_url ? (
-                            <img src={restaurante.imagen_url} alt={restaurante.nombre} style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '8px 8px 0 0', marginBottom: '10px' }} />
+                            <img src={restaurante.imagen_url} alt={restaurante.nombre} style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px' }} />
                         ) : (
-                            <div style={{ width: '100%', height: '140px', backgroundColor: '#eee', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px', fontSize: '2rem' }}>🏪</div>
+                            <div style={{ width: '100%', height: '140px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', fontSize: '2rem' }}>🏪</div>
                         )}
-                        <h3 style={{ margin: '0 0 10px 0' }}>{restaurante.nombre}</h3>
+                        
+                        <h3 style={{ margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          {restaurante.nombre}
+                          {restaurante.aceptando_pedidos === false && (
+                            <span style={{ fontSize: '11px', color: '#d63031', background: '#ffebee', padding: '3px 8px', borderRadius: '12px' }}>
+                              Pausado {restaurante.tiempo_reactivacion ? `hasta ${formatearFecha(restaurante.tiempo_reactivacion) || ''}` : ''}
+                            </span>
+                          )}
+                        </h3>
                         
                         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                           {restaurante.tipo ? restaurante.tipo.split(',').map((t, idx) => (
-                            <span key={idx} style={{ background: '#ffe4cc', color: '#ff4500', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                            <span key={idx} style={{ background: '#f3f4f6', color: '#333', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
                               {t.trim()}
                             </span>
                           )) : (
-                            <span style={{ background: '#ffe4cc', color: '#ff4500', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold' }}>
+                            <span style={{ background: '#f3f4f6', color: '#333', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold' }}>
                               RESTAURANTE
                             </span>
                           )}
