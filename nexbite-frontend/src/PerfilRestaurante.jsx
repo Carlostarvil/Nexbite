@@ -12,6 +12,9 @@ import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 import './InfoRestauranteModal.css';
 import './PerfilRestaurante.css';
 
+// NUEVO: Importamos el componente de reseñas
+import ResenasRestaurante from './ResenasRestaurante';
+
 const NOMBRES_SIDEBAR = { 'Elegido para ti': 'Para ti', 'Lo más pedido aquí': 'Top ventas' };
 
 const ICONOS_CATEGORIA_MENU = {
@@ -62,7 +65,6 @@ const ALTERNAR_FAVORITO_PLATO = gql`
   }
 `;
 
-// Consulta para leer el historial de compras del usuario
 const OBTENER_HISTORIAL_COMPRAS = gql`
   query ObtenerHistorialCompras($id_usuario: ID!) {
     obtenerPedidosUsuario(id_usuario: $id_usuario) {
@@ -84,7 +86,6 @@ const parseCategorias = (catData) => {
   return [];
 };
 
-// NUEVO: Ahora extrae también el precio anterior de la descripción y lo limpia
 const extraerTags = (descripcion, categoriasBackend) => {
   let descLimpia = descripcion || '';
   let tagsExtra = [];
@@ -649,6 +650,9 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
           </div>
         </div>
       )}
+
+      {/* AQUÍ INYECTAS EL COMPONENTE DE RESEÑAS */}
+      <ResenasRestaurante idRestaurante={idRestaurante} idUsuario={idUsuarioActual} />
 
       {mostrarInfoModal && <InfoRestauranteModal restaurante={restaurante} onClose={() => setMostrarInfoModal(false)} />}
     </div>

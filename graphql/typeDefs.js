@@ -84,6 +84,15 @@ export const typeDefs = `#graphql
     name: String
   }
 
+  # NUEVO TIPO PARA RESEÑAS
+  type Resena {
+    id_resena: ID!
+    nombre_usuario: String
+    puntuacion: Int!
+    comentario: String!
+    fecha: String!
+  }
+
   type Query {
     obtenerMisTarjetas(id_usuario: ID!): [TarjetaGuardada!]!
     buscarDirecciones(termino: String!): [DireccionUbicacion!]!
@@ -115,6 +124,9 @@ export const typeDefs = `#graphql
     obtenerRestaurantesSimilares(id_restaurante: ID!): [Restaurante]
     obtenerPerfilUsuario(id_usuario: ID!): Usuario
     obtenerPlatosDestacados(latitud: Float, longitud: Float, solo_con_entrega: Boolean, radio_km: Float): [Plato]
+    
+    # NUEVA CONSULTA
+    obtenerResenasRestaurante(id_restaurante: ID!): [Resena]
   }
 
   type Mutation {
@@ -196,6 +208,9 @@ export const typeDefs = `#graphql
     eliminarTarjetaGuardada(id_tarjeta: ID!): Boolean!
     crearIntencionPago(monto: Float!, id_tarjeta: ID!, clave_pago: ID!): String!
     actualizarPerfilUsuario(id_usuario: ID!, telefono: String, direccion: String): Usuario
+
+    # NUEVA MUTACIÓN
+    crearResena(id_restaurante: ID!, id_usuario: ID!, puntuacion: Int!, comentario: String!): Resena
   }
 
   type Subscription { nuevoPedido(id_restaurante: ID!): Pedido }

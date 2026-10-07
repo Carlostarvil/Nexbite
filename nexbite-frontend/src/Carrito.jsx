@@ -6,11 +6,9 @@ import { coordenadasValidas, validarZonaEntrega } from '../../shared/zonaEntrega
 import MensajeAccion, { IconoEstado } from './MensajeAccion';
 import DireccionLocal from './DireccionLocal';
 
-// Importaciones de Stripe
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-// Inicialización de Stripe
 const stripePromise = loadStripe('pk_test_51TvpS8Q6Lca9bAZqO8Skya79dRCVkCyvtSrQqZkCUHVdM43VK4xQUCBzANz8i3BbUFEISBeJdo1mb8Uj1lahMH9q009ej7QEHn');
 
 const CREAR_PEDIDO = gql`
@@ -49,10 +47,12 @@ const ELIMINAR_TARJETA_GUARDADA = gql`
   }
 `;
 
+// AÑADIDO: "tipo" para poder leer las reglas de envío del restaurante
 const OBTENER_ESTADO_RESTAURANTE = gql`
   query ObtenerEstadoRestaurante($id: ID!) {
     obtenerRestaurantePorId(id_restaurante: $id) { 
       nombre
+      tipo
       aceptando_pedidos
       tiempo_reactivacion
       direccion
@@ -69,6 +69,38 @@ const OBTENER_INFO_BASICA_REST = gql`
     obtenerRestaurantePorId(id_restaurante: $id) { nombre, imagen_url }
   }
 `;
+
+// LÓGICA DE ENVÍOS: Fórmula Haversine para calcular distancia exacta en km
+const calcularDistancia = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+  const R = 6371; 
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; 
+};
+
+// LÓGICA DE ENVÍOS: Extraer reglas del local o aplicar estándar profesional
+const extraerConfigEnvio = (tipoBackend) => {
+  let tipoLimpio = tipoBackend || '';
+  let base = 1.90; 
+  let porKm = 0.50; 
+  let gratisDesde = 15.00; 
+
+  const matchBase = tipoLimpio.match(/\|ENVIO:\s*([\d.,]+)/i);
+  if (matchBase) base = parseFloat(matchBase[1].replace(',', '.'));
+  
+  const matchKm = tipoLimpio.match(/\|KM:\s*([\d.,]+)/i);
+  if (matchKm) porKm = parseFloat(matchKm[1].replace(',', '.'));
+
+  const matchGratis = tipoLimpio.match(/\|GRATIS:\s*([\d.,]+)/i);
+  if (matchGratis) gratisDesde = parseFloat(matchGratis[1].replace(',', '.'));
+
+  return { base, porKm, gratisDesde };
+};
 
 function TarjetaCarritoGrupo({ grupo, onSeleccionar, onEliminar }) {
   const { data } = useQuery(OBTENER_INFO_BASICA_REST, { variables: { id: grupo.id_restaurante } });
@@ -122,7 +154,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   }, [irAPago, idCartActivo]);
   const [tipoEntrega, setTipoEntrega] = useState(tipoEntregaInicial);
   
-  // Cada carrito mantiene su selección; nunca se aplica la hora de otro restaurante.
   const [seleccionesRecogida, setSeleccionesRecogida] = useState({});
   const {
     mostrarModalProgramar = false, modoRecogida = 'AHORA', diaProgramado = '',
@@ -277,8 +308,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const diaConfirmado = diasDisponibles.find(dia => dia.horas.some(hora => hora.valor === horaProgramada));
   const recogidaAhoraDisponible = restaurante && restaurante.aceptando_pedidos && recogidaDisponible(restaurante.horarios_recogida, ahora, 15);
 
-  const total = carritoEnUso.reduce((suma, plato) => suma + (plato.precio * (plato.cantidad || 1)), 0);
-
   const restauranteCerrado = restaurante ? !restaurante.aceptando_pedidos : false;
   let errorZonaEntrega = '';
   if (tipoEntrega === 'DOMICILIO' && restaurante && !cargandoRestaurante) {
@@ -299,6 +328,22 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
       .catch(() => {});
     return () => controlador.abort();
   }, [direccionGuardadaLocal, tieneCoordenadasLocal, latitudLocal, longitudLocal]);
+
+  // LÓGICA DE PRECIOS, DISTANCIA Y ENVÍO
+  const subtotal = carritoEnUso.reduce((suma, plato) => suma + (plato.precio * (plato.cantidad || 1)), 0);
+  const { base, porKm, gratisDesde } = extraerConfigEnvio(restaurante?.tipo);
+  
+  let distanciaKm = 0;
+  let gastosEnvio = 0;
+
+  if (tipoEntrega === 'DOMICILIO' && tieneCoordenadasLocal && coordenadasEnvio?.lat && coordenadasEnvio?.lng) {
+    distanciaKm = calcularDistancia(latitudLocal, longitudLocal, coordenadasEnvio.lat, coordenadasEnvio.lng);
+    gastosEnvio = base + (distanciaKm * porKm);
+  }
+
+  const superaGratis = subtotal >= gratisDesde;
+  const envioFinal = (tipoEntrega === 'RECOGIDA' || superaGratis) ? 0 : gastosEnvio;
+  const totalFinal = subtotal + envioFinal;
 
   const handlePedirAvisoRestaurante = async () => {
     await pedirAviso({ variables: { id_usuario: idUsuario, tipo: 'RESTAURANTE', id_referencia: idRestauranteCarrito } });
@@ -361,17 +406,18 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
       if (metodoPago === 'TARJETA') {
         if (!tarjetaSeleccionada) return mostrarMensajePago('Añade una tarjeta para continuar', 'Guarda una tarjeta de crédito o débito, o elige pagar en efectivo.');
         if (!stripe) return mostrarMensajePago('El pago todavía está cargando', 'Espera unos segundos y vuelve a pulsar Pagar.', 'info');
-        const huella = JSON.stringify([idUsuario, idCartActivo, total, carritoEnUso.map(p => [p.id_plato, p.cantidad || 1]), direccionFinal, fechaFinalBackend]);
+        // Registramos el totalFinal en la huella de pago
+        const huella = JSON.stringify([idUsuario, idCartActivo, totalFinal, carritoEnUso.map(p => [p.id_plato, p.cantidad || 1]), direccionFinal, fechaFinalBackend]);
         huellaPago = huella;
         try {
-          // Un reintento consulta la misma intención antes de volver a confirmar el pago.
           let intento = intentosPago.current.get(huella);
           if (!intento) {
             intento = { clave: crypto.randomUUID(), tarjeta: tarjetaSeleccionada, secreto: null };
             intentosPago.current.set(huella, intento);
           }
           if (!intento.secreto) {
-            const { data } = await crearIntencion({ variables: { monto: total, id_tarjeta: intento.tarjeta, clave_pago: intento.clave } });
+            // Pagamos el totalFinal (que incluye el envío si lo hay)
+            const { data } = await crearIntencion({ variables: { monto: totalFinal, id_tarjeta: intento.tarjeta, clave_pago: intento.clave } });
             intento.secreto = data.crearIntencionPago;
           } else {
             const estado = await stripe.retrievePaymentIntent(intento.secreto);
@@ -428,7 +474,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
         onPedidoConfirmado?.({
           nombreRestaurante: restaurante?.nombre,
-          total,
+          total: totalFinal,
           articulos: carritoEnUso.reduce((suma, plato) => suma + (plato.cantidad || 1), 0),
           metodoPago,
           tipoEntrega,
@@ -518,11 +564,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                 <button onClick={() => eliminarPlato(item.id_plato)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '5px', opacity: 0.7 }} title="Eliminar producto">🗑️</button>
               </div>
             ))}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '2rem' }}>
-            <span>Total</span>
-            <span>€{total.toFixed(2)}</span>
           </div>
 
           <div ref={formularioPago} role="region" aria-label="Completar el pedido" tabIndex={-1} style={{ backgroundColor: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '1rem', scrollMarginTop: '90px' }}>
@@ -645,9 +686,41 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
               </div>
             )}
 
-            <button type="button" className="boton-con-estado" onClick={() => handlePagar(null)} disabled={bloqueado} aria-busy={procesandoPago || procesandoStripe || comprobandoHorario} style={{ padding: '1.2rem', background: '#16864a', color: '#fff', border: 'none', borderRadius: '10px', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.2rem', marginTop: '1rem' }}>
+            {/* NUEVO: DESGLOSE DE PRECIOS */}
+            <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #eaeaea', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#666', fontSize: '15px' }}>
+                <span>Subtotal</span>
+                <span>€{subtotal.toFixed(2)}</span>
+              </div>
+              
+              {tipoEntrega === 'DOMICILIO' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#666', fontSize: '15px' }}>
+                  <span>Gastos de envío {distanciaKm > 0 ? `(${distanciaKm.toFixed(1)} km)` : ''}</span>
+                  {superaGratis ? (
+                    <span style={{ color: '#00b894', fontWeight: 'bold' }}>¡Gratis!</span>
+                  ) : (
+                    <span>€{gastosEnvio.toFixed(2)}</span>
+                  )}
+                </div>
+              )}
+
+              <div style={{ borderTop: '1px solid #eee', margin: '10px 0' }}></div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', fontWeight: 'bold', color: '#333' }}>
+                <span>Total</span>
+                <span>€{totalFinal.toFixed(2)}</span>
+              </div>
+
+              {tipoEntrega === 'DOMICILIO' && !superaGratis && (
+                <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f3f4f6', borderRadius: '8px', textAlign: 'center', fontSize: '14px', color: '#555' }}>
+                  Te faltan <b style={{color: '#ff4500'}}>€{(gratisDesde - subtotal).toFixed(2)}</b> para envío gratis 🚀
+                </div>
+              )}
+            </div>
+
+            <button type="button" className="boton-con-estado" onClick={() => handlePagar(null)} disabled={bloqueado} aria-busy={procesandoPago || procesandoStripe || comprobandoHorario} style={{ padding: '1.2rem', background: '#16864a', color: '#fff', border: 'none', borderRadius: '10px', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.2rem', marginTop: '0.5rem' }}>
               {(procesandoPago || procesandoStripe || comprobandoHorario) && <IconoEstado tipo="cargando" tamano={22} />}
-              {comprobandoHorario ? 'Comprobando tu pedido...' : procesandoPago ? 'Confirmando tu pedido...' : procesandoStripe ? metodoPago === 'TARJETA' ? 'Procesando el pago...' : 'Confirmando tu pedido...' : `Pagar €${total.toFixed(2)}`}
+              {comprobandoHorario ? 'Comprobando tu pedido...' : procesandoPago ? 'Confirmando tu pedido...' : procesandoStripe ? metodoPago === 'TARJETA' ? 'Procesando el pago...' : 'Confirmando tu pedido...' : `Pagar €${totalFinal.toFixed(2)}`}
             </button>
             {mensajePago?.idRestaurante === idCartActivo && <div ref={mensajePagoRef} tabIndex={-1} style={{ outline: 'none' }}><MensajeAccion mensaje={mensajePago} onCerrar={pedidoPagadoSinRegistrar === idCartActivo ? undefined : () => setMensajePago(null)} /></div>}
           </div>
@@ -669,7 +742,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         </div>
       )}
 
-      {/* MODAL PARA PROGRAMAR RECOGIDA (CON SELECTS NATIVOS Y CORRECCIÓN DE ESTADO) */}
       {mostrarModalProgramar && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5000, padding: '1rem' }}>
           <div style={{ background: '#fff', borderRadius: '12px', padding: '2rem', width: '100%', maxWidth: '400px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
@@ -683,7 +755,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
-              {/* SELECTOR DE DÍA */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555' }}>Fecha</label>
                 <select 
@@ -703,7 +774,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                 </select>
               </div>
 
-              {/* SELECTOR DE HORA */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555' }}>Hora</label>
                 <select 

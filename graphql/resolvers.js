@@ -121,7 +121,6 @@ export const resolvers = {
 
     obtenerPedidosVendedor: async (_, { id_restaurante }) => (await pool.query(`SELECT pe.id_pedido, pe.id_restaurante, pe.estado, pe.metodo_pago, pe.direccion_envio, pl.nombre AS nombre_plato FROM Pedidos pe JOIN Platos pl ON pe.id_plato = pl.id_plato WHERE pe.id_restaurante = $1 ORDER BY pe.id_pedido DESC`, [id_restaurante])).rows,
 
-    // Historial de pedidos con fechas y fotos del plato
     obtenerPedidosCliente: async (_, { id_usuario }) => {
       const res = await pool.query(`
         SELECT pe.id_pedido, pe.id_restaurante, pe.id_plato, pe.estado, pe.metodo_pago, pe.direccion_envio, pe.fecha_programada, pe.fecha_pedido,
@@ -139,6 +138,24 @@ export const resolvers = {
     obtenerPerfilUsuario: async (_, { id_usuario }) => {
       const res = await pool.query('SELECT * FROM Usuarios WHERE id_usuario = $1', [id_usuario]);
       return res.rows[0];
+    },
+
+    // NUEVO: CONSULTA DE RESEÑAS
+    obtenerResenasRestaurante: async (_, { id_restaurante }) => {
+      try {
+        const result = await pool.query(
+          `SELECT r.id_resena, u.nombre AS nombre_usuario, r.puntuacion, r.comentario, r.fecha 
+           FROM resenas r 
+           JOIN Usuarios u ON r.id_usuario = u.id_usuario 
+           WHERE r.id_restaurante = $1 
+           ORDER BY r.id_resena DESC`,
+          [id_restaurante]
+        );
+        return result.rows;
+      } catch (error) {
+        console.error("Error obteniendo reseñas:", error);
+        return [];
+      }
     }
   },
 
@@ -455,13 +472,13 @@ export const resolvers = {
     actualizarNegocio: crearActualizadorNegocio(pool),
 
     crearPlato: async (_, {
-      id_restaurante,
-      nombre,
-      descripcion,
-      precio,
-      categoria,
-      imagen_url,
-      platos_existentes
+        id_restaurante,
+        nombre,
+        descripcion,
+        precio,
+        categoria,
+        imagen_url,
+        platos_existentes
     }) => {
       const resCombo = await pool.query(
         'INSERT INTO Platos (id_restaurante, nombre, descripcion, precio, categoria, imagen_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
@@ -710,6 +727,27 @@ export const resolvers = {
         [id_pedido]
       );
       return "Pedido eliminado permanentemente";
+    },
+    
+    // NUEVA MUTACIÓN PARA RESEÑAS
+    crearResena: async (_, { id_restaurante, id_usuario, puntuacion, comentario }) => {
+      try {
+        const fecha = Date.now().toString();
+        
+        const result = await pool.query(
+          `INSERT INTO resenas (id_restaurante, id_usuario, puntuacion, comentario, fecha) 
+           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+          [id_restaurante, id_usuario, puntuacion, comentario, fecha]
+        );
+        
+        const userResult = await pool.query('SELECT nombre FROM Usuarios WHERE id_usuario = $1', [id_usuario]);
+        const nombre_usuario = userResult.rows[0]?.nombre || 'Usuario';
+
+        return { ...result.rows[0], nombre_usuario };
+      } catch (error) {
+        console.error("Error creando reseña:", error);
+        throw new Error('No se pudo guardar la reseña');
+      }
     }
   },
 
