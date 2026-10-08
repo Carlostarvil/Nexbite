@@ -8,6 +8,7 @@ import { nombreCategoria } from './categoriasPlatos';
 import CarruselPlatos from './CarruselPlatos';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import IconoInfoRestaurante from './IconoInfoRestaurante';
+import EstadoDisponibilidad from './EstadoDisponibilidad';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 import './InfoRestauranteModal.css';
 import './PerfilRestaurante.css';
@@ -333,7 +334,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   const listaFinalCategorias = [...categoriasBaseOrdenadas, ...categoriasCustom];
 
   const isPausado = restaurante?.aceptando_pedidos === false;
-  const tiempoReact = formatearFecha(restaurante?.tiempo_reactivacion);
 
   const handleCorazonClick = async (idPlato, evento) => {
     if (favoritoEnCurso.current) return;
@@ -524,10 +524,10 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
               </div>
             )}
 
-            <div className={'restaurante-estado' + (isPausado ? ' restaurante-estado-pausado' : '')}>
+            {isPausado ? <EstadoDisponibilidad cerrado fecha={restaurante?.tiempo_reactivacion} compacto /> : <div className="restaurante-estado">
               <span className="restaurante-estado-punto" aria-hidden="true" />
-              {isPausado ? 'Vuelve a abrir: ' + (tiempoReact || '') : 'Abierto'}
-            </div>
+              Abierto
+            </div>}
           </div>
         </div>
       </div>
@@ -608,13 +608,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                       const { descLimpia, tagsTotales, precioAnterior } = extraerTags(plato.descripcion, plato.categoria);
                       
                       const estaNoDisponible = isPausado || plato.disponible === false;
-                      let textoEstado = '';
-                      if (isPausado) {
-                        textoEstado = tiempoReact ? `🔴 Pausado hasta ${tiempoReact}` : '🔴 Local Pausado';
-                      } else if (plato.disponible === false) {
-                        const tPlato = formatearFecha(plato.tiempo_disponible);
-                        textoEstado = tPlato ? `⏳ Agotado hasta ${tPlato}` : '❌ Agotado';
-                      }
                       
                       return (
                       <div 
@@ -623,7 +616,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                         onClick={() => onSelectPlato && onSelectPlato(plato)}
                         onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.1)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-                        style={{ position: 'relative', border: '1px solid #e0e0e0', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#fff', opacity: estaNoDisponible ? 0.7 : 1, cursor: 'pointer', transition: 'all 0.2s ease' }}
+                        style={{ position: 'relative', border: '1px solid #e0e0e0', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#fff', cursor: 'pointer', transition: 'all 0.2s ease' }}
                       >
                         <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 2 }}>
                           <BotonCorazon activo={esPlatoFavorito} disabled={guardandoFavorito} onClick={evento => handleCorazonClick(plato.id_plato, evento)} nombre={plato.nombre} />
@@ -632,7 +625,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                           <img 
                             src={plato.imagen_url} 
                             alt={plato.nombre} 
-                            style={{ width: '100%', height: '200px', objectFit: 'cover', objectPosition: 'center', imageRendering: '-webkit-optimize-contrast' }} 
+                            style={{ width: '100%', height: '200px', objectFit: 'cover', objectPosition: 'center', imageRendering: '-webkit-optimize-contrast', opacity: estaNoDisponible ? 0.65 : 1 }} 
                           />
                         ) : (
                           <div style={{ width: '100%', height: '200px', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>📷</div>
@@ -667,8 +660,8 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                             </div>
                             
                             {estaNoDisponible ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
-                                <span style={{ color: '#d63031', fontWeight: 'bold', fontSize: '0.85rem', textAlign: 'right' }}>{textoEstado}</span>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
+                                <EstadoDisponibilidad cerrado={isPausado} fecha={isPausado ? restaurante?.tiempo_reactivacion : plato.tiempo_disponible} />
                                 <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} variante="reserva" />
                               </div>
                             ) : (

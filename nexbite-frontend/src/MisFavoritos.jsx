@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import BotonCorazon from './BotonCorazon';
+import EstadoDisponibilidad from './EstadoDisponibilidad';
 
 const OBTENER_FAVORITOS_GENERALES = gql`
   query ObtenerFavoritosGenerales($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
@@ -11,6 +12,8 @@ const OBTENER_FAVORITOS_GENERALES = gql`
       nombre
       tipo
       imagen_url
+      aceptando_pedidos
+      tiempo_reactivacion
     }
     obtenerPlatosFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) {
       id_plato
@@ -157,6 +160,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
                     </div>
                   </div>
                   
+                  {restaurante.aceptando_pedidos === false && <div style={{ marginBottom: '12px' }}><EstadoDisponibilidad cerrado fecha={restaurante.tiempo_reactivacion} compacto /></div>}
                   <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
                     <button 
                       onClick={(e) => { e.stopPropagation(); onSelectRestaurante(restaurante.id_restaurante); }}
@@ -234,8 +238,8 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
                     <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#000', marginBottom: '15px' }}>{plato.precio.toFixed(2)}&nbsp;€</span>
 
                     <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
-                      
-                      <BotonAgregarCarrito onAgregar={() => handleAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} />
+                      {plato.disponible === false && <EstadoDisponibilidad fecha={plato.tiempo_disponible} />}
+                      <BotonAgregarCarrito onAgregar={() => handleAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} variante={plato.disponible === false ? 'reserva' : undefined} />
                       
                       {/* BOTÓN VER LOCAL SVG */}
                       <button 

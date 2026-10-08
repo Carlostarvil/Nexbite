@@ -2,6 +2,8 @@ import { useState, useRef } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import { nombreCategoria } from './categoriasPlatos';
+import EstadoDisponibilidad from './EstadoDisponibilidad';
+import './GestorMenu.css';
 
 const CREAR_PLATO = gql`
   mutation CrearPlato($id_restaurante: ID!, $nombre: String!, $descripcion: String!, $precio: Float!, $categoria: [String]!, $imagen_url: String, $platos_existentes: [ID!]) { 
@@ -55,8 +57,8 @@ function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato })
   const { tagsTotales, precioAnterior } = extraerTags(plato.descripcion, plato.categoria);
 
   return (
-    <div style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', opacity: plato.disponible === false ? 0.7 : 1, backgroundColor: '#fff' }}>
-      {plato.imagen_url ? <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '120px', objectFit: 'cover' }} /> : <div style={{ height: '120px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📷</div>}
+    <div className="gestor-menu-plato" style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: '#fff' }}>
+      {plato.imagen_url ? <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '120px', objectFit: 'cover', opacity: plato.disponible === false ? 0.65 : 1 }} /> : <div style={{ height: '120px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📷</div>}
       <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '5px' }}>
           {tagsTotales.map(cat => {
@@ -81,8 +83,8 @@ function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato })
         
         <div style={{ margin: '15px 0', marginTop: 'auto' }}>
           {plato.disponible === false ? (
-            <div style={{ backgroundColor: '#ffeaa7', padding: '10px', borderRadius: '5px', textAlign: 'center' }}>
-              <p style={{ color: '#d63031', fontWeight: 'bold', margin: '0 0 5px 0', fontSize: '0.9rem' }}>⚠️ Agotado</p>
+            <div style={{ display: 'grid', gap: '8px' }}>
+              <EstadoDisponibilidad fecha={plato.tiempo_disponible} />
               <button onClick={() => handleEstado(true)} disabled={loading} style={{ width: '100%', background: '#00b894', color: 'white', padding: '5px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>✅ Volver a activar</button>
             </div>
           ) : (
@@ -145,6 +147,9 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
   const manejarCambioCheckbox = (cat) => {
     setFormData((prev) => {
       if (cat === 'MENU') return { ...prev, categoria: prev.categoria.includes('MENU') ? [] : ['MENU'] };
+      if (cat === 'OFERTA' && prev.categoria.includes('MENU')) {
+        return { ...prev, categoria: prev.categoria.includes('OFERTA') ? prev.categoria.filter(c => c !== 'OFERTA') : [...prev.categoria, 'OFERTA'] };
+      }
       const categoriasSinMenu = prev.categoria.filter(c => c !== 'MENU');
       return { ...prev, categoria: categoriasSinMenu.includes(cat) ? categoriasSinMenu.filter(c => c !== cat) : [...categoriasSinMenu, cat] };
     });
@@ -251,24 +256,24 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
   const inputStyle = { padding: '12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '15px' };
 
   return (
-    <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+    <div className="gestor-menu" style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
       <h2 style={{ color: '#ff4500', marginTop: 0 }}>📋 Gestor de Menú: {nombreRestaurante}</h2>
       <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-        <form onSubmit={handleSubmit} style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '1rem', backgroundColor: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', border: '1px solid #eaeaea' }}>
+        <form className="gestor-menu-formulario" onSubmit={handleSubmit} style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #eaeaea' }}>
           <h3 style={{ marginTop: 0, color: '#333' }}>✨ Añadir Nuevo Plato o Combo</h3>
           <input type="text" placeholder="Nombre del plato" value={formData.nombre} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required style={inputStyle} />
           <textarea placeholder="Descripción (Ingredientes, tamaño...)" value={formData.descripcion} onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })} required style={{ ...inputStyle, minHeight: '80px', fontFamily: 'inherit' }} />
           
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#555', display: 'block', marginBottom: '4px' }}>Precio Final (€)</label>
-              <input type="number" step="0.01" placeholder="Ej: 8.50" value={formData.precio} onChange={(e) => setFormData({ ...formData, precio: e.target.value })} required style={{...inputStyle, width: '100%', boxSizing: 'border-box'}} />
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 120px', minWidth: 0 }}>
+              <label htmlFor="gestor-precio" style={{ fontSize: '13px', fontWeight: 'bold', color: '#555', display: 'block', marginBottom: '4px' }}>Precio Final (€)</label>
+              <input id="gestor-precio" type="number" step="0.01" placeholder="Ej: 8.50" value={formData.precio} onChange={(e) => setFormData({ ...formData, precio: e.target.value })} required style={{...inputStyle, width: '100%', boxSizing: 'border-box'}} />
             </div>
             
             {(esOferta || esMenu) && (
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#c62828', display: 'block', marginBottom: '4px' }}>Precio Original (Tachado)</label>
-                <input type="number" step="0.01" placeholder="Ej: 10.00" value={formData.precioAnterior} onChange={(e) => setFormData({ ...formData, precioAnterior: e.target.value })} style={{...inputStyle, width: '100%', boxSizing: 'border-box', backgroundColor: '#fff0eb', borderColor: '#ffcdd2'}} />
+              <div style={{ flex: '1 1 120px', minWidth: 0 }}>
+                <label htmlFor="gestor-precio-anterior" style={{ fontSize: '13px', fontWeight: 'bold', color: '#c62828', display: 'block', marginBottom: '4px' }}>{esMenu && !esOferta ? 'Productos por separado (€)' : 'Precio Original (Tachado)'}</label>
+                <input id="gestor-precio-anterior" type="number" step="0.01" placeholder="Ej: 10.00" value={formData.precioAnterior} onChange={(e) => setFormData({ ...formData, precioAnterior: e.target.value })} style={{...inputStyle, width: '100%', boxSizing: 'border-box', backgroundColor: '#fff0eb', borderColor: '#ffcdd2'}} />
               </div>
             )}
           </div>
@@ -276,7 +281,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
           <div style={{ ...inputStyle, display: 'flex', flexDirection: 'column', gap: '12px', background: '#fff' }}>
             <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#555' }}>Categorías Base:</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {OPCIONES_CATEGORIAS.map(cat => (
+              {OPCIONES_CATEGORIAS.filter(cat => !esMenu || cat !== 'OFERTA').map(cat => (
                 <label key={cat} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', cursor: 'pointer', background: formData.categoria.includes(cat) ? '#ff4500' : '#f0f0f0', color: formData.categoria.includes(cat) ? '#fff' : '#333', padding: '6px 12px', borderRadius: '20px', transition: 'all 0.2s', fontWeight: formData.categoria.includes(cat) ? 'bold' : 'normal' }}>
                   <input type="checkbox" checked={formData.categoria.includes(cat)} onChange={() => manejarCambioCheckbox(cat)} style={{ display: 'none' }} />
                   {nombreCategoria(cat)}
@@ -307,6 +312,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
           </div>
 
           {esMenu && (
+            <>
             <div style={{ backgroundColor: '#fff', border: '2px dashed #0066cc', padding: '1rem', borderRadius: '8px' }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#0066cc' }}>🍔 Configurar Menú/Combo</h4>
               <p style={{ fontSize: '12px', color: '#666', marginTop: 0 }}>*Selecciona productos de tu carta. La descripción y el precio (con 15% de descuento) se autocompletarán.</p>
@@ -320,6 +326,20 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
                 ))}
               </div>
             </div>
+            <section className={'menu-oferta-panel' + (esOferta ? ' menu-oferta-panel-activo' : '')} aria-labelledby="menu-oferta-titulo">
+              <div className="menu-oferta-cabecera">
+                <span className="menu-oferta-icono" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" focusable="false"><path d="M3 3h9l9 9-9 9-9-9V3ZM7 7h.01M10 15l5-5" /><circle cx="10" cy="10" r=".6" /><circle cx="15" cy="15" r=".6" /></svg></span>
+                <h4 id="menu-oferta-titulo">¿Quieres destacarlo como oferta?</h4>
+              </div>
+              <p id="menu-oferta-descripcion">Al seleccionar los productos, el precio se calcula con un 15 % de descuento. Tú eliges si el menú aparece también en «Ofertas especiales».</p>
+              <label className="menu-oferta-opcion">
+                <input type="checkbox" role="switch" className="menu-oferta-checkbox" aria-label="Añadir este menú a ofertas" aria-describedby="menu-oferta-descripcion" aria-checked={esOferta} checked={esOferta} disabled={loading} onChange={() => manejarCambioCheckbox('OFERTA')} />
+                <span>Añadir este menú a ofertas</span>
+                <span className="menu-oferta-interruptor" aria-hidden="true"><span /></span>
+              </label>
+              <p className="menu-oferta-confirmacion" role="status">{esOferta ? 'Se mostrará en MENÚ y en Ofertas especiales.' : 'Se publicará en MENÚ, sin marcarlo como oferta.'}</p>
+            </section>
+            </>
           )}
 
           <div style={{ ...inputStyle, background: '#fff' }}>
@@ -339,9 +359,9 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
           </button>
         </form>
 
-        <div style={{ flex: '2 1 400px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="gestor-menu-carta" style={{ flex: '2 1 400px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>Carta Actual <span style={{ background: '#eee', padding: '2px 8px', borderRadius: '12px', fontSize: '14px' }}>{menuData?.obtenerMenuRestaurante.length || 0}</span></h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))', gap: '1rem' }}>
             {menuData?.obtenerMenuRestaurante.map(plato => (
               <TarjetaPlato key={plato.id_plato} plato={plato} idRestaurante={idRestaurante} cargarParaEditar={cargarParaEditar} eliminarPlato={eliminarPlato} />
             ))}

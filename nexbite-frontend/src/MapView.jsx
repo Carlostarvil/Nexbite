@@ -146,13 +146,17 @@ export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega
       {error && <p role="alert" style={{ color: '#b42318' }}>No se pudieron cargar los locales del mapa.</p>}
       {!loading && !error && data?.obtenerRestaurantesCercanos?.length === 0 && <p>No hay locales disponibles en esta zona.</p>}
       
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
+      <div className="locales-cercanos-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 250px), 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
         {data?.obtenerRestaurantesCercanos?.map((rest) => (
           <div 
             key={rest.id_restaurante} 
+            role="button" tabIndex={0} aria-label={'Ver ' + rest.nombre}
+            onKeyDown={evento => { if (evento.key === 'Enter' || evento.key === ' ') { evento.preventDefault(); onSelectRestaurante(rest.id_restaurante); } }}
             onClick={() => onSelectRestaurante(rest.id_restaurante)}
-            style={{ backgroundColor: '#f0f8ff', border: '1px solid #cce7ff', padding: '1.5rem', borderRadius: '12px', cursor: 'pointer' }}
+            style={{ backgroundColor: '#fff', border: '1px solid #eaeaea', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: 'pointer' }}
           >
+            {rest.imagen_url ? <img src={rest.imagen_url} alt={rest.nombre} loading="lazy" style={{ display: 'block', width: '100%', height: '140px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px' }} />
+              : <div style={{ width: '100%', height: '140px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px' }} aria-hidden="true"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10h18L19 4H5l-2 6ZM4 10v10h16V10M9 20v-6h6v6M3 10a3 3 0 0 0 4.5 2.5A3 3 0 0 0 12 12a3 3 0 0 0 4.5.5A3 3 0 0 0 21 10" /></svg></div>}
             <h4 style={{ margin: '0 0 10px 0' }}>{rest.nombre}</h4>
             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
               {(rest.tipo || 'RESTAURANTE').split(',').map(tipo => tipo.trim()).filter(Boolean).map((tipo, indice) => (

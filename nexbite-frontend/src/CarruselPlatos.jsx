@@ -1,24 +1,7 @@
 import { useRef, useEffect } from 'react';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import TituloSeccion from './TituloSeccion'; 
-
-const formatearFecha = (fechaStr) => {
-  if (!fechaStr || String(fechaStr).includes('Indefinido')) return null;
-  const timestamp = !isNaN(fechaStr) && String(fechaStr).trim() !== '' ? Number(fechaStr) : fechaStr;
-  const fecha = new Date(timestamp);
-  if (isNaN(fecha.getTime())) return null; 
-
-  const hoy = new Date();
-  const esHoy = fecha.getDate() === hoy.getDate() && 
-                fecha.getMonth() === hoy.getMonth() && 
-                fecha.getFullYear() === hoy.getFullYear();
-
-  if (esHoy) {
-    return fecha.toLocaleString([], { hour: '2-digit', minute: '2-digit' });
-  } else {
-    return fecha.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  }
-};
+import EstadoDisponibilidad from './EstadoDisponibilidad';
 
 // NUEVO: Función para extraer el precio antiguo de la descripción
 const extraerPrecioAnterior = (descripcion) => {
@@ -138,14 +121,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
           const estaNoDisponible = restaurantePausado || plato.disponible === false || plato.restaurante_abierto === false;
           const precioAnterior = extraerPrecioAnterior(plato.descripcion);
           
-          let textoEstado = '';
-          if (restaurantePausado || plato.restaurante_abierto === false) {
-             const t = formatearFecha(tiempoReactivacionRestaurante || plato.tiempo_reactivacion_restaurante);
-             textoEstado = t ? `🔴 Pausado hasta ${t}` : '🔴 Local Pausado';
-          } else if (plato.disponible === false) {
-             const t = formatearFecha(plato.tiempo_disponible);
-             textoEstado = t ? `⏳ Agotado hasta ${t}` : '❌ Agotado';
-          }
+          const localCerrado = restaurantePausado || plato.restaurante_abierto === false;
 
           return (
           <div 
@@ -155,13 +131,12 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
               position: 'relative', minWidth: '220px', maxWidth: '220px', backgroundColor: '#fff', border: '1px solid #eaeaea', 
               borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 10px rgba(0,0,0,0.02)', 
               cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column',
-              opacity: estaNoDisponible ? 0.7 : 1
             }}
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(0,0,0,0.05)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.02)'; }}
           >
             {plato.imagen_url ? (
-              <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '140px', objectFit: 'cover' }} />
+              <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '140px', objectFit: 'cover', opacity: estaNoDisponible ? 0.65 : 1 }} />
             ) : (
               <div style={{ width: '100%', height: '140px', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>🍽️</div>
             )}
@@ -184,10 +159,8 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
                 </div>
                 
                 {estaNoDisponible ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
-                    <span style={{ color: '#d63031', fontWeight: 'bold', fontSize: '0.85rem', textAlign: 'right' }}>
-                      {textoEstado}
-                    </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
+                    <EstadoDisponibilidad cerrado={localCerrado} fecha={localCerrado ? tiempoReactivacionRestaurante || plato.tiempo_reactivacion_restaurante : plato.tiempo_disponible} />
                     <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} variante="reserva" />
                   </div>
                 ) : (

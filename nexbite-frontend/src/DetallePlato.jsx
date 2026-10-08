@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
+import EstadoDisponibilidad from './EstadoDisponibilidad';
 
 const OBTENER_DATOS_DETALLE = gql`
   query ObtenerDatosDetalle($id: ID!) {
     obtenerRestaurantePorId(id_restaurante: $id) {
       id_restaurante
       nombre
+      aceptando_pedidos
+      tiempo_reactivacion
     }
     obtenerMasVendidos(id_restaurante: $id) { 
       id_plato
@@ -75,6 +78,9 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
   const nombreLocal = plato.nombre_restaurante || data?.obtenerRestaurantePorId?.nombre || "Cargando local...";
   
   const { descLimpia, tagsTotales, precioAnterior } = extraerTags(plato.descripcion, plato.categoria);
+  const localCerrado = plato.restaurante_abierto === false || data?.obtenerRestaurantePorId?.aceptando_pedidos === false;
+  const estaNoDisponible = localCerrado || plato.disponible === false;
+  const fechaLocal = plato.tiempo_reactivacion_restaurante || data?.obtenerRestaurantePorId?.tiempo_reactivacion;
 
   const handleAgregarClick = () => {
     if (onAgregarAlCarrito(plato) === false) return false;
@@ -188,6 +194,8 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
               {descLimpia || "Un plato delicioso preparado con los mejores ingredientes de la casa."}
             </p>
 
+            {estaNoDisponible && <EstadoDisponibilidad cerrado={localCerrado} fecha={localCerrado ? fechaLocal : plato.tiempo_disponible} />}
+
             {/* CARRUSEL DE RECOMENDADOS */}
             {platosRecomendados.length > 0 && (
               <div style={{ marginTop: '2.5rem', marginBottom: '2rem', borderTop: '1px solid #eaeaea', paddingTop: '1.5rem' }}>
@@ -219,14 +227,14 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
                   
                   {platosRecomendados.map(recomendado => {
                     const extraTagsRec = extraerTags(recomendado.descripcion, recomendado.categoria);
-                    const estaAgotado = recomendado.disponible === false;
+                    const estaAgotado = localCerrado || recomendado.disponible === false;
                     
                     return (
                     <div 
                       key={recomendado.id_plato} 
                       style={{ 
                         minWidth: '150px', maxWidth: '150px', border: '1px solid #eaeaea', borderRadius: '12px', padding: '12px', 
-                        display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#fafafa', opacity: estaAgotado ? 0.6 : 1 
+                        display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#fafafa'
                       }}
                     >
                       {recomendado.imagen_url ? (
@@ -255,7 +263,10 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
 
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
                         {estaAgotado ? (
+                          <>
+                          <EstadoDisponibilidad cerrado={localCerrado} fecha={localCerrado ? fechaLocal : recomendado.tiempo_disponible} compacto />
                           <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(recomendado)} idPlato={recomendado.id_plato} nombrePlato={recomendado.nombre} variante="reserva" />
+                          </>
                         ) : (
                           <BotonAgregarCarrito onAgregar={() => onAgregarAlCarrito(recomendado)} idPlato={recomendado.id_plato} nombrePlato={recomendado.nombre} />
                         )}
@@ -266,7 +277,7 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
               </div>
             )}
 
-            <BotonAgregarCarrito onAgregar={handleAgregarClick} idPlato={plato.id_plato} nombrePlato={plato.nombre} variante="detalle" disabled={animandoExito} />
+            <BotonAgregarCarrito onAgregar={handleAgregarClick} idPlato={plato.id_plato} nombrePlato={plato.nombre} variante={estaNoDisponible ? 'reserva' : 'detalle'} disabled={animandoExito} />
 
           </div>
         </div>

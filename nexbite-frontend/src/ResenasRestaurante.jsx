@@ -169,7 +169,7 @@ export default function ResenasRestaurante({ idRestaurante, idUsuario }) {
             type="submit" 
             disabled={enviando} 
             style={{ 
-              alignSelf: 'flex-start', background: '#1a1a1a', color: '#fff', border: 'none', 
+              alignSelf: 'center', background: '#1a1a1a', color: '#fff', border: 'none', 
               padding: '12px 24px', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px',
               cursor: enviando ? 'not-allowed' : 'pointer', opacity: enviando ? 0.7 : 1, transition: 'background 0.2s' 
             }}

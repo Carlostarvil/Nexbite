@@ -1,0 +1,20 @@
+.gestor-menu { box-sizing: border-box; padding: clamp(16px, 4vw, 32px); }
+.gestor-menu-formulario, .gestor-menu-carta { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.gestor-menu-formulario { padding: clamp(12px, 3vw, 24px); }
+.gestor-menu-formulario input, .gestor-menu-formulario textarea { min-width: 0; max-width: 100%; }
+.menu-oferta-panel { min-width: 0; padding: 16px; border: 1px solid #fed7aa; border-radius: 14px; background: #fff7ed; color: #333; }
+.menu-oferta-cabecera { display: flex; align-items: center; gap: 10px; }
+.menu-oferta-icono { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 42px; height: 42px; border-radius: 12px; background: #ffedd5; color: #9a3412; }
+.menu-oferta-cabecera h4 { margin: 0; font-size: 15px; line-height: 1.4; }
+.menu-oferta-panel > p { margin: 12px 0; color: #666; font-size: 13px; line-height: 1.5; }
+.menu-oferta-opcion { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid #e7e5e4; border-radius: 10px; background: #fff; font-size: 14px; font-weight: 700; line-height: 1.4; cursor: pointer; }
+.menu-oferta-checkbox { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.menu-oferta-interruptor { display: inline-flex; align-items: center; flex-shrink: 0; width: 44px; height: 26px; box-sizing: border-box; padding: 3px; border-radius: 20px; background: #d6d3d1; transition: background .2s; }
+.menu-oferta-interruptor > span { width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 16%); transition: transform .2s; }
+.menu-oferta-checkbox:checked ~ .menu-oferta-interruptor { background: #c2410c; }
+.menu-oferta-checkbox:checked ~ .menu-oferta-interruptor > span { transform: translateX(18px); }
+.menu-oferta-opcion:has(.menu-oferta-checkbox:focus-visible) { outline: 3px solid #0066cc; outline-offset: 3px; }
+.menu-oferta-opcion:has(.menu-oferta-checkbox:disabled) { opacity: .65; cursor: not-allowed; }
+.menu-oferta-panel-activo { border-color: #f97316; box-shadow: 0 3px 12px rgb(194 65 12 / 8%); }
+.menu-oferta-panel .menu-oferta-confirmacion { margin-bottom: 0; color: #9a3412; font-size: 12px; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .menu-oferta-interruptor, .menu-oferta-interruptor > span { transition: none; } }

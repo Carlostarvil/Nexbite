@@ -20,6 +20,7 @@ import CategoriasInicio from './CategoriasInicio';
 import SelectorRecomendaciones from './SelectorRecomendaciones';
 import TituloSeccion, { ControlesCarrusel } from './TituloSeccion';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
+import EstadoDisponibilidad from './EstadoDisponibilidad';
 import AvisoCarrito from './AvisoCarrito';
 import ConfirmacionPedido from './ConfirmacionPedido';
 import { EstadoCarritoContext } from './estadoCarrito';
@@ -43,24 +44,6 @@ const OBTENER_DATOS_INICIO = gql`
     obtenerPlatosFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato }
   }
 `;
-
-const formatearFecha = (fechaStr) => {
-  if (!fechaStr || String(fechaStr).includes('Indefinido')) return null;
-  const timestamp = !isNaN(fechaStr) && String(fechaStr).trim() !== '' ? Number(fechaStr) : fechaStr;
-  const fecha = new Date(timestamp);
-  if (isNaN(fecha.getTime())) return null; 
-
-  const hoy = new Date();
-  const esHoy = fecha.getDate() === hoy.getDate() && 
-                fecha.getMonth() === hoy.getMonth() && 
-                fecha.getFullYear() === hoy.getFullYear();
-
-  if (esHoy) {
-    return fecha.toLocaleString([], { hour: '2-digit', minute: '2-digit' });
-  } else {
-    return fecha.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  }
-};
 
 const obtenerDatosDesdeToken = (token) => {
   try {
@@ -451,6 +434,7 @@ function App() {
                                   </span>
                                 </div>
                               </h3>
+                              {restaurante.aceptando_pedidos === false && <div style={{ marginBottom: '10px' }}><EstadoDisponibilidad cerrado fecha={restaurante.tiempo_reactivacion} compacto /></div>}
                               
                               <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                                 {restaurante.tipo ? restaurante.tipo.split(',').slice(0, 2).map((t, idx) => (
@@ -546,7 +530,7 @@ function App() {
                       &larr; Volver a todas las categorías
                     </button>
                   )}
-                  <TituloSeccion titulo={categoriaFiltroInicio ? `Locales de ${categoriaFiltroInicio}` : 'Los Mejores Restaurantes'} descripcion="Locales disponibles para tu ubicación." />
+                  <TituloSeccion titulo={categoriaFiltroInicio ? `Locales de ${categoriaFiltroInicio}` : 'Los Mejores Locales'} descripcion="Locales disponibles para tu ubicación." />
                 </div>
                 
                 {!loading && !error && restaurantesFiltrados.length === 0 ? (
@@ -633,12 +617,8 @@ function App() {
                             </span>
                           </div>
 
-                          {restaurante.aceptando_pedidos === false && (
-                            <span style={{ fontSize: '11px', color: '#d63031', background: '#ffebee', padding: '3px 8px', borderRadius: '12px' }}>
-                              Pausado {restaurante.tiempo_reactivacion ? `hasta ${formatearFecha(restaurante.tiempo_reactivacion) || ''}` : ''}
-                            </span>
-                          )}
                         </h3>
+                        {restaurante.aceptando_pedidos === false && <div style={{ marginBottom: '10px' }}><EstadoDisponibilidad cerrado fecha={restaurante.tiempo_reactivacion} compacto /></div>}
                         
                         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                           {restaurante.tipo ? restaurante.tipo.split(',').map((t, idx) => (
@@ -711,7 +691,7 @@ function App() {
         
         {/* COMPONENTES GLOBALES */}
         <AvisoCookies />
-        <ChatSoporteIA />
+        {userRol !== 'VENDEDOR' && <ChatSoporteIA />}
         
       </div>
     </ErrorBoundary>
