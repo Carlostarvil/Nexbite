@@ -29,10 +29,11 @@ import { leerUbicacionEntrega, guardarUbicacionEntrega } from './ubicacionEntreg
 import AvisoCookies from './AvisoCookies'; 
 import ChatSoporteIA from './ChatSoporteIA';
 
+// AÑADIDO: calificacion en obtenerMejoresRestaurantes y obtenerFavoritos
 const OBTENER_DATOS_INICIO = gql`
   query ObtenerDatosInicio($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
-    obtenerMejoresRestaurantes(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion }
-    obtenerFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion }
+    obtenerMejoresRestaurantes(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion, calificacion }
+    obtenerFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion, calificacion }
     obtenerPlatosDestacados(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, nombre_restaurante, categoria, disponible, tiempo_disponible }
     obtenerUltimosPedidos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) {
       id_pedido, id_restaurante, id_plato, nombre_plato, precio_plato
@@ -236,19 +237,14 @@ function App() {
     if (repetimosRef.current) repetimosRef.current.scrollBy({ left: desplazamiento, behavior: 'smooth' });
   };
 
-  // =========================================================================
-  // NUEVO DISEÑO ESTRUCTURAL PARA LA PANTALLA DE ACCESO (LOGIN/REGISTRO)
-  // =========================================================================
   if (!isLoggedIn) {
     return (
       <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column' }}>
         
-        {/* HEADER DESLOGUEADO */}
         <div className="header-contenedor">
           <Header isLoggedIn={false} onInicio={() => window.scrollTo(0,0)} />
         </div>
         
-        {/* CONTENIDO (AUTH) */}
         <main className="nexbite-acceso-contenido" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
           <div style={{ width: '100%', maxWidth: '450px' }}>
             <Auth onLogin={() => {
@@ -260,7 +256,6 @@ function App() {
           </div>
         </main>
         
-        {/* FOOTER DESLOGUEADO */}
         <Footer onNavegar={() => {
           window.scrollTo(0, 0);
           document.querySelector('input')?.focus({ preventScroll: true });
@@ -527,8 +522,17 @@ function App() {
                             <div style={{ width: '100%', height: '140px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', fontSize: '2rem' }}>🏪</div>
                         )}
                         
-                        <h3 style={{ margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          {restaurante.nombre}
+                        {/* AÑADIDO: ESTRUCTURA CON LA INSIGNIA DE LA NOTA MEDIA */}
+                        <h3 style={{ margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <span style={{ fontSize: '1.2rem', color: '#1a1a1a' }}>{restaurante.nombre}</span>
+                            
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '13px', backgroundColor: '#fff5f2', color: '#ff4500', padding: '4px 8px', borderRadius: '8px', fontWeight: 'bold', width: 'fit-content' }}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="#ffc107" stroke="#ffc107" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                              {restaurante.calificacion > 0 ? restaurante.calificacion.toFixed(1) : 'Nuevo'}
+                            </span>
+                          </div>
+
                           {restaurante.aceptando_pedidos === false && (
                             <span style={{ fontSize: '11px', color: '#d63031', background: '#ffebee', padding: '3px 8px', borderRadius: '12px' }}>
                               Pausado {restaurante.tiempo_reactivacion ? `hasta ${formatearFecha(restaurante.tiempo_reactivacion) || ''}` : ''}
