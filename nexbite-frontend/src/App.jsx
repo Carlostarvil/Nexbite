@@ -17,6 +17,7 @@ import DetallePlato from './DetallePlato';
 import PerfilUsuario from './PerfilUsuario';
 import CarruselPlatos from './CarruselPlatos';
 import CategoriasInicio from './CategoriasInicio';
+import SelectorRecomendaciones from './SelectorRecomendaciones';
 import TituloSeccion, { ControlesCarrusel } from './TituloSeccion';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import AvisoCarrito from './AvisoCarrito';
@@ -130,7 +131,6 @@ function App() {
   
   const [categoriaFiltroInicio, setCategoriaFiltroInicio] = useState(null);
   
-  // NUEVO: Pestaña activa dentro de la sección "Elegido para ti" ('LOCALES' o 'PRODUCTOS')
   const [pestañaElegidoParaTi, setPestañaElegidoParaTi] = useState('LOCALES');
 
   const repetimosRef = useRef(null);
@@ -414,50 +414,19 @@ function App() {
                   </div>
                 )}
 
-                {/* NUEVO: SECCIÓN "ELEGIDO PARA TI" CON PESTAÑAS (LOCALES / COMIDA-PRODUCTOS) */}
                 {!categoriaFiltroInicio && (restaurantesRecomendados.length > 0 || platosRecomendados.length > 0) && (
-                  <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'linear-gradient(to right, #fff0eb, #ffe4cc)', borderRadius: '16px' }}>
-                    
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '1.5rem' }}>
-                      <div>
-                        <h2 style={{ fontSize: '1.8rem', color: '#1a1a1a', margin: '0 0 5px 0', letterSpacing: '-0.5px' }}>
-                          Elegido para ti
-                        </h2>
-                        <p style={{ margin: 0, color: '#666', fontSize: '15px' }}>Recomendaciones personalizadas según tu actividad.</p>
-                      </div>
-
-                      {/* PESTAÑAS DE NAVEGACIÓN ESTILO BUSCADOR */}
-                      <div style={{ display: 'flex', background: '#fff', padding: '4px', borderRadius: '12px', border: '1px solid #ffd5c2', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                        <button 
-                          onClick={() => setPestañaElegidoParaTi('LOCALES')}
-                          style={{
-                            padding: '8px 16px', borderRadius: '8px', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s',
-                            backgroundColor: pestañaElegidoParaTi === 'LOCALES' ? '#ff4500' : 'transparent',
-                            color: pestañaElegidoParaTi === 'LOCALES' ? '#fff' : '#555'
-                          }}
-                        >
-                          Locales ({restaurantesRecomendados.length})
-                        </button>
-                        <button 
-                          onClick={() => setPestañaElegidoParaTi('PRODUCTOS')}
-                          style={{
-                            padding: '8px 16px', borderRadius: '8px', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s',
-                            backgroundColor: pestañaElegidoParaTi === 'PRODUCTOS' ? '#ff4500' : 'transparent',
-                            color: pestañaElegidoParaTi === 'PRODUCTOS' ? '#fff' : '#555'
-                          }}
-                        >
-                          Comida / Productos ({platosRecomendados.length})
-                        </button>
-                      </div>
-                    </div>
+                  <section className="elegido-para-ti" aria-label="Elegido para ti">
+                    <TituloSeccion titulo="Elegido para ti" descripcion="Recomendaciones personalizadas según tu actividad." />
+                    <SelectorRecomendaciones seleccionada={pestañaElegidoParaTi} onSeleccionar={setPestañaElegidoParaTi} />
 
                     {/* VISTA DE LOCALES RECOMENDADOS */}
-                    {pestañaElegidoParaTi === 'LOCALES' && (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
+                    <div role="tabpanel" id="recomendaciones-panel-locales" aria-labelledby="recomendaciones-tab-locales" hidden={pestañaElegidoParaTi !== 'LOCALES'} tabIndex={0}>
+                      {restaurantesRecomendados.length > 0 ? (
+                      <div className="elegido-para-ti-locales">
                         {restaurantesRecomendados.map(restaurante => {
                           const tieneOferta = platosEnOferta.some(p => String(p.id_restaurante) === String(restaurante.id_restaurante));
                           return (
-                            <div key={`rec-rest-${restaurante.id_restaurante}`} onClick={() => setRestauranteActivo(restaurante.id_restaurante)} style={{ backgroundColor: '#fff', border: '1px solid #ffcca3', padding: '1.2rem', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', cursor: 'pointer', transition: 'all 0.2s ease', opacity: restaurante.aceptando_pedidos === false ? 0.7 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(255,69,0,0.1)'; e.currentTarget.style.borderColor = '#ff4500'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; e.currentTarget.style.borderColor = '#ffcca3'; }}>
+                            <div key={`rec-rest-${restaurante.id_restaurante}`} role="button" tabIndex={0} aria-label={'Ver ' + restaurante.nombre} onKeyDown={evento => { if (evento.key === 'Enter' || evento.key === ' ') { evento.preventDefault(); setRestauranteActivo(restaurante.id_restaurante); } }} onClick={() => setRestauranteActivo(restaurante.id_restaurante)} style={{ backgroundColor: '#fff', border: '1px solid #ffcca3', padding: '1.2rem', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', cursor: 'pointer', transition: 'all 0.2s ease', opacity: restaurante.aceptando_pedidos === false ? 0.7 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(255,69,0,0.1)'; e.currentTarget.style.borderColor = '#ff4500'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; e.currentTarget.style.borderColor = '#ffcca3'; }}>
                               <div style={{ position: 'relative' }}>
                                 {restaurante.imagen_url ? (
                                     <img src={restaurante.imagen_url} alt={restaurante.nombre} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px' }} />
@@ -494,14 +463,21 @@ function App() {
                           );
                         })}
                       </div>
-                    )}
+                      ) : (
+                        <p className="elegido-para-ti-vacio" role="status"><strong>Aún no tenemos locales para recomendarte.</strong>Añade locales a favoritos o prueba alguno de tu zona.</p>
+                      )}
+                    </div>
 
                     {/* VISTA DE PRODUCTOS RECOMENDADOS */}
-                    {pestañaElegidoParaTi === 'PRODUCTOS' && (
-                      <CarruselPlatos titulo="" descripcion="" cabeceraInicio={false} mostrarIcono={false} platos={asignarEstadoRestaurante(platosRecomendados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
-                    )}
+                    <div role="tabpanel" id="recomendaciones-panel-productos" aria-labelledby="recomendaciones-tab-productos" hidden={pestañaElegidoParaTi !== 'PRODUCTOS'} tabIndex={0}>
+                      {pestañaElegidoParaTi === 'PRODUCTOS' && (platosRecomendados.length > 0 ? (
+                        <CarruselPlatos titulo="" descripcion="" cabeceraInicio={false} mostrarIcono={false} platos={asignarEstadoRestaurante(platosRecomendados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                      ) : (
+                        <p className="elegido-para-ti-vacio" role="status"><strong>Aún no tenemos productos para recomendarte.</strong>Añade productos a favoritos para descubrir recomendaciones.</p>
+                      ))}
+                    </div>
 
-                  </div>
+                  </section>
                 )}
 
                 {!categoriaFiltroInicio && (

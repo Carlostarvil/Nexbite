@@ -60,6 +60,9 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
   const BotonesScroll = () => (
     <div style={{ display: 'flex', gap: '8px' }}>
       <button 
+        type="button"
+        aria-label={'Ver anteriores en ' + (titulo || 'Elegido para ti')}
+        onClick={evento => { if (evento.detail === 0) scroll(-250); }}
         onMouseDown={() => iniciarScrollContinuo(-250)}
         onMouseUp={detenerScrollContinuo}
         onTouchStart={() => iniciarScrollContinuo(-250)}
@@ -80,6 +83,9 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
       </button>
 
       <button 
+        type="button"
+        aria-label={'Ver siguientes en ' + (titulo || 'Elegido para ti')}
+        onClick={evento => { if (evento.detail === 0) scroll(250); }}
         onMouseDown={() => iniciarScrollContinuo(250)}
         onMouseUp={detenerScrollContinuo}
         onTouchStart={() => iniciarScrollContinuo(250)}
@@ -110,7 +116,9 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
         `}
       </style>
       
-      {cabeceraInicio ? (
+      {!titulo ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>{BotonesScroll()}</div>
+      ) : cabeceraInicio ? (
         <TituloSeccion titulo={titulo} descripcion={descripcion} acciones={<BotonesScroll />} />
       ) : (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eaeaea', paddingBottom: '10px', marginBottom: '1.5rem' }}>
@@ -144,7 +152,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
             key={plato.id_plato} 
             onClick={() => onSelectPlato(plato)}
             style={{ 
-              minWidth: '220px', maxWidth: '220px', backgroundColor: '#fff', border: '1px solid #eaeaea', 
+              position: 'relative', minWidth: '220px', maxWidth: '220px', backgroundColor: '#fff', border: '1px solid #eaeaea', 
               borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 10px rgba(0,0,0,0.02)', 
               cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column',
               opacity: estaNoDisponible ? 0.7 : 1
