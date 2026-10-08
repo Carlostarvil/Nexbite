@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
+import ImagenPlato from './ImagenPlato';
 import './Buscador.css';
 
 const BUSCAR_RESTAURANTES = gql`
@@ -12,7 +13,7 @@ const BUSCAR_RESTAURANTES = gql`
 
 const BUSCAR_PLATOS = gql`
   query BuscarPlatos($termino: String!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
-    buscarPlatos(termino: $termino, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato id_restaurante nombre descripcion precio imagen_url }
+    buscarPlatos(termino: $termino, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato id_restaurante nombre descripcion precio imagen_url items_menu { id_plato nombre imagen_url } }
   }
 `;
 
@@ -121,7 +122,8 @@ export default function Buscador({ onSelectRestaurante, onSelectPlato, ubicacion
           {resultados.map((resultado, indice) => <li key={tipoBusqueda === 'RESTAURANTES' ? resultado.id_restaurante : resultado.id_plato}
             id={listaId + '-' + indice} role="option" aria-selected={indiceActivo === indice}
             onMouseDown={evento => evento.preventDefault()} onClick={() => seleccionar(resultado)} onMouseMove={() => setIndiceActivo(indice)}>
-            {resultado.imagen_url ? <img src={resultado.imagen_url} alt="" className="buscador-foto" />
+            {tipoBusqueda === 'PLATOS' ? <ImagenPlato plato={resultado} className="buscador-foto" style={{ width: '40px', height: '40px', borderRadius: '9px' }} />
+              : resultado.imagen_url ? <img src={resultado.imagen_url} alt="" className="buscador-foto" />
               : <span className="buscador-foto buscador-foto-vacia" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10v10h16V10M3 10l2-6h14l2 6M8 20v-6h4v6M3 10a3 3 0 0 0 4.5 2.5A3 3 0 0 0 12 12a3 3 0 0 0 4.5.5A3 3 0 0 0 21 10" /></svg></span>}
             <span className="buscador-resultado-texto"><strong>{resultado.nombre}</strong><span>{tipoBusqueda === 'RESTAURANTES' ? resultado.tipo : 'Ver detalles del plato/producto'}</span></span>
             {tipoBusqueda === 'PLATOS' && resultado.precio != null && <span className="buscador-precio">{Number(resultado.precio).toFixed(2)}&nbsp;€</span>}

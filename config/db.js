@@ -31,6 +31,14 @@ export const clientesPagoListos = pool.query(`
   ALTER TABLE Usuarios ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
 `);
 
+export const menusListos = pool.query(`
+  CREATE TABLE IF NOT EXISTS Menu_Platos (
+    id_menu INT NOT NULL REFERENCES Platos(id_plato) ON DELETE CASCADE,
+    id_plato_incluido INT NOT NULL REFERENCES Platos(id_plato) ON DELETE CASCADE,
+    PRIMARY KEY (id_menu, id_plato_incluido)
+  );
+`);
+
 // Esto fuerza a Node a crear la tabla en la base de datos correcta si no existe
 pool.query(`
   CREATE TABLE IF NOT EXISTS Platos_Favoritos (

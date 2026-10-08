@@ -2,6 +2,8 @@
 .gestor-menu-formulario, .gestor-menu-carta { min-width: 0; max-width: 100%; box-sizing: border-box; }
 .gestor-menu-formulario { padding: clamp(12px, 3vw, 24px); }
 .gestor-menu-formulario input, .gestor-menu-formulario textarea { min-width: 0; max-width: 100%; }
+.gestor-menu-fotos h4 { margin: 0 0 6px; font-size: 15px; color: #333; }
+.gestor-menu-fotos p { margin: 0 0 12px; font-size: 13px; line-height: 1.4; color: #666; }
 .menu-oferta-panel { min-width: 0; padding: 16px; border: 1px solid #fed7aa; border-radius: 14px; background: #fff7ed; color: #333; }
 .menu-oferta-cabecera { display: flex; align-items: center; gap: 10px; }
 .menu-oferta-icono { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 42px; height: 42px; border-radius: 12px; background: #ffedd5; color: #9a3412; }

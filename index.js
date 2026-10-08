@@ -15,7 +15,7 @@ import dotenv from 'dotenv';
 import { typeDefs } from './graphql/typeDefs.js';
 import { resolvers } from './graphql/resolvers.js';
 import { inicializarChatbot } from './nlp/chatbot.js';
-import { horariosRecogidaListos, clientesPagoListos } from './config/db.js';
+import { horariosRecogidaListos, clientesPagoListos, menusListos } from './config/db.js';
 
 dotenv.config();
 
@@ -43,7 +43,7 @@ const server = new ApolloServer({
 });
 
 // Iniciamos todo de forma coordinada
-await Promise.all([horariosRecogidaListos, clientesPagoListos]);
+await Promise.all([horariosRecogidaListos, clientesPagoListos, menusListos]);
 await inicializarChatbot();
 await server.start();
 

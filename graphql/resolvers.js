@@ -14,6 +14,7 @@ import { validarZonaEntrega } from '../shared/zonaEntrega.js';
 import { crearConsultasZona } from './consultasZona.js';
 import { crearBuscadorDirecciones } from './direcciones.js';
 import { crearOperacionesPago } from './pagos.js';
+import { crearResolversImagenesMenu, crearPlatoConItems } from './imagenesMenu.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const operacionesPago = crearOperacionesPago(pool, stripe);
@@ -56,6 +57,7 @@ const calcularExpiracion = (tiempoStr) => {
 };
 
 export const resolvers = {
+  Plato: crearResolversImagenesMenu(pool),
   Query: {
     ...operacionesPago.Query,
     ...crearConsultasZona(pool),
@@ -506,37 +508,7 @@ export const resolvers = {
 
     actualizarNegocio: crearActualizadorNegocio(pool),
 
-    crearPlato: async (_, {
-        id_restaurante,
-        nombre,
-        descripcion,
-        precio,
-        categoria,
-        imagen_url,
-        platos_existentes
-    }) => {
-      const resCombo = await pool.query(
-        'INSERT INTO Platos (id_restaurante, nombre, descripcion, precio, categoria, imagen_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-        [id_restaurante, nombre, descripcion, precio, categoria, imagen_url]
-      );
-
-      const nuevoPlato = resCombo.rows[0];
-
-      if (platos_existentes && platos_existentes.length > 0) {
-        try {
-          for (const idVinculado of platos_existentes) {
-            await pool.query(
-              'INSERT INTO Menu_Platos (id_menu, id_plato_incluido) VALUES ($1, $2)',
-              [nuevoPlato.id_plato, idVinculado]
-            );
-          }
-        } catch (error) {
-          console.warn("ADVERTENCIA: No se pudieron vincular los platos al menú.", error.message);
-        }
-      }
-
-      return nuevoPlato;
-    },
+    crearPlato: crearPlatoConItems(pool),
 
     alternarFavorito: async (_, { id_restaurante }, ctx) => {
       const existe = await pool.query(

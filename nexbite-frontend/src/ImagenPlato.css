@@ -1,0 +1,12 @@
+.imagen-plato { position: relative; display: grid; grid-template-columns: 1fr; grid-template-rows: 1fr; gap: 3px; width: 100%; min-width: 0; height: 140px; flex-shrink: 0; overflow: hidden; box-sizing: border-box; background: #f4f2ef; }
+.imagen-plato > img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: cover; object-position: center; }
+.imagen-plato-2, .imagen-plato-3, .imagen-plato-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.imagen-plato-3, .imagen-plato-4 { grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.imagen-plato-3 > img:first-child { grid-row: span 2; }
+.imagen-plato-vacia { display: flex; align-items: center; justify-content: center; min-width: 0; color: #aaa; }
+.imagen-plato-mas { position: absolute; bottom: 8px; right: 8px; border-radius: 9px; padding: 5px 9px; background: rgb(26 26 26 / 85%); color: #fff; font-size: 12px; font-weight: 700; line-height: 1.4; }
+.galeria-menu { margin: 0 0 24px; }
+.galeria-menu h3 { margin: 0 0 12px; color: #333; font-size: 16px; }
+.galeria-menu-platos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr)); gap: 12px; }
+.galeria-menu figure { margin: 0; min-width: 0; }
+.galeria-menu figcaption { margin-top: 7px; color: #555; font-size: 13px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }

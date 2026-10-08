@@ -3,6 +3,7 @@ import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import EstadoDisponibilidad from './EstadoDisponibilidad';
+import ImagenPlato, { GaleriaMenu } from './ImagenPlato';
 
 const OBTENER_DATOS_DETALLE = gql`
   query ObtenerDatosDetalle($id: ID!) {
@@ -22,6 +23,7 @@ const OBTENER_DATOS_DETALLE = gql`
       imagen_url
       disponible
       tiempo_disponible 
+      items_menu { id_plato nombre imagen_url }
     }
   }
 `;
@@ -98,15 +100,6 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
     .filter(p => String(p.id_plato) !== String(plato.id_plato))
     .slice(0, 8); 
 
-  // Constante de estilos compartida para forzar la máxima calidad visual
-  const estiloImagenAltaCalidad = {
-    width: '100%', 
-    objectFit: 'cover', 
-    objectPosition: 'center', 
-    imageRendering: '-webkit-optimize-contrast', // Mejora el contraste de los bordes en Safari/Chrome
-    display: 'block'
-  };
-
   return (
     <div className="detalle-plato-modal" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '1rem', backdropFilter: 'blur(3px)' }} onClick={onVolver}>
       
@@ -134,17 +127,7 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
         </button>
         
         <div style={{ overflowY: 'auto', flex: 1 }}>
-          {plato.imagen_url ? (
-            <img 
-              src={plato.imagen_url} 
-              alt={plato.nombre} 
-              style={{ ...estiloImagenAltaCalidad, height: '350px' }} // Altura aumentada para mantener proporción
-            />
-          ) : (
-            <div style={{ width: '100%', height: '350px', backgroundColor: '#fcfcfc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ddd' }}>
-              <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>
-            </div>
-          )}
+          <ImagenPlato plato={plato} loading="eager" style={{ height: '350px' }} />
           
           {/* Padding aumentado para que respire más el diseño */}
           <div style={{ padding: '2.5rem' }}>
@@ -194,6 +177,7 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
               {descLimpia || "Un plato delicioso preparado con los mejores ingredientes de la casa."}
             </p>
 
+            <GaleriaMenu plato={plato} />
             {estaNoDisponible && <EstadoDisponibilidad cerrado={localCerrado} fecha={localCerrado ? fechaLocal : plato.tiempo_disponible} />}
 
             {/* CARRUSEL DE RECOMENDADOS */}
@@ -237,17 +221,7 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
                         display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#fafafa'
                       }}
                     >
-                      {recomendado.imagen_url ? (
-                        <img 
-                          src={recomendado.imagen_url} 
-                          alt={recomendado.nombre} 
-                          style={{ ...estiloImagenAltaCalidad, height: '90px', borderRadius: '8px' }} 
-                        />
-                      ) : (
-                        <div style={{ width: '100%', height: '90px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc' }}>
-                          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>
-                        </div>
-                      )}
+                      <ImagenPlato plato={recomendado} style={{ height: '90px', borderRadius: '8px' }} />
                       
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', marginBottom: '8px' }}>
                         <p style={{ margin: '0 0 6px 0', fontSize: '13.5px', fontWeight: 'bold', color: '#333', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>

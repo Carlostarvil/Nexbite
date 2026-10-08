@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import TituloSeccion from './TituloSeccion'; 
 import EstadoDisponibilidad from './EstadoDisponibilidad';
+import ImagenPlato from './ImagenPlato';
 
 // NUEVO: Función para extraer el precio antiguo de la descripción
 const extraerPrecioAnterior = (descripcion) => {
@@ -135,11 +136,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(0,0,0,0.05)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.02)'; }}
           >
-            {plato.imagen_url ? (
-              <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '140px', objectFit: 'cover', opacity: estaNoDisponible ? 0.65 : 1 }} />
-            ) : (
-              <div style={{ width: '100%', height: '140px', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>🍽️</div>
-            )}
+            <ImagenPlato plato={plato} style={{ height: '140px', opacity: estaNoDisponible ? 0.65 : 1 }} />
             
             <div style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
               <h4 style={{ margin: '0 0 5px 0', color: '#000', fontSize: '15px', fontWeight: 700 }}>{plato.nombre}</h4>

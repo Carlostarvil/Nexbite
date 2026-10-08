@@ -35,7 +35,7 @@ const OBTENER_DATOS_INICIO = gql`
   query ObtenerDatosInicio($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
     obtenerMejoresRestaurantes(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion, calificacion }
     obtenerFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion, calificacion }
-    obtenerPlatosDestacados(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, nombre_restaurante, categoria, disponible, tiempo_disponible }
+    obtenerPlatosDestacados(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, nombre_restaurante, categoria, disponible, tiempo_disponible, items_menu { id_plato nombre imagen_url } }
     obtenerUltimosPedidos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) {
       id_pedido, id_restaurante, id_plato, nombre_plato, precio_plato
       estado, nombre_restaurante, imagen_restaurante, plato_disponible, restaurante_abierto

@@ -9,6 +9,7 @@ import CarruselPlatos from './CarruselPlatos';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import IconoInfoRestaurante from './IconoInfoRestaurante';
 import EstadoDisponibilidad from './EstadoDisponibilidad';
+import ImagenPlato from './ImagenPlato';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 import './InfoRestauranteModal.css';
 import './PerfilRestaurante.css';
@@ -57,9 +58,9 @@ const OBTENER_DATOS = gql`
       telefono
       direccion
     }
-    obtenerMenuRestaurante(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, categoria, imagen_url, disponible, tiempo_disponible }
+    obtenerMenuRestaurante(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, categoria, imagen_url, disponible, tiempo_disponible, items_menu { id_plato nombre imagen_url } }
     
-    obtenerMasVendidos(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, disponible, tiempo_disponible }
+    obtenerMasVendidos(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, disponible, tiempo_disponible, items_menu { id_plato nombre imagen_url } }
     
     obtenerFavoritos(id_usuario: $id_usuario) { id_restaurante }
     obtenerPlatosFavoritos(id_usuario: $id_usuario) { id_plato }
@@ -621,15 +622,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                         <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 2 }}>
                           <BotonCorazon activo={esPlatoFavorito} disabled={guardandoFavorito} onClick={evento => handleCorazonClick(plato.id_plato, evento)} nombre={plato.nombre} />
                         </div>
-                        {plato.imagen_url ? (
-                          <img 
-                            src={plato.imagen_url} 
-                            alt={plato.nombre} 
-                            style={{ width: '100%', height: '200px', objectFit: 'cover', objectPosition: 'center', imageRendering: '-webkit-optimize-contrast', opacity: estaNoDisponible ? 0.65 : 1 }} 
-                          />
-                        ) : (
-                          <div style={{ width: '100%', height: '200px', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>📷</div>
-                        )}
+                        <ImagenPlato plato={plato} style={{ height: '200px', opacity: estaNoDisponible ? 0.65 : 1 }} />
 
                         <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'space-between' }}>
                           <div>

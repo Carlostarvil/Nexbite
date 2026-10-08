@@ -4,6 +4,7 @@ import { gql } from '@apollo/client/core/index.js';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import BotonCorazon from './BotonCorazon';
 import EstadoDisponibilidad from './EstadoDisponibilidad';
+import ImagenPlato from './ImagenPlato';
 
 const OBTENER_FAVORITOS_GENERALES = gql`
   query ObtenerFavoritosGenerales($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
@@ -25,6 +26,7 @@ const OBTENER_FAVORITOS_GENERALES = gql`
       categoria
       disponible
       tiempo_disponible
+      items_menu { id_plato nombre imagen_url }
     }
   }
 `;
@@ -221,13 +223,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
                     <BotonCorazon activo onClick={(e) => handleEliminarPlato(plato.id_plato, e)} nombre={plato.nombre} />
                   </div>
                   
-                  {plato.imagen_url ? (
-                    <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '160px', objectFit: 'cover', imageRendering: '-webkit-optimize-contrast' }} />
-                  ) : (
-                    <div style={{ width: '100%', height: '160px', backgroundColor: '#fcfcfc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc' }}>
-                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>
-                    </div>
-                  )}
+                  <ImagenPlato plato={plato} style={{ height: '160px' }} />
 
                   <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
                     <h3 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', color: '#1a1a1a', lineHeight: '1.3' }}>{plato.nombre}</h3>

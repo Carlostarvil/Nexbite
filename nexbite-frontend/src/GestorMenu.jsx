@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import { nombreCategoria } from './categoriasPlatos';
 import EstadoDisponibilidad from './EstadoDisponibilidad';
+import ImagenPlato from './ImagenPlato';
 import './GestorMenu.css';
 
 const CREAR_PLATO = gql`
@@ -13,7 +14,7 @@ const CREAR_PLATO = gql`
   }
 `;
 const ELIMINAR_PLATO = gql`mutation EliminarPlato($id: ID!) { eliminarPlato(id_plato: $id) }`;
-const OBTENER_MENU = gql`query ObtenerMenu($id: ID!) { obtenerMenuRestaurante(id_restaurante: $id) { id_plato, nombre, descripcion, precio, categoria, imagen_url, disponible, tiempo_disponible } }`;
+const OBTENER_MENU = gql`query ObtenerMenu($id: ID!) { obtenerMenuRestaurante(id_restaurante: $id) { id_plato, nombre, descripcion, precio, categoria, imagen_url, disponible, tiempo_disponible, items_menu { id_plato nombre imagen_url } } }`;
 const MARCAR_AGOTADO = gql`mutation MarcarPlatoAgotado($id_plato: ID!, $disponible: Boolean!, $tiempo: String) { marcarPlatoAgotado(id_plato: $id_plato, disponible: $disponible, tiempo: $tiempo) { id_plato, disponible, tiempo_disponible } }`;
 
 const OPCIONES_CATEGORIAS = ['ENTRANTE', 'COMPARTIR', 'PLATO', 'BEBIDA', 'POSTRE', 'OFERTA', 'MENU'];
@@ -58,7 +59,7 @@ function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato })
 
   return (
     <div className="gestor-menu-plato" style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: '#fff' }}>
-      {plato.imagen_url ? <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '120px', objectFit: 'cover', opacity: plato.disponible === false ? 0.65 : 1 }} /> : <div style={{ height: '120px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📷</div>}
+      <ImagenPlato plato={plato} style={{ height: '120px', opacity: plato.disponible === false ? 0.65 : 1 }} />
       <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '5px' }}>
           {tagsTotales.map(cat => {
@@ -245,13 +246,15 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
       categoria: tagsTotales, 
       imagen_url: plato.imagen_url || '' 
     });
-    setPlatosSeleccionados(Array.isArray(plato.platos_existentes) ? plato.platos_existentes : []);
+    setPlatosSeleccionados(plato.items_menu?.map(item => item.id_plato) || (Array.isArray(plato.platos_existentes) ? plato.platos_existentes : []));
     eliminarPlato({ variables: { id: plato.id_plato } });
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
 
   const esMenu = formData.categoria.includes('MENU');
   const esOferta = formData.categoria.includes('OFERTA');
+  const platosDelMenu = platosSeleccionados.map(id => platosDisponibles.find(p => p.id_plato === id)).filter(Boolean);
+  const vistaPrevia = { ...formData, items_menu: esMenu ? platosDelMenu : [] };
 
   const inputStyle = { padding: '12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '15px' };
 
@@ -320,8 +323,9 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
               <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
                 {platosDisponibles.length === 0 ? <p style={{ fontSize: '13px', color: '#666' }}>No hay platos en la carta.</p> : platosDisponibles.map(p => (
                   <label key={p.id_plato} style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '5px', background: platosSeleccionados.includes(p.id_plato) ? '#e6f2ff' : 'transparent', borderRadius: '4px' }}>
-                    <input type="checkbox" checked={platosSeleccionados.includes(p.id_plato)} onChange={() => agregarPlatoExistente(p.id_plato)} />
-                    {p.nombre} <b style={{ color: '#0066cc' }}>({p.precio}&nbsp;€)</b>
+                    <input type="checkbox" aria-label={p.nombre} checked={platosSeleccionados.includes(p.id_plato)} onChange={() => agregarPlatoExistente(p.id_plato)} />
+                    <ImagenPlato plato={p} style={{ width: '40px', height: '40px', borderRadius: '6px' }} />
+                    <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{p.nombre} <b style={{ color: '#0066cc' }}>({p.precio}&nbsp;€)</b></span>
                   </label>
                 ))}
               </div>
@@ -353,7 +357,10 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
             />
           </div>
 
-          {formData.imagen_url && <img src={formData.imagen_url} alt="Previa" style={{ width: '100%', height: '180px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #eee' }} />}
+          {(formData.imagen_url || (esMenu && platosDelMenu.length > 0)) && <div className="gestor-menu-fotos">
+            {esMenu && <><h4>Fotos del menú</h4><p>Se mostrarán automáticamente las fotos de los platos seleccionados.</p></>}
+            <ImagenPlato plato={vistaPrevia} style={{ height: '180px', borderRadius: '8px', border: '1px solid #eee' }} />
+          </div>}
           <button type="submit" disabled={loading} style={{ padding: '1rem', background: '#0066cc', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', transition: 'background 0.2s', marginTop: '10px' }}>
             {loading ? 'Guardando...' : '💾 Guardar Plato en la Carta'}
           </button>
