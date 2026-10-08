@@ -127,10 +127,10 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
         </button>
         
         <div style={{ overflowY: 'auto', flex: 1 }}>
-          <ImagenPlato plato={plato} loading="eager" style={{ height: '350px' }} />
+          {plato.items_menu?.length ? <GaleriaMenu key={plato.id_plato} plato={plato} /> : <ImagenPlato plato={plato} loading="eager" style={{ height: '350px' }} />}
           
           {/* Padding aumentado para que respire más el diseño */}
-          <div style={{ padding: '2.5rem' }}>
+          <div className="detalle-plato-contenido" style={{ padding: 'clamp(16px, 5vw, 40px)' }}>
             
             {/* ETIQUETA DEL RESTAURANTE (Sin emojis) */}
             {onIrARestaurante && plato.id_restaurante && (
@@ -150,10 +150,10 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
             )}
 
             {/* NOMBRE DEL PLATO Y PRECIO */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '15px', marginBottom: '12px' }}>
-              <h1 style={{ margin: 0, color: '#1a1a1a', fontSize: '1.8rem', flex: 1, lineHeight: '1.2', letterSpacing: '-0.5px' }}>{plato.nombre}</h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '12px' }}>
+              <h1 style={{ margin: 0, color: '#1a1a1a', fontSize: '1.8rem', flex: '1 1 200px', lineHeight: '1.2', letterSpacing: '-0.5px', overflowWrap: 'anywhere' }}>{plato.nombre}</h1>
               
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', textAlign: 'right' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '8px', textAlign: 'right' }}>
                 {precioAnterior && precioAnterior > plato.precio && (
                   <span style={{ fontSize: '1.1rem', fontWeight: '600', color: '#999', textDecoration: 'line-through' }}>
                     {precioAnterior.toFixed(2)}&nbsp;€
@@ -177,7 +177,6 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
               {descLimpia || "Un plato delicioso preparado con los mejores ingredientes de la casa."}
             </p>
 
-            <GaleriaMenu plato={plato} />
             {estaNoDisponible && <EstadoDisponibilidad cerrado={localCerrado} fecha={localCerrado ? fechaLocal : plato.tiempo_disponible} />}
 
             {/* CARRUSEL DE RECOMENDADOS */}
