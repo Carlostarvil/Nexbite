@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { EventEmitter, on } from 'events';
 import pool from '../config/db.js';
-import { procesarMensaje } from '../nlp/chatbot.js';
+import { procesarMensaje } from './nlp/chatbot.js'; 
 import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
 import Stripe from 'stripe';
@@ -62,7 +62,18 @@ export const resolvers = {
     ...crearBuscadorDirecciones(),
     obtenerTags: async () => (await pool.query('SELECT * FROM Preferencias_Tags')).rows,
     obtenerRecomendaciones: async (_, { id_usuario, limit = 20, offset = 0 }) => (await pool.query(`SELECT p.id_plato, p.nombre, p.descripcion, p.precio, r.nombre AS restaurante, COUNT(pt.id_tag) AS coincidencias FROM Platos p JOIN Restaurantes r ON p.id_restaurante = r.id_restaurante JOIN Plato_Tags pt ON p.id_plato = pt.id_plato JOIN Usuario_Preferencias up ON pt.id_tag = up.id_tag WHERE up.id_usuario = $1 GROUP BY p.id_plato, p.nombre, p.descripcion, p.precio, r.nombre ORDER BY coincidencias DESC LIMIT $2 OFFSET $3;`, [id_usuario, limit, offset])).rows,
-    chatearConBot: async (_, { mensaje }) => await procesarMensaje(mensaje),
+    
+    chatearConBot: async (_, args, contexto) => {
+      try {
+        const textoUsuario = args.mensaje || args.texto || "";
+        console.log("📩 LLEGÓ PETICIÓN A RESOLVERS.JS:", textoUsuario);
+        const respuesta = await procesarMensaje(textoUsuario, contexto, pool);
+        return respuesta;
+      } catch (error) {
+        console.error("Error en el chatbot:", error);
+        return "Lo siento, ha ocurrido un error interno en el soporte.";
+      }
+    },
 
     obtenerMiRestaurante: async (_, __, contexto) => {
       if (!contexto.usuario || contexto.usuario.rol !== 'VENDEDOR') return null;
@@ -140,7 +151,6 @@ export const resolvers = {
       return res.rows[0];
     },
 
-    // NUEVO: CONSULTA DE RESEÑAS
     obtenerResenasRestaurante: async (_, { id_restaurante }) => {
       try {
         const result = await pool.query(
@@ -155,6 +165,31 @@ export const resolvers = {
       } catch (error) {
         console.error("Error obteniendo reseñas:", error);
         return [];
+      }
+    }
+  },
+
+  // =========================================================================
+  // NUEVO: FIELD RESOLVERS PARA CALCULAR LA NOTA MEDIA DE LOS RESTAURANTES
+  // =========================================================================
+  Restaurante: {
+    calificacion: async (parent) => {
+      try {
+        const res = await pool.query('SELECT AVG(puntuacion) as media FROM resenas WHERE id_restaurante = $1', [parent.id_restaurante]);
+        return res.rows[0].media ? parseFloat(res.rows[0].media) : 0.0;
+      } catch (error) {
+        return 0.0;
+      }
+    }
+  },
+  
+  RestauranteConDistancia: {
+    calificacion: async (parent) => {
+      try {
+        const res = await pool.query('SELECT AVG(puntuacion) as media FROM resenas WHERE id_restaurante = $1', [parent.id_restaurante]);
+        return res.rows[0].media ? parseFloat(res.rows[0].media) : 0.0;
+      } catch (error) {
+        return 0.0;
       }
     }
   },
@@ -729,7 +764,6 @@ export const resolvers = {
       return "Pedido eliminado permanentemente";
     },
     
-    // NUEVA MUTACIÓN PARA RESEÑAS
     crearResena: async (_, { id_restaurante, id_usuario, puntuacion, comentario }) => {
       try {
         const fecha = Date.now().toString();

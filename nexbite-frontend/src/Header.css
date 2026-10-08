@@ -9,9 +9,14 @@ body { margin: 0; }
 .header-modos button { min-height: 34px; border: 0; border-radius: 20px; background: transparent; color: #565656; padding: 7px 11px; font-size: 12px; font-weight: 650; white-space: nowrap; }
 .header-modos button[aria-pressed="true"] { background: #fff; color: #171717; }
 .header-modos button:hover { color: #171717; }
-.header-ubicacion { position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: #1b1b1b; }
+
+/* El contenedor principal de la ubicación (necesario para el tooltip) */
+.header-ubicacion-container { position: relative; display: inline-flex; align-items: center; }
+
+.header-ubicacion { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: #1b1b1b; }
 .header-ubicacion:hover { background: #f1f1f1; }
 .header-direccion { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
 .header-buscador { grid-area: buscador; width: 100%; min-width: 0; justify-self: center; }
 .header-acciones { grid-area: acciones; display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
 .header-icono { position: relative; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: #1b1b1b; transition: color .15s ease, background .15s ease; }
@@ -23,6 +28,8 @@ body { margin: 0; }
 .header-sesion:hover { background: #fff0f0; color: #b42318; }
 .header-icono-sesion { display: none; }
 .nexbite-header-vendedor { grid-template-columns: auto 1fr; grid-template-areas: 'marca acciones'; }
+
+/* ===== MEDIA QUERIES ===== */
 @media (max-width: 1040px) {
   .nexbite-header:not(.nexbite-header-vendedor) { grid-template-columns: auto 1fr auto; grid-template-areas: 'marca entrega acciones' 'buscador buscador buscador'; gap: 10px 16px; }
 }
@@ -47,4 +54,43 @@ body { margin: 0; }
   .header-entrega { gap: 4px; }
   .header-modos button { padding-inline: 6px; font-size: 10.5px; }
   .header-ubicacion { width: 32px; }
+}
+
+/* ===== TOOLTIP DE DIRECCIÓN ===== */
+.header-ubicacion-container:hover .tooltip-direccion {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.tooltip-direccion {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-10px);
+  background-color: #222;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  pointer-events: none;
+  z-index: 1000;
+  text-align: center;
+}
+
+.tooltip-direccion::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  margin-left: -6px;
+  border-width: 0 6px 6px 6px;
+  border-style: solid;
+  border-color: transparent transparent #222 transparent;
 }

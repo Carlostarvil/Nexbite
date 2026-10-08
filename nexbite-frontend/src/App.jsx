@@ -25,6 +25,10 @@ import { EstadoCarritoContext } from './estadoCarrito';
 import SelectorUbicacion from './SelectorUbicacion';
 import { leerUbicacionEntrega, guardarUbicacionEntrega } from './ubicacionEntrega';
 
+// Importaciones de los nuevos componentes en el frontend
+import AvisoCookies from './AvisoCookies'; 
+import ChatSoporteIA from './ChatSoporteIA';
+
 const OBTENER_DATOS_INICIO = gql`
   query ObtenerDatosInicio($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
     obtenerMejoresRestaurantes(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion }
@@ -73,7 +77,6 @@ const parseCategorias = (catData) => {
   return [];
 };
 
-// NUEVO: Ahora extrae también el precio anterior de la descripción y lo limpia
 const extraerTags = (descripcion, categoriasBackend) => {
   let descLimpia = descripcion || '';
   let tagsExtra = [];
@@ -233,21 +236,39 @@ function App() {
     if (repetimosRef.current) repetimosRef.current.scrollBy({ left: desplazamiento, behavior: 'smooth' });
   };
 
+  // =========================================================================
+  // NUEVO DISEÑO ESTRUCTURAL PARA LA PANTALLA DE ACCESO (LOGIN/REGISTRO)
+  // =========================================================================
   if (!isLoggedIn) {
-    return <div className="nexbite-acceso">
-      <main className="nexbite-acceso-contenido">
-        <Auth onLogin={() => {
-          const token = localStorage.getItem('nexbite_token');
-          const datos = obtenerDatosDesdeToken(token);
-          setUbicacionEntrega(leerUbicacionEntrega(datos?.id_usuario));
-          setUserId(datos?.id_usuario); setUserRol(datos?.rol); setIsLoggedIn(true);
+    return (
+      <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column' }}>
+        
+        {/* HEADER DESLOGUEADO */}
+        <div className="header-contenedor">
+          <Header isLoggedIn={false} onInicio={() => window.scrollTo(0,0)} />
+        </div>
+        
+        {/* CONTENIDO (AUTH) */}
+        <main className="nexbite-acceso-contenido" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+          <div style={{ width: '100%', maxWidth: '450px' }}>
+            <Auth onLogin={() => {
+              const token = localStorage.getItem('nexbite_token');
+              const datos = obtenerDatosDesdeToken(token);
+              setUbicacionEntrega(leerUbicacionEntrega(datos?.id_usuario));
+              setUserId(datos?.id_usuario); setUserRol(datos?.rol); setIsLoggedIn(true);
+            }} />
+          </div>
+        </main>
+        
+        {/* FOOTER DESLOGUEADO */}
+        <Footer onNavegar={() => {
+          window.scrollTo(0, 0);
+          document.querySelector('input')?.focus({ preventScroll: true });
         }} />
-      </main>
-      <Footer onAcceder={() => {
-        window.scrollTo(0, 0);
-        document.querySelector('.nexbite-acceso-contenido input')?.focus({ preventScroll: true });
-      }} />
-    </div>;
+        
+        <AvisoCookies />
+      </div>
+    );
   }
 
   const totalArticulos = carrito.reduce((acc, p) => acc + (p.cantidad || 1), 0);
@@ -428,14 +449,73 @@ function App() {
                 )}
 
                 <div style={{ marginTop: categoriaFiltroInicio ? '0' : '2rem' }}>
+                  {categoriaFiltroInicio && (
+                    <button 
+                      onClick={() => setCategoriaFiltroInicio(null)} 
+                      style={{ 
+                        padding: '10px 16px', background: '#f5f5f5', border: 'none', borderRadius: '8px', 
+                        cursor: 'pointer', marginBottom: '1rem', fontWeight: 'bold', display: 'inline-flex', 
+                        alignItems: 'center', gap: '8px', color: '#333', transition: 'background 0.2s' 
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#eaeaea'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                    >
+                      &larr; Volver a todas las categorías
+                    </button>
+                  )}
                   <TituloSeccion titulo={categoriaFiltroInicio ? `Locales de ${categoriaFiltroInicio}` : 'Los Mejores Restaurantes'} descripcion="Locales disponibles para tu ubicación." />
                 </div>
                 
                 {!loading && !error && restaurantesFiltrados.length === 0 ? (
-                  <div style={{ padding: '3rem', textAlign: 'center', background: '#fff', borderRadius: '12px', border: '1px solid #eaeaea' }}>
-                    <p style={{ fontSize: '1.2rem', color: '#666' }}>{categoriaFiltroInicio ? `No hay locales de ${categoriaFiltroInicio} disponibles aquí.` : modoEntrega === 'DOMICILIO' ? 'Todavía no hay locales que entreguen en esta dirección.' : 'Todavía no hay locales para recoger a menos de 50 km.'}</p>
-                    {categoriaFiltroInicio && <button onClick={() => setCategoriaFiltroInicio(null)} className="ubicacion-boton" style={{ marginTop: '16px' }}>Ver todos</button>}
-                    <button onClick={() => setMostrarSelectorUbicacion(true)} className="ubicacion-cambiar" style={{ display: 'block', margin: '16px auto 0' }}>Cambiar ubicación</button>
+                  <div style={{ 
+                    padding: '4rem 2rem', textAlign: 'center', background: '#fcfcfc', 
+                    borderRadius: '16px', border: '1px dashed #ccc', display: 'flex', 
+                    flexDirection: 'column', alignItems: 'center', gap: '15px' 
+                  }}>
+                    <div style={{ background: '#fff5f2', padding: '20px', borderRadius: '50%', color: '#ff4500' }}>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        <path d="M11 8v2"></path>
+                        <path d="M11 14h.01"></path>
+                      </svg>
+                    </div>
+                    <h3 style={{ margin: '0', fontSize: '1.5rem', color: '#333' }}>¡Vaya! No hemos encontrado locales</h3>
+                    <p style={{ margin: '0', fontSize: '1.1rem', color: '#666', maxWidth: '400px', lineHeight: '1.5' }}>
+                      {categoriaFiltroInicio 
+                        ? `En este momento no hay restaurantes de la categoría "${categoriaFiltroInicio}" que entreguen en tu ubicación.` 
+                        : modoEntrega === 'DOMICILIO' 
+                          ? 'Todavía no hay locales que entreguen en esta dirección.' 
+                          : 'Todavía no hay locales para recoger a menos de 50 km.'}
+                    </p>
+                    <div style={{ display: 'flex', gap: '15px', marginTop: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                      {categoriaFiltroInicio && (
+                        <button 
+                          onClick={() => setCategoriaFiltroInicio(null)} 
+                          style={{ 
+                            padding: '12px 24px', background: '#333', color: '#fff', border: 'none', 
+                            borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem', 
+                            transition: 'background 0.2s' 
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#000'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = '#333'}
+                        >
+                          Ver todos los locales
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => setMostrarSelectorUbicacion(true)} 
+                        style={{ 
+                          padding: '12px 24px', background: '#fff', color: '#ff4500', border: '1px solid #ff4500', 
+                          borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem', 
+                          transition: 'all 0.2s' 
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#fff5f2'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; }}
+                      >
+                        Cambiar ubicación
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
@@ -522,7 +602,13 @@ function App() {
             onCerrar={cerrarAvisoCarrito} onVerCarrito={() => abrirCarrito()}
             onPagar={() => abrirCarrito(true, platoDelAviso.id_restaurante)} />
         </div>}
+        
         {confirmacionPedido && <ConfirmacionPedido pedido={confirmacionPedido} onCerrar={() => setConfirmacionPedido(null)} onVerPedidos={() => { setConfirmacionPedido(null); handleInicio(); setMostrarPerfil(true); window.scrollTo(0, 0); }} />}
+        
+        {/* COMPONENTES GLOBALES */}
+        <AvisoCookies />
+        <ChatSoporteIA />
+        
       </div>
     </ErrorBoundary>
     </EstadoCarritoContext.Provider>

@@ -18,6 +18,7 @@ export const typeDefs = `#graphql
     radio_cobertura_km: Float
     telefono: String
     direccion: String
+    calificacion: Float # <--- NUEVO CAMPO AÑADIDO
   }
 
   type RestauranteConDistancia { 
@@ -31,6 +32,7 @@ export const typeDefs = `#graphql
     radio_cobertura_km: Float
     telefono: String
     direccion: String
+    calificacion: Float # <--- NUEVO CAMPO AÑADIDO
   }
 
   type Plato { 
@@ -84,7 +86,6 @@ export const typeDefs = `#graphql
     name: String
   }
 
-  # NUEVO TIPO PARA RESEÑAS
   type Resena {
     id_resena: ID!
     nombre_usuario: String
@@ -125,7 +126,6 @@ export const typeDefs = `#graphql
     obtenerPerfilUsuario(id_usuario: ID!): Usuario
     obtenerPlatosDestacados(latitud: Float, longitud: Float, solo_con_entrega: Boolean, radio_km: Float): [Plato]
     
-    # NUEVA CONSULTA
     obtenerResenasRestaurante(id_restaurante: ID!): [Resena]
   }
 
@@ -209,7 +209,6 @@ export const typeDefs = `#graphql
     crearIntencionPago(monto: Float!, id_tarjeta: ID!, clave_pago: ID!): String!
     actualizarPerfilUsuario(id_usuario: ID!, telefono: String, direccion: String): Usuario
 
-    # NUEVA MUTACIÓN
     crearResena(id_restaurante: ID!, id_usuario: ID!, puntuacion: Int!, comentario: String!): Resena
   }
 

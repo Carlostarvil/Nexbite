@@ -47,7 +47,6 @@ const ELIMINAR_TARJETA_GUARDADA = gql`
   }
 `;
 
-// AÑADIDO: "tipo" para poder leer las reglas de envío del restaurante
 const OBTENER_ESTADO_RESTAURANTE = gql`
   query ObtenerEstadoRestaurante($id: ID!) {
     obtenerRestaurantePorId(id_restaurante: $id) { 
@@ -70,7 +69,6 @@ const OBTENER_INFO_BASICA_REST = gql`
   }
 `;
 
-// LÓGICA DE ENVÍOS: Fórmula Haversine para calcular distancia exacta en km
 const calcularDistancia = (lat1, lon1, lat2, lon2) => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
   const R = 6371; 
@@ -83,7 +81,6 @@ const calcularDistancia = (lat1, lon1, lat2, lon2) => {
   return R * c; 
 };
 
-// LÓGICA DE ENVÍOS: Extraer reglas del local o aplicar estándar profesional
 const extraerConfigEnvio = (tipoBackend) => {
   let tipoLimpio = tipoBackend || '';
   let base = 1.90; 
@@ -406,7 +403,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
       if (metodoPago === 'TARJETA') {
         if (!tarjetaSeleccionada) return mostrarMensajePago('Añade una tarjeta para continuar', 'Guarda una tarjeta de crédito o débito, o elige pagar en efectivo.');
         if (!stripe) return mostrarMensajePago('El pago todavía está cargando', 'Espera unos segundos y vuelve a pulsar Pagar.', 'info');
-        // Registramos el totalFinal en la huella de pago
+        
         const huella = JSON.stringify([idUsuario, idCartActivo, totalFinal, carritoEnUso.map(p => [p.id_plato, p.cantidad || 1]), direccionFinal, fechaFinalBackend]);
         huellaPago = huella;
         try {
@@ -416,7 +413,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             intentosPago.current.set(huella, intento);
           }
           if (!intento.secreto) {
-            // Pagamos el totalFinal (que incluye el envío si lo hay)
             const { data } = await crearIntencion({ variables: { monto: totalFinal, id_tarjeta: intento.tarjeta, clave_pago: intento.clave } });
             intento.secreto = data.crearIntencionPago;
           } else {
@@ -570,15 +566,33 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             
             <div style={{ marginBottom: '15px' }}>
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '10px', display: 'block' }}>Forma de entrega:</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div onClick={() => setTipoEntrega('DOMICILIO')} style={{ border: tipoEntrega === 'DOMICILIO' ? '2px solid #ff4500' : '1px solid #e0e0e0', backgroundColor: tipoEntrega === 'DOMICILIO' ? '#fff0eb' : '#fff', borderRadius: '12px', padding: '15px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', transition: 'all 0.2s ease', boxShadow: tipoEntrega === 'DOMICILIO' ? '0 4px 10px rgba(255, 69, 0, 0.1)' : 'none' }}>
-                  <span style={{ fontSize: '2rem' }}>🛵</span>
-                  <span style={{ fontWeight: 'bold', color: tipoEntrega === 'DOMICILIO' ? '#ff4500' : '#555' }}>A domicilio</span>
-                </div>
-                <div onClick={() => setTipoEntrega('RECOGIDA')} style={{ border: tipoEntrega === 'RECOGIDA' ? '2px solid #ff4500' : '1px solid #e0e0e0', backgroundColor: tipoEntrega === 'RECOGIDA' ? '#fff0eb' : '#fff', borderRadius: '12px', padding: '15px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', transition: 'all 0.2s ease', boxShadow: tipoEntrega === 'RECOGIDA' ? '0 4px 10px rgba(255, 69, 0, 0.1)' : 'none' }}>
-                  <span style={{ fontSize: '2rem' }}>🚶‍♂️</span>
-                  <span style={{ fontWeight: 'bold', color: tipoEntrega === 'RECOGIDA' ? '#ff4500' : '#555' }}>Recogida en local</span>
-                </div>
+              
+              {/* NUEVO DISEÑO PLANO PARA DOMICILIO O RECOGIDA */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                <button
+                  type="button"
+                  onClick={() => setTipoEntrega('DOMICILIO')}
+                  style={{
+                    flex: 1, padding: '14px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer',
+                    background: tipoEntrega === 'DOMICILIO' ? '#000' : '#fff',
+                    color: tipoEntrega === 'DOMICILIO' ? '#fff' : '#666',
+                    border: '1px solid #e0e0e0', transition: 'all 0.2s ease', fontSize: '14px'
+                  }}
+                >
+                  A domicilio
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoEntrega('RECOGIDA')}
+                  style={{
+                    flex: 1, padding: '14px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer',
+                    background: tipoEntrega === 'RECOGIDA' ? '#000' : '#fff',
+                    color: tipoEntrega === 'RECOGIDA' ? '#fff' : '#666',
+                    border: '1px solid #e0e0e0', transition: 'all 0.2s ease', fontSize: '14px'
+                  }}
+                >
+                  Recogida en local
+                </button>
               </div>
             </div>
 
@@ -640,15 +654,80 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             
             <div style={{ marginTop: '20px', borderTop: '1px solid #ddd', paddingTop: '15px' }}>
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '10px', display: 'block' }}>Elige cómo quieres pagar:</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div onClick={() => setMetodoPago('TARJETA')} style={{ border: metodoPago === 'TARJETA' ? '2px solid #ff4500' : '1px solid #e0e0e0', backgroundColor: metodoPago === 'TARJETA' ? '#fff0eb' : '#fff', borderRadius: '12px', padding: '15px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', transition: 'all 0.2s ease', boxShadow: metodoPago === 'TARJETA' ? '0 4px 10px rgba(255, 69, 0, 0.1)' : 'none' }}>
-                  <span style={{ fontSize: '2rem' }}>💳</span>
-                  <span style={{ fontWeight: 'bold', color: metodoPago === 'TARJETA' ? '#ff4500' : '#555' }}>Tarjeta online</span>
-                </div>
-                <div onClick={() => setMetodoPago('EFECTIVO')} style={{ border: metodoPago === 'EFECTIVO' ? '2px solid #ff4500' : '1px solid #e0e0e0', backgroundColor: metodoPago === 'EFECTIVO' ? '#fff0eb' : '#fff', borderRadius: '12px', padding: '15px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', transition: 'all 0.2s ease', boxShadow: metodoPago === 'EFECTIVO' ? '0 4px 10px rgba(255, 69, 0, 0.1)' : 'none' }}>
-                  <span style={{ fontSize: '2rem' }}>💵</span>
-                  <span style={{ fontWeight: 'bold', color: metodoPago === 'EFECTIVO' ? '#ff4500' : '#555' }}>Efectivo al recibir</span>
-                </div>
+              
+              {/* NUEVAS TARJETAS VISUALES DE PAGO */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+                
+                {/* OPCIÓN: TARJETA ONLINE */}
+                <button
+                  type="button"
+                  onClick={() => setMetodoPago('TARJETA')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '15px', padding: '16px',
+                    backgroundColor: metodoPago === 'TARJETA' ? '#fff5f2' : '#ffffff',
+                    border: metodoPago === 'TARJETA' ? '2px solid #ff4500' : '1px solid #e0e0e0',
+                    borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease', width: '100%'
+                  }}
+                >
+                  <div style={{
+                    width: '48px', height: '48px', borderRadius: '10px',
+                    backgroundColor: metodoPago === 'TARJETA' ? '#ff4500' : '#f5f5f5',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: metodoPago === 'TARJETA' ? '#fff' : '#888',
+                    flexShrink: 0
+                  }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                      <line x1="1" y1="10" x2="23" y2="10"></line>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', color: '#333' }}>Pago online seguro</h4>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>Tarjeta de crédito, débito o Apple/Google Pay</p>
+                  </div>
+                  <div style={{
+                    width: '20px', height: '20px', borderRadius: '50%',
+                    border: metodoPago === 'TARJETA' ? '6px solid #ff4500' : '2px solid #ccc',
+                    boxSizing: 'border-box',
+                    flexShrink: 0
+                  }} />
+                </button>
+
+                {/* OPCIÓN: EFECTIVO */}
+                <button
+                  type="button"
+                  onClick={() => setMetodoPago('EFECTIVO')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '15px', padding: '16px',
+                    backgroundColor: metodoPago === 'EFECTIVO' ? '#f0fdf4' : '#ffffff',
+                    border: metodoPago === 'EFECTIVO' ? '2px solid #16864a' : '1px solid #e0e0e0',
+                    borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease', width: '100%'
+                  }}
+                >
+                  <div style={{
+                    width: '48px', height: '48px', borderRadius: '10px',
+                    backgroundColor: metodoPago === 'EFECTIVO' ? '#16864a' : '#f5f5f5',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: metodoPago === 'EFECTIVO' ? '#fff' : '#888',
+                    flexShrink: 0
+                  }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                      <circle cx="12" cy="12" r="2"></circle>
+                      <path d="M6 12h.01M18 12h.01"></path>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', color: '#333' }}>Efectivo al recibir</h4>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>Paga directamente al repartidor en la entrega</p>
+                  </div>
+                  <div style={{
+                    width: '20px', height: '20px', borderRadius: '50%',
+                    border: metodoPago === 'EFECTIVO' ? '6px solid #16864a' : '2px solid #ccc',
+                    boxSizing: 'border-box',
+                    flexShrink: 0
+                  }} />
+                </button>
               </div>
             </div>
 
@@ -666,7 +745,10 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                     {tarjetas.map(t => (
                       <div key={t.id} onClick={() => { if (!pagoEnCurso.current && !guardadoEnCurso.current && !eliminandoTarjeta) setTarjetaSeleccionada(t.id); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px', border: tarjetaSeleccionada === t.id ? '2px solid #ff4500' : '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', backgroundColor: tarjetaSeleccionada === t.id ? '#fff0eb' : '#fff' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '1.5rem' }}>{t.brand === 'visa' ? '💳' : '💳'}</span>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={tarjetaSeleccionada === t.id ? '#ff4500' : '#888'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                            <line x1="1" y1="10" x2="23" y2="10"></line>
+                          </svg>
                           <div>
                             <p style={{ margin: 0, fontWeight: 'bold', color: '#333', textTransform: 'capitalize' }}>{t.brand} •••• {t.last4}</p>
                             <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>{t.name}</p>
@@ -686,7 +768,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
               </div>
             )}
 
-            {/* NUEVO: DESGLOSE DE PRECIOS */}
+            {/* DESGLOSE DE PRECIOS */}
             <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #eaeaea', marginTop: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#666', fontSize: '15px' }}>
                 <span>Subtotal</span>

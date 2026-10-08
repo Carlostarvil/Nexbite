@@ -165,11 +165,37 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
     return () => clearTimeout(timerDeBusqueda); 
   }, [busqueda]);
 
+  // VALIDACIÓN AVANZADA DE IMAGEN (CALIDAD Y FORMATO PANORÁMICO)
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor, selecciona solo un archivo de imagen válido (JPG, PNG, WEBP, etc).');
+        e.target.value = ''; 
+        return;
+      }
+
       const reader = new FileReader();
-      reader.onloadend = () => setFormData(anterior => ({ ...anterior, imagen_url: reader.result }));
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const ratio = img.width / img.height;
+          
+          if (img.width < 800) {
+            alert(`⚠️ La imagen es muy pequeña (${img.width}px de ancho). \nDebe tener al menos 800px para verse profesional en la cabecera.`);
+            e.target.value = ''; 
+            return;
+          }
+          if (ratio < 1.3) {
+            alert(`⚠️ La imagen debe ser rectangular (panorámica). \nTu imagen es demasiado cuadrada o vertical. Recórtala o elige otra.`);
+            e.target.value = ''; 
+            return;
+          }
+
+          setFormData(anterior => ({ ...anterior, imagen_url: reader.result }));
+        };
+        img.src = reader.result;
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -234,6 +260,7 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
       
       const variables = {
         ...formData,
+        tipo: formData.tipo.toUpperCase(), // FORZAMOS MAYÚSCULAS PARA EL SERVIDOR
         radio_cobertura_km: radioFinal,
         horarios_recogida: horarios,
         latitud: posicion.lat,
@@ -400,10 +427,16 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555' }}>
-            Imagen de Portada <span style={{ color: 'red' }}>* (Obligatorio)</span>:
+            Imagen de Portada <span style={{ color: 'red' }}>* (Obligatorio panorámica, min 800px)</span>:
           </label>
           {esEdicion && formData.imagen_url && <p style={{ margin: '0 0 8px', color: '#666', fontSize: '13px' }}>La portada actual se conserva. Selecciona otra imagen si quieres cambiarla.</p>}
-          <input type="file" accept="image/*" onChange={handleImageChange} required={!formData.imagen_url} style={inputStyle} />
+          <input 
+            type="file" 
+            accept="image/jpeg, image/png, image/webp, image/gif" 
+            onChange={handleImageChange} 
+            required={!formData.imagen_url} 
+            style={inputStyle} 
+          />
           {formData.imagen_url && <img src={formData.imagen_url} alt="Vista previa" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', marginTop: '10px' }} />}
         </div>
 

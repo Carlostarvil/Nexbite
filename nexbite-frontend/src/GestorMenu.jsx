@@ -16,7 +16,6 @@ const MARCAR_AGOTADO = gql`mutation MarcarPlatoAgotado($id_plato: ID!, $disponib
 
 const OPCIONES_CATEGORIAS = ['ENTRANTE', 'COMPARTIR', 'PLATO', 'BEBIDA', 'POSTRE', 'OFERTA', 'MENU'];
 
-// Traductor universal que extrae los TAGS ocultos de la descripción para saltarse el bloqueo de la BD
 const parseCategorias = (catData) => {
   if (!catData) return [];
   try {
@@ -26,7 +25,6 @@ const parseCategorias = (catData) => {
   return [];
 };
 
-// NUEVO: Lee el precio anterior de la descripción
 const extraerTags = (descripcion, categoriasBackend) => {
   let descLimpia = descripcion || '';
   let tagsExtra = [];
@@ -44,15 +42,6 @@ const extraerTags = (descripcion, categoriasBackend) => {
     tagsExtra = partes[1].split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
   }
   return { descLimpia, tagsTotales: [...parseCategorias(categoriasBackend), ...tagsExtra], precioAnterior };
-};
-
-const formatearFecha = (fechaStr) => {
-  if (!fechaStr || fechaStr === 'Indefinido') return 'Indefinido';
-  try {
-    const fecha = new Date(fechaStr);
-    if (isNaN(fecha.getTime())) return fechaStr; 
-    return fecha.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-  } catch(e) { return fechaStr; }
 };
 
 function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato }) {
@@ -81,7 +70,6 @@ function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato })
         </div>
         <h4 style={{ margin: '5px 0' }}>{plato.nombre}</h4>
         
-        {/* LÓGICA VISUAL DEL PRECIO REBAJADO PARA EL VENDEDOR */}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
           <b style={{ color: '#0066cc' }}>€{plato.precio}</b>
           {precioAnterior && (
@@ -116,7 +104,6 @@ function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato })
 }
 
 export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
-  // NUEVO: Estado extra para manejar el precio inicial de las ofertas
   const [formData, setFormData] = useState({ nombre: '', descripcion: '', precio: '', precioAnterior: '', categoria: ['ENTRANTE'], imagen_url: '' });
   const fileInputRef = useRef(null);
   
@@ -132,8 +119,25 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor, selecciona solo un archivo de imagen válido (JPG, PNG, WEBP, etc).');
+        e.target.value = ''; 
+        return;
+      }
+
       const reader = new FileReader();
-      reader.onloadend = () => setFormData({ ...formData, imagen_url: reader.result });
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          if (img.width < 400 || img.height < 400) {
+            alert(`⚠️ La imagen es de baja calidad (${img.width}x${img.height}px). \nPara que tus platos luzcan apetitosos, sube imágenes de al menos 400x400 píxeles.`);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+            return;
+          }
+          setFormData({ ...formData, imagen_url: reader.result });
+        };
+        img.src = reader.result;
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -171,7 +175,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
       ...prev,
       descripcion: nombres.length > 0 ? "Incluye: " + nombres.join(', ') : prev.descripcion, 
       precio: sumaPrecios > 0 ? (sumaPrecios * 0.85).toFixed(2) : prev.precio,
-      precioAnterior: sumaPrecios > 0 ? sumaPrecios.toFixed(2) : '' // Autocompleta el precio sin rebaja
+      precioAnterior: sumaPrecios > 0 ? sumaPrecios.toFixed(2) : '' 
     }));
   };
 
@@ -198,15 +202,12 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
     if (categoriasBase.length === 0 && categoriasExtra.length === 0) return alert("Debes seleccionar al menos una categoría.");
     if (categoriasFinales.includes('MENU') && platosSeleccionados.length === 0) return alert("Un menú debe incluir platos.");
 
-    // EL TRUCO: Inyectamos tanto los TAGS extra como el precio antiguo de oferta de manera invisible en la descripción
     const catParaEnviar = categoriasBase.length > 0 ? categoriasBase : ['PLATO'];
     
     let descFinal = formData.descripcion;
-    // Si han marcado "OFERTA" y han puesto un precio anterior, lo guardamos
     if (categoriasFinales.includes('OFERTA') && formData.precioAnterior && parseFloat(formData.precioAnterior) > 0) {
       descFinal += ` |ANTES: ${formData.precioAnterior}`;
     }
-    // Añadimos los tags extra al final
     if (categoriasExtra.length > 0) {
       descFinal += ` |TAGS:${categoriasExtra.join(',')}`;
     }
@@ -235,7 +236,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
       nombre: plato.nombre, 
       descripcion: descLimpia, 
       precio: plato.precio, 
-      precioAnterior: precioAnterior || '', // Cargamos el precio antiguo si existe
+      precioAnterior: precioAnterior || '', 
       categoria: tagsTotales, 
       imagen_url: plato.imagen_url || '' 
     });
@@ -247,6 +248,8 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
   const esMenu = formData.categoria.includes('MENU');
   const esOferta = formData.categoria.includes('OFERTA');
 
+  const inputStyle = { padding: '12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '15px' };
+
   return (
     <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
       <h2 style={{ color: '#ff4500', marginTop: 0 }}>📋 Gestor de Menú: {nombreRestaurante}</h2>
@@ -257,11 +260,16 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
           <textarea placeholder="Descripción (Ingredientes, tamaño...)" value={formData.descripcion} onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })} required style={{ ...inputStyle, minHeight: '80px', fontFamily: 'inherit' }} />
           
           <div style={{ display: 'flex', gap: '10px' }}>
-            <input type="number" step="0.01" placeholder="Precio Final (€)" value={formData.precio} onChange={(e) => setFormData({ ...formData, precio: e.target.value })} required style={{...inputStyle, flex: 1}} />
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#555', display: 'block', marginBottom: '4px' }}>Precio Final (€)</label>
+              <input type="number" step="0.01" placeholder="Ej: 8.50" value={formData.precio} onChange={(e) => setFormData({ ...formData, precio: e.target.value })} required style={{...inputStyle, width: '100%', boxSizing: 'border-box'}} />
+            </div>
             
-            {/* NUEVO: Campo de precio anterior, solo visible si se ha marcado como Oferta o Menu */}
             {(esOferta || esMenu) && (
-              <input type="number" step="0.01" placeholder="Precio Antes (€)" value={formData.precioAnterior} onChange={(e) => setFormData({ ...formData, precioAnterior: e.target.value })} style={{...inputStyle, flex: 1, backgroundColor: '#fff0eb', borderColor: '#ffcdd2'}} />
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#c62828', display: 'block', marginBottom: '4px' }}>Precio Original (Tachado)</label>
+                <input type="number" step="0.01" placeholder="Ej: 10.00" value={formData.precioAnterior} onChange={(e) => setFormData({ ...formData, precioAnterior: e.target.value })} style={{...inputStyle, width: '100%', boxSizing: 'border-box', backgroundColor: '#fff0eb', borderColor: '#ffcdd2'}} />
+              </div>
             )}
           </div>
           
@@ -316,7 +324,13 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
 
           <div style={{ ...inputStyle, background: '#fff' }}>
             <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#555', display: 'block', marginBottom: '8px' }}>Imagen del plato:</span>
-            <input type="file" accept="image/*" onChange={handleImageChange} ref={fileInputRef} style={{ width: '100%', cursor: 'pointer', fontSize: '13px' }} />
+            <input 
+              type="file" 
+              accept="image/jpeg, image/png, image/webp, image/gif" 
+              onChange={handleImageChange} 
+              ref={fileInputRef} 
+              style={{ width: '100%', cursor: 'pointer', fontSize: '13px' }} 
+            />
           </div>
 
           {formData.imagen_url && <img src={formData.imagen_url} alt="Previa" style={{ width: '100%', height: '180px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #eee' }} />}
@@ -337,5 +351,3 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
     </div>
   );
 }
-
-const inputStyle = { padding: '12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '15px' };

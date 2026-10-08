@@ -12,11 +12,16 @@ import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 import './InfoRestauranteModal.css';
 import './PerfilRestaurante.css';
 
-// NUEVO: Importamos el componente de reseñas
 import ResenasRestaurante from './ResenasRestaurante';
 
-const NOMBRES_SIDEBAR = { 'Elegido para ti': 'Para ti', 'Lo más pedido aquí': 'Top ventas' };
+// MODIFICADO: Añadimos 'Valoraciones' al diccionario de nombres del sidebar
+const NOMBRES_SIDEBAR = { 
+  'Elegido para ti': 'Para ti', 
+  'Lo más pedido aquí': 'Top ventas',
+  'Valoraciones': 'Valoraciones'
+};
 
+// MODIFICADO: Añadimos el icono de estrella vectorial para el apartado Valoraciones
 const ICONOS_CATEGORIA_MENU = {
   'Elegido para ti': 'm12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z',
   'Lo más pedido aquí': 'm3 17 6-6 4 4 8-10M15 5h6v6',
@@ -27,6 +32,7 @@ const ICONOS_CATEGORIA_MENU = {
   POSTRE: 'M6 11h12l-2 10H8L6 11Zm0 0a4 4 0 0 1 1-7 5 5 0 0 1 10 0 4 4 0 0 1 1 7M10 14v4M14 14v4',
   OFERTA: 'm3 3 9 0 9 9-9 9-9-9V3Zm4 4h.01M10 15l5-5M10 10h.01M15 15h.01',
   MENU: 'M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM8 8h8M8 12h8M8 16h5',
+  'Valoraciones': 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'
 };
 
 function IconoCategoriaMenu({ categoria }) {
@@ -416,12 +422,15 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
 
   const tieneOfertas = categoriasConPlatos.includes('OFERTA');
 
+  // MODIFICADO: Añadimos siempre Valoraciones al final del sidebar
   const seccionesSidebar = [];
   if (busquedaPlato === '') {
     if (recomendacionesParaTi.length > 0) seccionesSidebar.push('Elegido para ti');
     if (platosPopulares.length > 0) seccionesSidebar.push('Lo más pedido aquí');
   }
   seccionesSidebar.push(...categoriasConPlatos);
+  seccionesSidebar.push('Valoraciones'); 
+
   const categoriaSeleccionada = seccionesSidebar.includes(categoriaActiva) ? categoriaActiva : seccionesSidebar[0];
   const tiposLocal = [...new Set((restaurante?.tipo || '').split(',').map(tipo => tipo.trim()).filter(Boolean))];
 
@@ -466,20 +475,25 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
     <div ref={perfil} className="perfil-restaurante">
 
       <div className="restaurante-cabecera">
-        <div className="restaurante-portada">
+        <div className="restaurante-portada" style={{ position: 'relative', overflow: 'hidden', backgroundColor: '#e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '350px' }}>
            {restaurante?.imagen_url ? (
-              <img src={restaurante.imagen_url} alt={restaurante.nombre} />
+              <img 
+                src={restaurante.imagen_url} 
+                alt={restaurante.nombre} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', imageRendering: '-webkit-optimize-contrast' }} 
+              />
            ) : (
-              <div className="restaurante-portada-alternativa" aria-hidden="true">
+              <div className="restaurante-portada-alternativa" aria-hidden="true" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg viewBox="0 0 80 80" width="80" height="80" fill="none" stroke="#9e8f80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M15 33v32h50V33M12 33l6-17h44l6 17M12 33a7 7 0 0 0 14 0 7 7 0 0 0 14 0 7 7 0 0 0 14 0 7 7 0 0 0 14 0M29 16l-3 17M51 16l3 17M40 16v17M23 65V45h17v20M48 44h10v10H48z" />
                 </svg>
               </div>
            )}
-           <button type="button" className="restaurante-volver" aria-label="Volver a los restaurantes" title="Volver a los restaurantes" onClick={onVolver}>
+           
+           <button type="button" className="restaurante-volver" aria-label="Volver a los restaurantes" title="Volver a los restaurantes" onClick={onVolver} style={{ zIndex: 2 }}>
               <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 12H4m7-7-7 7 7 7" /></svg>
            </button>
-           <div className="restaurante-favorito">
+           <div className="restaurante-favorito" style={{ zIndex: 2 }}>
               <BotonFavorito idRestaurante={idRestaurante} idUsuario={idUsuarioActual} esFavoritoInicial={esFavoritoInicial} nombreRestaurante={restaurante?.nombre} />
            </div>
         </div>
@@ -522,7 +536,15 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
       </div>
 
       {menuCompleto.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem', background: 'white', borderRadius: '12px' }}><p style={{ color: '#666', fontSize: '1.2rem' }}>Aún no hay platos.</p></div>
+        <>
+          <div style={{ textAlign: 'center', padding: '3rem', background: 'white', borderRadius: '12px' }}>
+            <p style={{ color: '#666', fontSize: '1.2rem' }}>Aún no hay platos.</p>
+          </div>
+          {/* Mostramos las reseñas incluso si no hay platos, usando su contenedor scrolleable */}
+          <div id={getSeccionId('Valoraciones')} className="seccion-scroll" data-categoria="Valoraciones">
+            <ResenasRestaurante idRestaurante={idRestaurante} idUsuario={idUsuarioActual} />
+          </div>
+        </>
       ) : (
         <div className="menu-layout">
           
@@ -599,7 +621,15 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                         <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 2 }}>
                           <BotonCorazon activo={esPlatoFavorito} disabled={guardandoFavorito} onClick={evento => handleCorazonClick(plato.id_plato, evento)} nombre={plato.nombre} />
                         </div>
-                        {plato.imagen_url ? <img src={plato.imagen_url} alt={plato.nombre} style={{ width: '100%', height: '200px', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '200px', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>📷</div>}
+                        {plato.imagen_url ? (
+                          <img 
+                            src={plato.imagen_url} 
+                            alt={plato.nombre} 
+                            style={{ width: '100%', height: '200px', objectFit: 'cover', objectPosition: 'center', imageRendering: '-webkit-optimize-contrast' }} 
+                          />
+                        ) : (
+                          <div style={{ width: '100%', height: '200px', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>📷</div>
+                        )}
 
                         <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'space-between' }}>
                           <div>
@@ -620,7 +650,6 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                           
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', marginTop: '1rem', gap: '10px' }}>
                             
-                            {/* LÓGICA DEL PRECIO EN EL LISTADO DEL RESTAURANTE */}
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                               <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#000' }}>€{plato.precio.toFixed(2)}</span>
                               {precioAnterior && precioAnterior > plato.precio && (
@@ -647,12 +676,14 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
               );
             })}
 
+            {/* MODIFICADO: INTEGRAMOS LAS RESEÑAS DENTRO DE LA ZONA SCROLLEABLE */}
+            <div id={getSeccionId('Valoraciones')} className="seccion-scroll" data-categoria="Valoraciones" style={{ marginBottom: '4rem' }}>
+              <ResenasRestaurante idRestaurante={idRestaurante} idUsuario={idUsuarioActual} />
+            </div>
+
           </div>
         </div>
       )}
-
-      {/* AQUÍ INYECTAS EL COMPONENTE DE RESEÑAS */}
-      <ResenasRestaurante idRestaurante={idRestaurante} idUsuario={idUsuarioActual} />
 
       {mostrarInfoModal && <InfoRestauranteModal restaurante={restaurante} onClose={() => setMostrarInfoModal(false)} />}
     </div>
