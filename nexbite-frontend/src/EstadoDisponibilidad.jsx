@@ -5,7 +5,7 @@ export default function EstadoDisponibilidad({ cerrado = false, fecha, compacto 
   const fechaDisponible = valor ? new Date(Number.isFinite(Number(valor)) ? Number(valor) : valor) : null;
   const tieneFecha = fechaDisponible && !Number.isNaN(fechaDisponible.getTime());
   const tipo = cerrado ? 'cerrado' : tieneFecha ? 'pausado' : 'agotado';
-  const titulo = cerrado ? 'Cerrado' : tieneFecha ? 'Plato pausado' : 'Agotado';
+  const titulo = cerrado ? 'Cerrado' : tieneFecha ? 'No disponible' : 'Agotado';
   const detalle = tieneFecha
     ? (cerrado ? 'Vuelve a abrir: ' : 'Disponible de nuevo: ') + fechaDisponible.toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })
     : cerrado ? 'No acepta pedidos ahora' : 'No disponible por el momento';

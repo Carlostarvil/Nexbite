@@ -272,7 +272,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
             
             {(esOferta || esMenu) && (
               <div style={{ flex: '1 1 120px', minWidth: 0 }}>
-                <label htmlFor="gestor-precio-anterior" style={{ fontSize: '13px', fontWeight: 'bold', color: '#c62828', display: 'block', marginBottom: '4px' }}>{esMenu && !esOferta ? 'Productos por separado (€)' : 'Precio Original (Tachado)'}</label>
+                <label htmlFor="gestor-precio-anterior" style={{ fontSize: '13px', fontWeight: 'bold', color: '#c62828', display: 'block', marginBottom: '4px' }}>{esMenu && !esOferta ? 'Precio inicial' : 'Precio Original (Tachado)'}</label>
                 <input id="gestor-precio-anterior" type="number" step="0.01" placeholder="Ej: 10.00" value={formData.precioAnterior} onChange={(e) => setFormData({ ...formData, precioAnterior: e.target.value })} style={{...inputStyle, width: '100%', boxSizing: 'border-box', backgroundColor: '#fff0eb', borderColor: '#ffcdd2'}} />
               </div>
             )}
