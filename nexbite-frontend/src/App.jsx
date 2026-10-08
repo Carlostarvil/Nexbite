@@ -410,7 +410,7 @@ function App() {
 
                 {platosEnOferta.length > 0 && !categoriaFiltroInicio && (
                   <div style={{ marginTop: '2rem', padding: '1rem', background: '#ffebee', borderRadius: '16px', border: '1px solid #ffcdd2' }}>
-                    <CarruselPlatos titulo="🏷️ Ofertas Especiales" descripcion="Aprovecha estos descuentos y chollos increíbles." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(platosEnOferta)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                    <CarruselPlatos titulo="Ofertas Especiales" descripcion="Aprovecha estos descuentos y chollos increíbles." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(platosEnOferta)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
                   </div>
                 )}
 

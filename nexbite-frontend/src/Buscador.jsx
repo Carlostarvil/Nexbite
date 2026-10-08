@@ -91,7 +91,7 @@ export default function Buscador({ onSelectRestaurante, onSelectPlato, ubicacion
   };
 
   return (
-    <form ref={contenedor} className="buscador" role="search" aria-label="Buscar locales y platos"
+    <form ref={contenedor} className="buscador" role="search" aria-label="Buscar locales y platos/productos"
       onSubmit={evento => evento.preventDefault()}
       onBlur={evento => { if (!evento.currentTarget.contains(evento.relatedTarget)) setAbierto(false); }}>
       <div className="buscador-campo">
@@ -110,20 +110,20 @@ export default function Buscador({ onSelectRestaurante, onSelectPlato, ubicacion
       {abierto && tieneUbicacion && <div className="buscador-panel">
         <div className="buscador-tipos" role="group" aria-label="Tipo de búsqueda">
           <button type="button" aria-pressed={tipoBusqueda === 'RESTAURANTES'} onClick={() => { setTipoBusqueda('RESTAURANTES'); setIndiceActivo(-1); }}>Locales</button>
-          <button type="button" aria-pressed={tipoBusqueda === 'PLATOS'} onClick={() => { setTipoBusqueda('PLATOS'); setIndiceActivo(-1); }}>Platos</button>
+          <button type="button" aria-pressed={tipoBusqueda === 'PLATOS'} onClick={() => { setTipoBusqueda('PLATOS'); setIndiceActivo(-1); }}>Platos/productos</button>
         </div>
         {texto.length < 2 ? <p className="buscador-mensaje">Escribe al menos 2 letras para buscar.</p>
           : cargando ? <p className="buscador-mensaje" role="status">Buscando…</p>
           : error ? <div className="buscador-mensaje buscador-error" role="alert">No se pudo completar la búsqueda. <button type="button" onClick={() => consulta.refetch().catch(() => {})}>Reintentar</button></div>
-          : resultados.length === 0 && <p className="buscador-mensaje" role="status">No hay {tipoBusqueda === 'RESTAURANTES' ? 'locales' : 'platos'} para «{texto}» en esta ubicación.</p>}
+          : resultados.length === 0 && <p className="buscador-mensaje" role="status">No hay {tipoBusqueda === 'RESTAURANTES' ? 'locales' : 'platos/productos'} para «{texto}» en esta ubicación.</p>}
 
-        <ul ref={lista} id={listaId} className="buscador-resultados" role="listbox" aria-label={tipoBusqueda === 'RESTAURANTES' ? 'Locales encontrados' : 'Platos encontrados'} hidden={resultados.length === 0}>
+        <ul ref={lista} id={listaId} className="buscador-resultados" role="listbox" aria-label={tipoBusqueda === 'RESTAURANTES' ? 'Locales encontrados' : 'Platos/productos encontrados'} hidden={resultados.length === 0}>
           {resultados.map((resultado, indice) => <li key={tipoBusqueda === 'RESTAURANTES' ? resultado.id_restaurante : resultado.id_plato}
             id={listaId + '-' + indice} role="option" aria-selected={indiceActivo === indice}
             onMouseDown={evento => evento.preventDefault()} onClick={() => seleccionar(resultado)} onMouseMove={() => setIndiceActivo(indice)}>
             {resultado.imagen_url ? <img src={resultado.imagen_url} alt="" className="buscador-foto" />
               : <span className="buscador-foto buscador-foto-vacia" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10v10h16V10M3 10l2-6h14l2 6M8 20v-6h4v6M3 10a3 3 0 0 0 4.5 2.5A3 3 0 0 0 12 12a3 3 0 0 0 4.5.5A3 3 0 0 0 21 10" /></svg></span>}
-            <span className="buscador-resultado-texto"><strong>{resultado.nombre}</strong><span>{tipoBusqueda === 'RESTAURANTES' ? resultado.tipo : 'Ver detalles del plato'}</span></span>
+            <span className="buscador-resultado-texto"><strong>{resultado.nombre}</strong><span>{tipoBusqueda === 'RESTAURANTES' ? resultado.tipo : 'Ver detalles del plato/producto'}</span></span>
             {tipoBusqueda === 'PLATOS' && resultado.precio != null && <span className="buscador-precio">€{Number(resultado.precio).toFixed(2)}</span>}
           </li>)}
         </ul>

@@ -141,7 +141,7 @@ export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega
         </div>
       </div>
       
-      <TituloSeccion titulo={soloConEntrega ? 'Locales que entregan aquí' : 'Locales cercanos para recoger'} nivel={3} compacto />
+      <TituloSeccion titulo="Locales cercanos" nivel={3} compacto />
       {loading && <p>Calculando distancias espaciales...</p>}
       {error && <p role="alert" style={{ color: '#b42318' }}>No se pudieron cargar los locales del mapa.</p>}
       {!loading && !error && data?.obtenerRestaurantesCercanos?.length === 0 && <p>No hay locales disponibles en esta zona.</p>}
@@ -154,7 +154,13 @@ export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega
             style={{ backgroundColor: '#f0f8ff', border: '1px solid #cce7ff', padding: '1.5rem', borderRadius: '12px', cursor: 'pointer' }}
           >
             <h4 style={{ margin: '0 0 10px 0' }}>{rest.nombre}</h4>
-            <span style={{ background: '#cce7ff', color: '#0066cc', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>{rest.tipo}</span>
+            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+              {(rest.tipo || 'RESTAURANTE').split(',').map(tipo => tipo.trim()).filter(Boolean).map((tipo, indice) => (
+                <span key={tipo + '-' + indice} style={{ background: '#f3f4f6', color: '#333', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', maxWidth: '100%', boxSizing: 'border-box', overflowWrap: 'anywhere' }}>
+                  {tipo}
+                </span>
+              ))}
+            </div>
             <p style={{ margin: '10px 0 0 0', fontSize: '14px', color: '#555' }}>Distancia: <b>{rest.distancia_km.toFixed(1)} km</b></p>
           </div>
         ))}
