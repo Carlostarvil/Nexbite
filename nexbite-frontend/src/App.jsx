@@ -29,7 +29,6 @@ import { leerUbicacionEntrega, guardarUbicacionEntrega } from './ubicacionEntreg
 import AvisoCookies from './AvisoCookies'; 
 import ChatSoporteIA from './ChatSoporteIA';
 
-// AÑADIDO: calificacion en obtenerMejoresRestaurantes y obtenerFavoritos
 const OBTENER_DATOS_INICIO = gql`
   query ObtenerDatosInicio($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
     obtenerMejoresRestaurantes(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion, calificacion }
@@ -130,6 +129,9 @@ function App() {
   const [localSeleccionado, setLocalSeleccionado] = useState(null); 
   
   const [categoriaFiltroInicio, setCategoriaFiltroInicio] = useState(null);
+  
+  // NUEVO: Pestaña activa dentro de la sección "Elegido para ti" ('LOCALES' o 'PRODUCTOS')
+  const [pestañaElegidoParaTi, setPestañaElegidoParaTi] = useState('LOCALES');
 
   const repetimosRef = useRef(null);
 
@@ -269,12 +271,14 @@ function App() {
   const totalArticulos = carrito.reduce((acc, p) => acc + (p.cantidad || 1), 0);
   const platoDelAviso = avisoCarrito && carrito.find(plato => String(plato.id_plato) === String(avisoCarrito.id_plato));
 
+  const favoritosLocales = data?.obtenerPlatosFavoritos?.map(fav => String(fav.id_plato)) || [];
+  const historialBackend = data?.obtenerUltimosPedidos || [];
+  const restaurantesFavoritos = data?.obtenerFavoritos?.map(fav => String(fav.id_restaurante)) || [];
+
   const generarRecomendacionesGlobales = () => {
     if (!data?.obtenerPlatosDestacados) return [];
     const puntuacionPlatos = {};
     const gustosEtiquetas = {};
-    const favoritosLocales = data?.obtenerPlatosFavoritos?.map(fav => String(fav.id_plato)) || [];
-    const historialBackend = data?.obtenerUltimosPedidos || [];
     const carritoActual = Array.isArray(carrito) ? carrito : [];
     const elementosInteraccion = [...historialBackend, ...carritoActual];
 
@@ -302,7 +306,31 @@ function App() {
       .slice(0, 8); 
   };
 
+  const generarRestaurantesRecomendados = () => {
+    if (!data?.obtenerMejoresRestaurantes) return [];
+    const puntuacionRestaurantes = {};
+    
+    data.obtenerMejoresRestaurantes.forEach(rest => {
+      puntuacionRestaurantes[rest.id_restaurante] = rest.calificacion ? rest.calificacion * 2 : 0;
+      if (restaurantesFavoritos.includes(String(rest.id_restaurante))) {
+        puntuacionRestaurantes[rest.id_restaurante] += 10;
+      }
+    });
+
+    historialBackend.forEach(pedido => {
+      if (puntuacionRestaurantes[pedido.id_restaurante] !== undefined) {
+        puntuacionRestaurantes[pedido.id_restaurante] += 5;
+      }
+    });
+
+    return [...data.obtenerMejoresRestaurantes]
+      .filter(rest => puntuacionRestaurantes[rest.id_restaurante] > 5)
+      .sort((a, b) => puntuacionRestaurantes[b.id_restaurante] - puntuacionRestaurantes[a.id_restaurante])
+      .slice(0, 4); 
+  };
+
   const platosRecomendados = generarRecomendacionesGlobales();
+  const restaurantesRecomendados = generarRestaurantesRecomendados();
 
   const restaurantesFiltrados = data?.obtenerMejoresRestaurantes?.filter(rest => {
     if (!categoriaFiltroInicio) return true;
@@ -386,9 +414,93 @@ function App() {
                   </div>
                 )}
 
-                {platosRecomendados.length > 0 && !categoriaFiltroInicio && (
-                  <div style={{ marginTop: '2rem', padding: '1rem', background: 'linear-gradient(to right, #fff0eb, #ffe4cc)', borderRadius: '16px' }}>
-                    <CarruselPlatos titulo="Elegido para ti" descripcion="Platos recomendados según tus gustos." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(platosRecomendados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                {/* NUEVO: SECCIÓN "ELEGIDO PARA TI" CON PESTAÑAS (LOCALES / COMIDA-PRODUCTOS) */}
+                {!categoriaFiltroInicio && (restaurantesRecomendados.length > 0 || platosRecomendados.length > 0) && (
+                  <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'linear-gradient(to right, #fff0eb, #ffe4cc)', borderRadius: '16px' }}>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '1.5rem' }}>
+                      <div>
+                        <h2 style={{ fontSize: '1.8rem', color: '#1a1a1a', margin: '0 0 5px 0', letterSpacing: '-0.5px' }}>
+                          Elegido para ti
+                        </h2>
+                        <p style={{ margin: 0, color: '#666', fontSize: '15px' }}>Recomendaciones personalizadas según tu actividad.</p>
+                      </div>
+
+                      {/* PESTAÑAS DE NAVEGACIÓN ESTILO BUSCADOR */}
+                      <div style={{ display: 'flex', background: '#fff', padding: '4px', borderRadius: '12px', border: '1px solid #ffd5c2', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                        <button 
+                          onClick={() => setPestañaElegidoParaTi('LOCALES')}
+                          style={{
+                            padding: '8px 16px', borderRadius: '8px', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s',
+                            backgroundColor: pestañaElegidoParaTi === 'LOCALES' ? '#ff4500' : 'transparent',
+                            color: pestañaElegidoParaTi === 'LOCALES' ? '#fff' : '#555'
+                          }}
+                        >
+                          Locales ({restaurantesRecomendados.length})
+                        </button>
+                        <button 
+                          onClick={() => setPestañaElegidoParaTi('PRODUCTOS')}
+                          style={{
+                            padding: '8px 16px', borderRadius: '8px', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s',
+                            backgroundColor: pestañaElegidoParaTi === 'PRODUCTOS' ? '#ff4500' : 'transparent',
+                            color: pestañaElegidoParaTi === 'PRODUCTOS' ? '#fff' : '#555'
+                          }}
+                        >
+                          Comida / Productos ({platosRecomendados.length})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* VISTA DE LOCALES RECOMENDADOS */}
+                    {pestañaElegidoParaTi === 'LOCALES' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
+                        {restaurantesRecomendados.map(restaurante => {
+                          const tieneOferta = platosEnOferta.some(p => String(p.id_restaurante) === String(restaurante.id_restaurante));
+                          return (
+                            <div key={`rec-rest-${restaurante.id_restaurante}`} onClick={() => setRestauranteActivo(restaurante.id_restaurante)} style={{ backgroundColor: '#fff', border: '1px solid #ffcca3', padding: '1.2rem', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', cursor: 'pointer', transition: 'all 0.2s ease', opacity: restaurante.aceptando_pedidos === false ? 0.7 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(255,69,0,0.1)'; e.currentTarget.style.borderColor = '#ff4500'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; e.currentTarget.style.borderColor = '#ffcca3'; }}>
+                              <div style={{ position: 'relative' }}>
+                                {restaurante.imagen_url ? (
+                                    <img src={restaurante.imagen_url} alt={restaurante.nombre} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px' }} />
+                                ) : (
+                                    <div style={{ width: '100%', height: '120px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', fontSize: '1.5rem' }}>🏪</div>
+                                )}
+                                
+                                {tieneOferta && (
+                                  <div style={{ position: 'absolute', top: '10px', left: '10px', background: '#c62828', color: '#fff', padding: '4px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', textTransform: 'uppercase' }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                                    Ofertas
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <h3 style={{ margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  <span style={{ fontSize: '1.1rem', color: '#1a1a1a' }}>{restaurante.nombre}</span>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', backgroundColor: '#fff5f2', color: '#ff4500', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold', width: 'fit-content' }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#ffc107" stroke="#ffc107" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                    {restaurante.calificacion > 0 ? restaurante.calificacion.toFixed(1) : 'Nuevo'}
+                                  </span>
+                                </div>
+                              </h3>
+                              
+                              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                {restaurante.tipo ? restaurante.tipo.split(',').slice(0, 2).map((t, idx) => (
+                                  <span key={idx} style={{ background: '#fff0eb', color: '#c43c00', padding: '3px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                    {t.trim()}
+                                  </span>
+                                )) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* VISTA DE PRODUCTOS RECOMENDADOS */}
+                    {pestañaElegidoParaTi === 'PRODUCTOS' && (
+                      <CarruselPlatos titulo="" descripcion="" cabeceraInicio={false} mostrarIcono={false} platos={asignarEstadoRestaurante(platosRecomendados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                    )}
+
                   </div>
                 )}
 
@@ -514,15 +626,27 @@ function App() {
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
-                    {restaurantesFiltrados.map((restaurante) => (
+                    {restaurantesFiltrados.map((restaurante) => {
+                      const tieneOferta = platosEnOferta.some(p => String(p.id_restaurante) === String(restaurante.id_restaurante));
+
+                      return (
                       <div key={restaurante.id_restaurante} onClick={() => setRestauranteActivo(restaurante.id_restaurante)} style={{ backgroundColor: '#fff', border: '1px solid #eaeaea', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: 'pointer', transition: 'all 0.2s ease', opacity: restaurante.aceptando_pedidos === false ? 0.7 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(0,0,0,0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}>
-                        {restaurante.imagen_url ? (
-                            <img src={restaurante.imagen_url} alt={restaurante.nombre} style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px' }} />
-                        ) : (
-                            <div style={{ width: '100%', height: '140px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', fontSize: '2rem' }}>🏪</div>
-                        )}
                         
-                        {/* AÑADIDO: ESTRUCTURA CON LA INSIGNIA DE LA NOTA MEDIA */}
+                        <div style={{ position: 'relative' }}>
+                          {restaurante.imagen_url ? (
+                              <img src={restaurante.imagen_url} alt={restaurante.nombre} style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px' }} />
+                          ) : (
+                              <div style={{ width: '100%', height: '140px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', fontSize: '2rem' }}>🏪</div>
+                          )}
+                          
+                          {tieneOferta && (
+                            <div style={{ position: 'absolute', top: '10px', left: '10px', background: '#c62828', color: '#fff', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                              Ofertas
+                            </div>
+                          )}
+                        </div>
+                        
                         <h3 style={{ margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             <span style={{ fontSize: '1.2rem', color: '#1a1a1a' }}>{restaurante.nombre}</span>
@@ -553,7 +677,7 @@ function App() {
                         </div>
 
                       </div>
-                    ))}
+                    )})}
                   </div>
                 )}
 
