@@ -71,10 +71,10 @@ function TarjetaPlato({ plato, idRestaurante, cargarParaEditar, eliminarPlato })
         <h4 style={{ margin: '5px 0' }}>{plato.nombre}</h4>
         
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-          <b style={{ color: '#0066cc' }}>€{plato.precio}</b>
+          <b style={{ color: '#0066cc' }}>{plato.precio}&nbsp;€</b>
           {precioAnterior && (
             <span style={{ fontSize: '0.85rem', color: '#999', textDecoration: 'line-through' }}>
-              €{precioAnterior}
+              {precioAnterior}&nbsp;€
             </span>
           )}
         </div>
@@ -315,7 +315,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
                 {platosDisponibles.length === 0 ? <p style={{ fontSize: '13px', color: '#666' }}>No hay platos en la carta.</p> : platosDisponibles.map(p => (
                   <label key={p.id_plato} style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '5px', background: platosSeleccionados.includes(p.id_plato) ? '#e6f2ff' : 'transparent', borderRadius: '4px' }}>
                     <input type="checkbox" checked={platosSeleccionados.includes(p.id_plato)} onChange={() => agregarPlatoExistente(p.id_plato)} />
-                    {p.nombre} <b style={{ color: '#0066cc' }}>({p.precio}€)</b>
+                    {p.nombre} <b style={{ color: '#0066cc' }}>({p.precio}&nbsp;€)</b>
                   </label>
                 ))}
               </div>

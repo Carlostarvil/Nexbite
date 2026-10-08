@@ -40,7 +40,7 @@ export default function ConfirmacionPedido({ pedido, onCerrar, onVerPedidos }) {
       <dl className="confirmacion-pedido-resumen">
         <div><dt>Local</dt><dd>{pedido.nombreRestaurante || 'Tu restaurante'}</dd></div>
         <div><dt>Artículos</dt><dd>{pedido.articulos}</dd></div>
-        <div><dt>Total del pedido</dt><dd className="confirmacion-pedido-total">€{pedido.total.toFixed(2)}</dd></div>
+        <div><dt>Total del pedido</dt><dd className="confirmacion-pedido-total">{pedido.total.toFixed(2)}&nbsp;€</dd></div>
         <div><dt>Pago</dt><dd>{pagado ? 'Pagado con tarjeta' : recogida ? 'En efectivo al recoger' : 'En efectivo al recibir'}</dd></div>
         <div><dt>{recogida ? 'Recogida' : 'Entrega'}</dt><dd>{fecha || (recogida ? 'Lo antes posible' : 'A domicilio')}</dd></div>
       </dl>

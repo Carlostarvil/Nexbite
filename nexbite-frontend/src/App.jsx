@@ -514,7 +514,7 @@ function App() {
                             </div>
                             
                             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
-                              <span style={{ fontWeight: 'bold', color: '#000000' }}>€{pedido.precio_plato?.toFixed(2)}</span>
+                              <span style={{ fontWeight: 'bold', color: '#000000' }}>{pedido.precio_plato?.toFixed(2)}&nbsp;€</span>
                               {puedeRecomprar ? (
                                 <BotonAgregarCarrito onAgregar={event => handleRecomprarRapido(event, pedido)} idPlato={pedido.id_plato} nombrePlato={pedido.nombre_plato} variante="repetir" />
                               ) : (

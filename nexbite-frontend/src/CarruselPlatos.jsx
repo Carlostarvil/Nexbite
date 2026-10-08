@@ -175,10 +175,10 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
                 
                 {/* LÓGICA DEL PRECIO EN EL CARRUSEL */}
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span style={{ fontWeight: '800', color: '#000', fontSize: '1.2rem' }}>€{plato.precio?.toFixed(2)}</span>
+                  <span style={{ fontWeight: '800', color: '#000', fontSize: '1.2rem' }}>{plato.precio?.toFixed(2)}&nbsp;€</span>
                   {precioAnterior && precioAnterior > plato.precio && (
                     <span style={{ fontWeight: '600', color: '#999', fontSize: '0.95rem', textDecoration: 'line-through' }}>
-                      €{precioAnterior.toFixed(2)}
+                      {precioAnterior.toFixed(2)}&nbsp;€
                     </span>
                   )}
                 </div>

@@ -5,6 +5,8 @@ import { generarOpcionesRecogida, recogidaDisponible, validarFechaRecogida } fro
 import { coordenadasValidas, validarZonaEntrega } from '../../shared/zonaEntrega.js';
 import MensajeAccion, { IconoEstado } from './MensajeAccion';
 import DireccionLocal from './DireccionLocal';
+import IconoInfoRestaurante from './IconoInfoRestaurante';
+import './Carrito.css';
 
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -99,39 +101,40 @@ const extraerConfigEnvio = (tipoBackend) => {
   return { base, porKm, gratisDesde };
 };
 
+function IconoPapelera() {
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5 6l1 14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1l1-14M10 10v7M14 10v7" />
+  </svg>;
+}
+
 function TarjetaCarritoGrupo({ grupo, onSeleccionar, onEliminar }) {
   const { data } = useQuery(OBTENER_INFO_BASICA_REST, { variables: { id: grupo.id_restaurante } });
   const rest = data?.obtenerRestaurantePorId;
   const total = grupo.platos.reduce((sum, p) => sum + (p.precio * (p.cantidad || 1)), 0);
 
   return (
-    <div 
-      onClick={() => onSeleccionar(grupo.id_restaurante)} 
-      style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '15px', border: '1px solid #eee', borderRadius: '12px', background: '#fafafa', marginBottom: '15px', cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
-      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.05)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-    >
+    <div className="carrito-grupo">
+      <button type="button" className="carrito-grupo-abrir" onClick={() => onSeleccionar(grupo.id_restaurante)} aria-label={'Ver pedido de ' + (rest?.nombre || 'este local')}>
       {rest?.imagen_url ? (
-        <img src={rest.imagen_url} alt={rest?.nombre} style={{ width: '65px', height: '65px', borderRadius: '8px', objectFit: 'cover' }} />
+        <img src={rest.imagen_url} alt="" className="carrito-foto" />
       ) : (
-        <div style={{ width: '65px', height: '65px', borderRadius: '8px', backgroundColor: '#e0e0e0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>🏪</div>
+        <span className="carrito-foto carrito-foto-vacia" aria-hidden="true">🏪</span>
       )}
-      <div style={{ flex: 1 }}>
-        <h4 style={{ margin: '0 0 5px 0', color: '#333', fontSize: '16px' }}>{rest?.nombre || 'Cargando...'}</h4>
-        <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>{grupo.totalItems} artículo{grupo.totalItems > 1 ? 's' : ''}</p>
-      </div>
-      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
-        <p style={{ margin: 0, fontWeight: 'bold', color: '#0066cc', fontSize: '16px' }}>€{total.toFixed(2)}</p>
-        <span style={{ fontSize: '12px', background: '#ff4500', color: 'white', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>Ver pedido &rarr;</span>
-      </div>
-      <button 
-        onClick={(e) => { e.stopPropagation(); onEliminar(grupo.id_restaurante); }} 
-        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem', padding: '5px', marginLeft: '10px', opacity: 0.5, transition: 'opacity 0.2s' }}
-        onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-        onMouseLeave={(e) => e.currentTarget.style.opacity = 0.5}
+      <span className="carrito-grupo-info">
+        <strong className="carrito-grupo-nombre">{rest?.nombre || 'Cargando...'}</strong>
+        <span className="carrito-grupo-articulos">{grupo.totalItems} artículo{grupo.totalItems > 1 ? 's' : ''}</span>
+      </span>
+      <span className="carrito-grupo-resumen">
+        <strong className="carrito-grupo-precio">{total.toFixed(2)}&nbsp;€</strong>
+        <span className="carrito-grupo-ver">Ver pedido &rarr;</span>
+      </span>
+      </button>
+      <button type="button" className="carrito-eliminar carrito-grupo-eliminar"
+        onClick={() => onEliminar(grupo.id_restaurante)}
+        aria-label={'Eliminar carrito de ' + (rest?.nombre || 'este local')}
         title="Eliminar este carrito"
       >
-        🗑️
+        <IconoPapelera />
       </button>
     </div>
   );
@@ -496,9 +499,9 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
   if (grupos.length > 1 && !idCartActivo) {
     return (
-      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '1rem' }}>
+      <div className="carrito-multiple">
         <button onClick={onVolver} style={{ padding: '0.5rem 1rem', background: '#eee', border: 'none', borderRadius: '6px', cursor: 'pointer', marginBottom: '1.5rem', fontWeight: 'bold' }}>← Volver</button>
-        <div style={{ background: 'white', borderRadius: '16px', padding: '2rem', boxShadow: '0 8px 25px rgba(0,0,0,0.08)' }}>
+        <div className="carrito-multiple-panel" style={{ background: 'white', borderRadius: '16px', boxShadow: '0 8px 25px rgba(0,0,0,0.08)' }}>
           <h2 style={{ color: '#333', marginTop: 0, marginBottom: '1.5rem', borderBottom: '2px solid #ff4500', paddingBottom: '10px' }}>🛒 Tus Carritos Activos</h2>
           <p style={{ color: '#666', marginBottom: '1.5rem', fontSize: '1.1rem' }}>Tienes pedidos empezados en varios restaurantes. Elige cuál quieres completar primero:</p>
           {grupos.map(g => (
@@ -515,7 +518,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const urlMapaRestaurante = tieneCoordenadasLocal ? `https://static-maps.yandex.ru/1.x/?ll=${longitudLocal},${latitudLocal}&size=600,150&z=16&l=map&pt=${longitudLocal},${latitudLocal},pm2rdm` : null;
 
   return (
-    <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '800px', margin: '0 auto', position: 'relative' }}>
+    <div className="carrito-detalle" style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '800px', margin: '0 auto', position: 'relative' }}>
       
       <button onClick={() => { if (grupos.length > 1 && idCartActivo) setIdCartActivo(null); else onVolver(); }} style={{ padding: '0.5rem 1rem', background: '#eee', border: 'none', borderRadius: '6px', cursor: 'pointer', marginBottom: '1.5rem', fontWeight: 'bold' }}>
         {grupos.length > 1 && idCartActivo ? '← Volver a mis carritos' : '← Seguir comprando'}
@@ -545,24 +548,24 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '2rem' }}>
             {carritoEnUso.map(item => (
-              <div key={item.id_plato} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '15px', border: '1px solid #eee', borderRadius: '12px', background: '#fafafa' }}>
-                {item.imagen_url ? <img src={item.imagen_url} alt={item.nombre} style={{ width: '65px', height: '65px', borderRadius: '8px', objectFit: 'cover' }} /> : <div style={{ width: '65px', height: '65px', borderRadius: '8px', backgroundColor: '#e0e0e0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>🍽</div>}
-                <div style={{ flex: 1 }}>
+              <div key={item.id_plato} className="carrito-producto">
+                {item.imagen_url ? <img src={item.imagen_url} alt={item.nombre} className="carrito-foto" /> : <div className="carrito-foto carrito-foto-vacia">🍽</div>}
+                <div className="carrito-producto-info">
                   <h4 style={{ margin: '0 0 5px 0', color: item.disponible === false ? '#d63031' : '#333', fontSize: '16px' }}>{item.nombre} {item.disponible === false && "(Agotado)"}</h4>
-                  <span style={{ color: '#0066cc', fontWeight: 'bold', fontSize: '14px' }}>€{item.precio.toFixed(2)} /ud</span>
+                  <span style={{ color: '#0066cc', fontWeight: 'bold', fontSize: '14px' }}>{item.precio.toFixed(2)}&nbsp;€ /ud</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', padding: '5px 8px', borderRadius: '25px', border: '1px solid #ddd' }}>
-                  <button onClick={() => disminuirCantidad(item.id_plato)} disabled={item.cantidad <= 1} style={{ border: 'none', background: '#f5f5f5', borderRadius: '50%', width: '28px', height: '28px', cursor: item.cantidad <= 1 ? 'not-allowed' : 'pointer', fontWeight: 'bold', color: item.cantidad <= 1 ? '#ccc' : '#333' }}>-</button>
+                <div className="carrito-producto-cantidad" style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', padding: '5px 8px', borderRadius: '25px', border: '1px solid #ddd' }}>
+                  <button type="button" aria-label={'Reducir cantidad de ' + item.nombre} onClick={() => disminuirCantidad(item.id_plato)} disabled={item.cantidad <= 1} style={{ border: 'none', background: '#f5f5f5', borderRadius: '50%', width: '28px', height: '28px', cursor: item.cantidad <= 1 ? 'not-allowed' : 'pointer', fontWeight: 'bold', color: item.cantidad <= 1 ? '#ccc' : '#333' }}>-</button>
                   <span style={{ fontWeight: 'bold', width: '20px', textAlign: 'center' }}>{item.cantidad || 1}</span>
-                  <button onClick={() => aumentarCantidad(item.id_plato)} style={{ border: 'none', background: '#f5f5f5', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
+                  <button type="button" aria-label={'Aumentar cantidad de ' + item.nombre} onClick={() => aumentarCantidad(item.id_plato)} style={{ border: 'none', background: '#f5f5f5', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
                 </div>
-                <div style={{ minWidth: '70px', textAlign: 'right' }}><p style={{ margin: '0', fontWeight: 'bold', color: '#ff4500', fontSize: '16px' }}>€{(item.precio * (item.cantidad || 1)).toFixed(2)}</p></div>
-                <button onClick={() => eliminarPlato(item.id_plato)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '5px', opacity: 0.7 }} title="Eliminar producto">🗑️</button>
+                <div className="carrito-producto-total" style={{ textAlign: 'right' }}><p style={{ margin: '0', fontWeight: 'bold', color: '#ff4500', fontSize: '16px' }}>{(item.precio * (item.cantidad || 1)).toFixed(2)}&nbsp;€</p></div>
+                <button type="button" className="carrito-eliminar" onClick={() => eliminarPlato(item.id_plato)} aria-label={'Eliminar ' + item.nombre + ' del carrito'} title="Eliminar producto"><IconoPapelera /></button>
               </div>
             ))}
           </div>
 
-          <div ref={formularioPago} role="region" aria-label="Completar el pedido" tabIndex={-1} style={{ backgroundColor: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '1rem', scrollMarginTop: '90px' }}>
+          <div ref={formularioPago} className="carrito-pago" role="region" aria-label="Completar el pedido" tabIndex={-1} style={{ backgroundColor: '#f8f9fa', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '1rem', scrollMarginTop: '90px' }}>
             
             <div style={{ marginBottom: '15px' }}>
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '10px', display: 'block' }}>Forma de entrega:</label>
@@ -600,7 +603,11 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
               <div style={{ position: 'relative', marginTop: '10px', borderTop: '1px solid #ddd', paddingTop: '15px' }}>
                 <h3 style={{ margin: '0 0 15px 0' }}>Datos de Envío</h3>
                 <p style={{ marginBottom: '10px', color: '#333', overflowWrap: 'anywhere' }}>{direccion || 'Selecciona la dirección de entrega.'}</p>
-                <button type="button" onClick={onCambiarUbicacion} className="ubicacion-cambiar">Cambiar dirección de entrega</button>
+                <button type="button" onClick={onCambiarUbicacion} className="carrito-cambiar-direccion">
+                  <span className="carrito-direccion-icono"><IconoInfoRestaurante tipo="ubicacion" /></span>
+                  <span>Cambiar dirección de entrega</span>
+                  <svg className="carrito-direccion-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7" /></svg>
+                </button>
                 {errorZonaEntrega && <p role="alert" style={{ color: '#b42318', marginTop: '12px' }}>{errorZonaEntrega}</p>}
 
                 <div style={{ marginTop: '10px' }}>
@@ -769,10 +776,10 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             )}
 
             {/* DESGLOSE DE PRECIOS */}
-            <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #eaeaea', marginTop: '1rem' }}>
+            <div className="carrito-desglose" style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #eaeaea', marginTop: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#666', fontSize: '15px' }}>
                 <span>Subtotal</span>
-                <span>€{subtotal.toFixed(2)}</span>
+                <span>{subtotal.toFixed(2)}&nbsp;€</span>
               </div>
               
               {tipoEntrega === 'DOMICILIO' && (
@@ -781,7 +788,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                   {superaGratis ? (
                     <span style={{ color: '#00b894', fontWeight: 'bold' }}>¡Gratis!</span>
                   ) : (
-                    <span>€{gastosEnvio.toFixed(2)}</span>
+                    <span>{gastosEnvio.toFixed(2)}&nbsp;€</span>
                   )}
                 </div>
               )}
@@ -790,19 +797,19 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
               
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', fontWeight: 'bold', color: '#333' }}>
                 <span>Total</span>
-                <span>€{totalFinal.toFixed(2)}</span>
+                <span>{totalFinal.toFixed(2)}&nbsp;€</span>
               </div>
 
               {tipoEntrega === 'DOMICILIO' && !superaGratis && (
                 <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f3f4f6', borderRadius: '8px', textAlign: 'center', fontSize: '14px', color: '#555' }}>
-                  Te faltan <b style={{color: '#ff4500'}}>€{(gratisDesde - subtotal).toFixed(2)}</b> para envío gratis 🚀
+                  Te faltan <b style={{color: '#ff4500'}}>{(gratisDesde - subtotal).toFixed(2)}&nbsp;€</b> para envío gratis
                 </div>
               )}
             </div>
 
             <button type="button" className="boton-con-estado" onClick={() => handlePagar(null)} disabled={bloqueado} aria-busy={procesandoPago || procesandoStripe || comprobandoHorario} style={{ padding: '1.2rem', background: '#16864a', color: '#fff', border: 'none', borderRadius: '10px', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.2rem', marginTop: '0.5rem' }}>
               {(procesandoPago || procesandoStripe || comprobandoHorario) && <IconoEstado tipo="cargando" tamano={22} />}
-              {comprobandoHorario ? 'Comprobando tu pedido...' : procesandoPago ? 'Confirmando tu pedido...' : procesandoStripe ? metodoPago === 'TARJETA' ? 'Procesando el pago...' : 'Confirmando tu pedido...' : `Pagar €${totalFinal.toFixed(2)}`}
+              {comprobandoHorario ? 'Comprobando tu pedido...' : procesandoPago ? 'Confirmando tu pedido...' : procesandoStripe ? metodoPago === 'TARJETA' ? 'Procesando el pago...' : 'Confirmando tu pedido...' : `Pagar ${totalFinal.toFixed(2)}\u00a0€`}
             </button>
             {mensajePago?.idRestaurante === idCartActivo && <div ref={mensajePagoRef} tabIndex={-1} style={{ outline: 'none' }}><MensajeAccion mensaje={mensajePago} onCerrar={pedidoPagadoSinRegistrar === idCartActivo ? undefined : () => setMensajePago(null)} /></div>}
           </div>

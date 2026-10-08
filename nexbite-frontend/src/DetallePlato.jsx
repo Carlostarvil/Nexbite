@@ -167,10 +167,10 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', textAlign: 'right' }}>
                 {precioAnterior && precioAnterior > plato.precio && (
                   <span style={{ fontSize: '1.1rem', fontWeight: '600', color: '#999', textDecoration: 'line-through' }}>
-                    €{precioAnterior.toFixed(2)}
+                    {precioAnterior.toFixed(2)}&nbsp;€
                   </span>
                 )}
-                <h2 style={{ margin: 0, color: '#ff4500', fontSize: '1.7rem', whiteSpace: 'nowrap' }}>€{plato.precio?.toFixed(2)}</h2>
+                <h2 style={{ margin: 0, color: '#ff4500', fontSize: '1.7rem', whiteSpace: 'nowrap' }}>{plato.precio?.toFixed(2)}&nbsp;€</h2>
               </div>
             </div>
             
@@ -246,9 +246,9 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
                           {recomendado.nombre}
                         </p>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                          <span style={{ fontSize: '14px', color: '#1a1a1a', fontWeight: 'bold' }}>€{recomendado.precio.toFixed(2)}</span>
+                          <span style={{ fontSize: '14px', color: '#1a1a1a', fontWeight: 'bold' }}>{recomendado.precio.toFixed(2)}&nbsp;€</span>
                           {extraTagsRec.precioAnterior && extraTagsRec.precioAnterior > recomendado.precio && (
-                            <span style={{ fontSize: '11px', color: '#999', textDecoration: 'line-through' }}>€{extraTagsRec.precioAnterior.toFixed(2)}</span>
+                            <span style={{ fontSize: '11px', color: '#999', textDecoration: 'line-through' }}>{extraTagsRec.precioAnterior.toFixed(2)}&nbsp;€</span>
                           )}
                         </div>
                       </div>

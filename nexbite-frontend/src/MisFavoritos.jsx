@@ -231,7 +231,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
                       {plato.descripcion || 'Sin descripción disponible.'}
                     </p>
                     
-                    <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#000', marginBottom: '15px' }}>€{plato.precio.toFixed(2)}</span>
+                    <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#000', marginBottom: '15px' }}>{plato.precio.toFixed(2)}&nbsp;€</span>
 
                     <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
                       

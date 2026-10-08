@@ -172,7 +172,7 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
               )}
             </div>
 
-            <button type="button" className="boton-con-estado" onClick={handleGuardarCambios} disabled={guardando} aria-busy={guardando} style={{ marginTop: '1rem', padding: '16px', background: '#16864a', color: 'white', border: 'none', borderRadius: '12px', fontSize: '1.1rem', fontWeight: 'bold', cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, transition: 'background 0.2s' }}>
+            <button type="button" className="boton-con-estado" onClick={handleGuardarCambios} disabled={guardando} aria-busy={guardando} style={{ marginTop: '1rem', padding: '16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '12px', fontSize: '1.1rem', fontWeight: 'bold', cursor: guardando ? 'not-allowed' : 'pointer', opacity: guardando ? 0.7 : 1, transition: 'background 0.2s' }}>
               {(guardando || mensajePerfil?.tipo === 'exito') && <IconoEstado tipo={guardando ? 'cargando' : 'exito'} tamano={22} />}
               {guardando ? 'Guardando...' : mensajePerfil?.tipo === 'exito' ? 'Cambios guardados' : 'Guardar Cambios'}
             </button>
@@ -238,7 +238,7 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px', width: '200px', maxWidth: '100%', marginTop: '10px' }}>
-                      <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff4500' }}>€{pedido.precio_plato?.toFixed(2)}</span>
+                      <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff4500' }}>{pedido.precio_plato?.toFixed(2)}&nbsp;€</span>
                       {puedeRecomprar ? (
                         <BotonAgregarCarrito onAgregar={event => handleRecomprar(event, pedido)} idPlato={pedido.id_plato} nombrePlato={pedido.nombre_plato} variante="repetir" />
                       ) : (

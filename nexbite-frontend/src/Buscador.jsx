@@ -124,7 +124,7 @@ export default function Buscador({ onSelectRestaurante, onSelectPlato, ubicacion
             {resultado.imagen_url ? <img src={resultado.imagen_url} alt="" className="buscador-foto" />
               : <span className="buscador-foto buscador-foto-vacia" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10v10h16V10M3 10l2-6h14l2 6M8 20v-6h4v6M3 10a3 3 0 0 0 4.5 2.5A3 3 0 0 0 12 12a3 3 0 0 0 4.5.5A3 3 0 0 0 21 10" /></svg></span>}
             <span className="buscador-resultado-texto"><strong>{resultado.nombre}</strong><span>{tipoBusqueda === 'RESTAURANTES' ? resultado.tipo : 'Ver detalles del plato/producto'}</span></span>
-            {tipoBusqueda === 'PLATOS' && resultado.precio != null && <span className="buscador-precio">€{Number(resultado.precio).toFixed(2)}</span>}
+            {tipoBusqueda === 'PLATOS' && resultado.precio != null && <span className="buscador-precio">{Number(resultado.precio).toFixed(2)}&nbsp;€</span>}
           </li>)}
         </ul>
       </div>}

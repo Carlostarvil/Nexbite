@@ -294,6 +294,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   const favoritoEnCurso = useRef(false);
   const anclaFavorito = useRef(null);
   const perfil = useRef(null);
+  const entradaRestaurante = useRef(null);
   const [busquedaPlato, setBusquedaPlato] = useState('');
   const [favoritosLocales, setFavoritosLocales] = useState([]);
   const [mostrarInfoModal, setMostrarInfoModal] = useState(false); 
@@ -305,6 +306,12 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   const listaFavoritos = data?.obtenerFavoritos || [];
   const esFavoritoInicial = listaFavoritos.some(fav => fav.id_restaurante === idRestaurante);
   const platosFavoritos = data?.obtenerPlatosFavoritos;
+
+  useLayoutEffect(() => {
+    if (loading || entradaRestaurante.current === idRestaurante) return;
+    entradaRestaurante.current = idRestaurante;
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [idRestaurante, loading]);
 
   useEffect(() => {
     if (platosFavoritos) setFavoritosLocales(platosFavoritos.map(fav => String(fav.id_plato)));
@@ -651,10 +658,10 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', marginTop: '1rem', gap: '10px' }}>
                             
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                              <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#000' }}>€{plato.precio.toFixed(2)}</span>
+                              <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#000' }}>{plato.precio.toFixed(2)}&nbsp;€</span>
                               {precioAnterior && precioAnterior > plato.precio && (
                                 <span style={{ fontSize: '1rem', fontWeight: '600', color: '#999', textDecoration: 'line-through' }}>
-                                  €{precioAnterior.toFixed(2)}
+                                  {precioAnterior.toFixed(2)}&nbsp;€
                                 </span>
                               )}
                             </div>
