@@ -5,6 +5,7 @@ import ImagenPlato from './ImagenPlato';
 import MensajeAccion, { IconoEstado } from './MensajeAccion';
 import { IconoVendedor, TituloVendedor, MetricasVendedor, CargandoVendedor, ErrorVendedor, VacioVendedor, DialogoVendedor } from './VendedorUI';
 import { fechaVendedor } from './vendedorUtils';
+import { coincidePedido } from './busquedaPedidos';
 
 const OBTENER_PEDIDOS = gql`query ObtenerPedidosVendedor($id_restaurante: ID!) {
   obtenerPedidosVendedor(id_restaurante: $id_restaurante) { id_pedido nombre_plato estado metodo_pago direccion_envio fecha_pedido fecha_programada imagen_plato id_compra estado_pago mensaje_pago }
@@ -54,7 +55,7 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
   const activos = pedidos.filter(p => ['PENDIENTE', 'PREPARANDO', 'ENVIADO'].includes(estadoCanonico(p.estado)));
   const programados = pedidos.filter(p => p.estado === 'PROGRAMADO');
   const terminados = pedidos.filter(p => ['ENTREGADO', 'CANCELADO'].includes(estadoCanonico(p.estado)));
-  const visibles = pedidos.filter(p => (filtro === 'TODOS' || (filtro === 'ACTIVOS' ? activos : filtro === 'PROGRAMADOS' ? programados : terminados).includes(p)) && (String(p.id_pedido) + ' ' + (p.nombre_plato || '') + ' ' + (p.direccion_envio || '')).toLocaleLowerCase('es-ES').includes(busqueda.toLocaleLowerCase('es-ES')));
+  const visibles = pedidos.filter(p => (filtro === 'TODOS' || (filtro === 'ACTIVOS' ? activos : filtro === 'PROGRAMADOS' ? programados : terminados).includes(p)) && coincidePedido(p, busqueda));
   const refrescar = () => refetch().catch(() => setMensaje({ tipo: 'aviso', titulo: 'Cambio guardado', descripcion: 'No hemos podido actualizar la lista. Pulsa «Actualizar» para ver los pedidos de nuevo.' }));
   const abrirDialogo = (tipo, pedido = null) => { setDialogo({ tipo, pedido }); setErrorDialogo(null); setMotivo(MOTIVOS[0]); setMensajeExtra(''); setFechaMinima(fechaMinimaAhora()); };
   const cerrarDialogo = () => { if (accionRef.current) return; setDialogo(null); setErrorDialogo(null); };
