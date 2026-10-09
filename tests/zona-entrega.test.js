@@ -43,7 +43,7 @@ test('los listados y el buscador aplican la zona antes de LIMIT y usan parámetr
     await consultas[nombre](null, args);
     const { sql, valores } = llamadas.at(-1);
     assert.match(sql, /WHERE[\s\S]*r\.radio_cobertura_km/);
-    if (sql.includes('LIMIT')) assert.ok(sql.indexOf('radio_cobertura_km') < sql.indexOf('LIMIT'));
+    if (sql.includes('LIMIT')) assert.ok(sql.indexOf('radio_cobertura_km') < sql.lastIndexOf('LIMIT'));
     assert.ok(valores.includes(41.39));
     assert.doesNotMatch(sql, /pizza/);
   }

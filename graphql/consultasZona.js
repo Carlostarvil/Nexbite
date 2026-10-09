@@ -55,9 +55,14 @@ export function crearConsultasZona(pool) {
        WHERE f.id_usuario = $1 AND ${condicion}`),
     obtenerUltimosPedidos: (_, args) => ejecutar(args, [args.id_usuario], ({ condicion }) =>
       `SELECT pe.id_pedido, pe.id_restaurante, pe.id_plato, pe.estado, pe.metodo_pago, pe.direccion_envio, pe.fecha_programada, pe.fecha_pedido,
-         pl.nombre AS nombre_plato, pl.precio AS precio_plato, pl.disponible AS plato_disponible, pl.descripcion AS descripcion_plato, pl.imagen_url AS imagen_plato,
+         pl.nombre AS nombre_plato, pl.precio AS precio_plato, pl.disponible AS plato_disponible, pl.descripcion AS descripcion_plato,
+         COALESCE(NULLIF(pl.imagen_url, ''), (
+           SELECT incluido.imagen_url FROM Menu_Platos vinculo JOIN Platos incluido ON incluido.id_plato = vinculo.id_plato_incluido
+           WHERE vinculo.id_menu = pl.id_plato AND incluido.id_restaurante = pl.id_restaurante AND NULLIF(incluido.imagen_url, '') IS NOT NULL
+           ORDER BY incluido.id_plato LIMIT 1
+         )) AS imagen_plato,
          r.nombre AS nombre_restaurante, r.imagen_url AS imagen_restaurante, r.aceptando_pedidos AS restaurante_abierto
        FROM Pedidos pe LEFT JOIN Platos pl ON pe.id_plato = pl.id_plato LEFT JOIN Restaurantes r ON pe.id_restaurante = r.id_restaurante
-       WHERE pe.id_usuario = $1 AND ${condicion} ORDER BY pe.id_pedido DESC LIMIT 3`),
+       WHERE pe.id_usuario = $1 AND ${condicion} ORDER BY pe.id_pedido DESC LIMIT 8`),
   };
 }

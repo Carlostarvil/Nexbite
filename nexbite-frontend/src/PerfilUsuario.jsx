@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
@@ -36,7 +36,7 @@ const formatearFecha = (timestampStr) => {
   return fecha.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
-export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPlato }) {
+export default function PerfilUsuario({ irAPedidos = false, onVolver, onAgregarAlCarrito, onSelectPlato }) {
   const usuarioLogueado = JSON.parse(localStorage.getItem('user')) || {};
   const idUsuarioActual = usuarioLogueado.id_usuario;
 
@@ -51,6 +51,18 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
   const [sugerencias, setSugerencias] = useState([]);
   const [buscandoDireccion, setBuscandoDireccion] = useState(false);
   const [timeoutId, setTimeoutId] = useState(null);
+  const pedidosRef = useRef(null);
+  const historialEnfocado = useRef(false);
+
+  useEffect(() => {
+    if (!irAPedidos) { historialEnfocado.current = false; return; }
+    if (loadingPerfil || loadingPedidos || !pedidosRef.current || historialEnfocado.current) return;
+    historialEnfocado.current = true;
+    const titulo = pedidosRef.current;
+    const alturaHeader = document.querySelector('.header-contenedor')?.getBoundingClientRect().height || 0;
+    titulo.focus({ preventScroll: true });
+    window.scrollTo({ top: titulo.getBoundingClientRect().top + window.scrollY - alturaHeader - 16, behavior: 'auto' });
+  }, [irAPedidos, loadingPerfil, loadingPedidos]);
 
   useEffect(() => {
     if (dataPerfil && dataPerfil.obtenerPerfilUsuario) {
@@ -183,7 +195,7 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
 
       {perfil.rol !== 'VENDEDOR' && (
         <div style={{ marginTop: '1rem' }}>
-          <h2 style={{ color: '#1a1a1a', borderBottom: '2px solid #ff4500', paddingBottom: '10px', display: 'inline-block', fontSize: '1.5rem', marginBottom: '1.5rem' }}>Tus Pedidos Anteriores</h2>
+          <h2 id="pedidos-anteriores" ref={pedidosRef} tabIndex={-1} style={{ color: '#1a1a1a', borderBottom: '2px solid #ff4500', paddingBottom: '10px', display: 'inline-block', fontSize: '1.5rem', marginBottom: '1.5rem' }}>Tus Pedidos Anteriores</h2>
           
           {loadingPedidos ? <p style={{ color: '#666' }}>Cargando tu historial...</p> : pedidos.length === 0 ? (
             <div style={{ background: '#fafafa', padding: '3rem', borderRadius: '16px', textAlign: 'center', color: '#666', border: '1px dashed #ccc' }}>

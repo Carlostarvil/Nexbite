@@ -20,6 +20,7 @@ import CategoriasInicio from './CategoriasInicio';
 import SelectorRecomendaciones from './SelectorRecomendaciones';
 import TituloSeccion, { ControlesCarrusel } from './TituloSeccion';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
+import ImagenPlato from './ImagenPlato';
 import EstadoDisponibilidad from './EstadoDisponibilidad';
 import AvisoCarrito from './AvisoCarrito';
 import ConfirmacionPedido from './ConfirmacionPedido';
@@ -99,6 +100,7 @@ function App() {
   const [restauranteActivo, setRestauranteActivo] = useState(null);
   const [platoActivo, setPlatoActivo] = useState(null); 
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
+  const [irAPedidosPerfil, setIrAPedidosPerfil] = useState(false);
   
   const [carrito, setCarrito] = useState([]);
   const [mostrarCarrito, setMostrarCarrito] = useState(false);
@@ -188,6 +190,17 @@ function App() {
     setCategoriaFiltroInicio(null); 
   };
 
+  const abrirPerfil = (irAPedidos = false) => {
+    setIrAPedidosPerfil(irAPedidos);
+    setMostrarPerfil(true);
+    setMostrarCarrito(false);
+    setMostrarFavoritos(false);
+    setRestauranteActivo(null);
+    setPlatoActivo(null);
+    cerrarAvisoCarrito();
+    if (!irAPedidos) window.scrollTo(0, 0);
+  };
+
   const navegarDesdeFooter = destino => {
     if (destino === 'carrito') return abrirCarrito();
     if (destino === 'ubicacion') {
@@ -197,7 +210,7 @@ function App() {
     }
     handleInicio();
     cerrarAvisoCarrito();
-    if (destino === 'perfil' || destino === 'pedidos') setMostrarPerfil(true);
+    if (destino === 'perfil' || destino === 'pedidos') return abrirPerfil(destino === 'pedidos');
     if (destino === 'favoritos') setMostrarFavoritos(true);
     if (destino === 'registrar' && userRol === 'VENDEDOR') setVistaVendedor('REGISTRAR');
     window.scrollTo(0, 0);
@@ -350,7 +363,7 @@ function App() {
           onAbrirFavoritos={() => { setMostrarFavoritos(true); setMostrarCarrito(false); setRestauranteActivo(null); setPlatoActivo(null); setMostrarPerfil(false); }}
           onSelectRestaurante={id => { handleInicio(); setRestauranteActivo(id); cerrarAvisoCarrito(); window.scrollTo(0, 0); }}
           onSelectPlato={plato => { handleInicio(); setRestauranteActivo(plato.id_restaurante); setPlatoActivo(plato); cerrarAvisoCarrito(); window.scrollTo(0, 0); }}
-          onAbrirPerfil={() => { setMostrarPerfil(true); setMostrarCarrito(false); setMostrarFavoritos(false); setRestauranteActivo(null); setPlatoActivo(null); }}
+          onAbrirPerfil={() => abrirPerfil()}
           vistaActiva={mostrarPerfil ? 'perfil' : mostrarCarrito ? 'carrito' : mostrarFavoritos ? 'favoritos' : 'inicio'}
           userRol={userRol}
           ubicacionEntrega={ubicacionEntrega}
@@ -366,7 +379,7 @@ function App() {
         <main className="nexbite-contenido" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)} style={{ padding: 'clamp(1rem, 4vw, 2rem)', maxWidth: '1200px', margin: '0 auto' }}>
           
           {mostrarPerfil ? (
-            <PerfilUsuario onVolver={() => setMostrarPerfil(false)} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={abrirDetalleDesdePedido} />
+            <PerfilUsuario irAPedidos={irAPedidosPerfil} onVolver={() => setMostrarPerfil(false)} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={abrirDetalleDesdePedido} />
           
           ) : userRol === 'VENDEDOR' ? (
             vistaVendedor === 'REGISTRAR' ? <RegistroRestaurante />
@@ -489,11 +502,7 @@ function App() {
                             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.05)'; }}
                           >
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
-                              {pedido.imagen_restaurante ? (
-                                <img src={pedido.imagen_restaurante} alt={pedido.nombre_restaurante} style={{ width: '50px', height: '50px', borderRadius: '8px', objectFit: 'cover' }} />
-                              ) : (
-                                <div style={{ width: '50px', height: '50px', borderRadius: '8px', backgroundColor: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>🏪</div>
-                              )}
+                              <ImagenPlato plato={{ nombre: pedido.nombre_plato || 'Plato retirado', imagen_url: pedido.imagen_plato }} style={{ width: '50px', height: '50px', borderRadius: '8px' }} />
                               <div>
                                 <h4 style={{ margin: '0 0 5px 0', color: '#333', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                   {pedido.nombre_plato || 'Plato retirado'}
@@ -523,6 +532,12 @@ function App() {
                           </div>
                         );
                       })}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '8px' }}>
+                      <button type="button" className="titulo-seccion-enlace" onClick={() => abrirPerfil(true)}>
+                        Ver todos mis pedidos
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
+                      </button>
                     </div>
                   </div>
                 )}
