@@ -24,7 +24,7 @@ function almacen({ falloVinculos = false } = {}) {
     if (sql === 'COMMIT') return { rows: [] };
     if (sql === 'ROLLBACK') { productos = copia.productos; vinculos = copia.vinculos; return { rows: [] }; }
     if (sql.includes('FOR UPDATE OF p')) return { rows: productos.filter(p => p.id_plato === valores[0] && p.id_restaurante === valores[1] && valores[2] === '7' && p.id_restaurante === '9') };
-    if (sql.startsWith('SELECT 1 FROM Menu_Platos')) return { rows: vinculos.filter(v => v.id_plato_incluido === valores[0]) };
+    if (sql.startsWith('SELECT 1 FROM Menu_Platos')) return { rows: vinculos.some(v => v.id_menu === valores[0]) ? [] : vinculos.filter(v => v.id_plato_incluido === valores[0]) };
     if (sql.startsWith('SELECT * FROM Platos')) return { rows: productos.filter(p => p.id_restaurante === valores[0] && valores[1].includes(p.id_plato)) };
     if (sql.includes('UPDATE Platos SET')) {
       const producto = productos.find(p => p.id_plato === valores[5] && p.id_restaurante === valores[6]);
@@ -97,7 +97,24 @@ test('impide menús anidados, productos de otro local y convertir un producto in
     assert.equal(base.productos[1].nombre, 'Bebida');
   }
   const base = almacen();
-  await assert.rejects(base.editar(null, { ...datos, categoria: ['MENU'], platos_existentes: ['2'] }, vendedor), /forma parte de otro menú/);
+  await assert.rejects(base.editar(null, { ...datos, categoria: ['MENU'], platos_existentes: ['2'] }, vendedor), /producto individual está incluido/);
+});
+
+test('dos menús pueden compartir platos y editar uno conserva las inclusiones del otro', async () => {
+  const base = almacen();
+  await base.editar(null, { ...datos, id_plato: '2', categoria: ['MENU'], platos_existentes: ['1'] }, vendedor);
+  await base.editar(null, { ...datos, id_plato: '20', categoria: ['MENU'], platos_existentes: ['1'] }, vendedor);
+  assert.deepEqual(base.vinculos, [{ id_menu: '2', id_plato_incluido: '1' }, { id_menu: '20', id_plato_incluido: '1' }]);
+});
+
+test('editar un menú existente no se confunde con convertir un producto individual', async () => {
+  const base = almacen();
+  // Datos heredados: un menú tenía una referencia desde otro menú.
+  base.vinculos.push({ id_menu: '99', id_plato_incluido: '20' });
+  const resultado = await base.editar(null, { ...datos, id_plato: '20', categoria: ['MENU'], platos_existentes: ['1', '2'] }, vendedor);
+  assert.equal(resultado.id_plato, '20');
+  assert.equal(resultado.items_menu.length, 2);
+  assert.ok(base.vinculos.some(v => v.id_menu === '99' && v.id_plato_incluido === '20'));
 });
 
 test('al convertir un menú en producto se conservan sus pedidos y se retiran solo sus inclusiones', async () => {

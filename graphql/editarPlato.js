@@ -21,8 +21,14 @@ export function crearEditorPlato(pool) {
       if (!existente.rows[0]) throw new Error('El producto no existe o no pertenece a uno de tus locales.');
       let items = [];
       if (esMenu) {
-        const referencias = await conexion.query('SELECT 1 FROM Menu_Platos WHERE id_plato_incluido = $1 LIMIT 1', [id_plato]);
-        if (referencias.rows.length) throw new Error('Este producto ya forma parte de otro menú. No se puede convertir en un menú.');
+        const categoriasExistentes = Array.isArray(existente.rows[0].categoria) ? existente.rows[0].categoria : String(existente.rows[0].categoria || '').replace(/[{}"\[\]]/g, '').split(',');
+        const yaEsMenu = categoriasExistentes.some(c => String(c).trim().toUpperCase() === 'MENU');
+        if (!yaEsMenu) {
+          // Compartir platos entre menús es válido. Solo se bloquea convertir
+          // un producto individual incluido, para no crear un menú anidado.
+          const referencias = await conexion.query('SELECT 1 FROM Menu_Platos WHERE id_plato_incluido = $1 AND NOT EXISTS (SELECT 1 FROM Menu_Platos WHERE id_menu = $1) LIMIT 1', [id_plato]);
+          if (referencias.rows.length) throw new Error('Este producto individual está incluido en otro menú. Para crear un menú con estos platos, crea un producto nuevo en vez de convertir este.');
+        }
         const seleccion = await conexion.query('SELECT * FROM Platos WHERE id_restaurante = $1 AND id_plato = ANY($2::int[]) ORDER BY id_plato', [id_restaurante, ids]);
         if (seleccion.rows.length !== ids.length) throw new Error('Selecciona productos existentes de este local.');
         if (seleccion.rows.some(p => (Array.isArray(p.categoria) ? p.categoria : String(p.categoria || '').replace(/[{}"\[\]]/g, '').split(',')).some(c => String(c).trim().toUpperCase() === 'MENU'))) throw new Error('Un menú solo puede incluir productos individuales.');
