@@ -44,7 +44,7 @@ async function contextoToken(autorizacion = '') {
 let revisionEnCurso = null;
 const revisarCompras = () => {
   if (!revisionEnCurso) revisionEnCurso = procesarComprasPendientes()
-    .catch(error => console.error('No se pudieron revisar las compras pendientes:', error.code || 'CONEXION'))
+    .catch(error => console.error('No se pudieron revisar las compras pendientes:', error.code || 'CONEXION', error.message))
     .finally(() => { revisionEnCurso = null; });
 };
 let temporizadorCompras;
