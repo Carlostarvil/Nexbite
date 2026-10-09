@@ -267,3 +267,27 @@ test('normaliza cantidades repetidas y rechaza datos, métodos y claves inválid
   assert.deepEqual(normalizarSolicitud(solicitud(undefined, { items: [{ id_plato: '101', cantidad: 1 }, { id_plato: '101', cantidad: 2 }] })).items, [{ id_plato: '101', cantidad: 3 }]);
   for (const input of [solicitud('corta'), solicitud(undefined,{metodo_pago:'OTRO'}), solicitud(undefined,{tipo_entrega:'OTRO'}), solicitud(undefined,{items:[]}), solicitud(undefined,{items:[{id_plato:'101',cantidad:-1}]}), solicitud(undefined,{fecha_programada:'inválida'})]) assert.throws(() => normalizarSolicitud(input));
 });
+
+test('revisa reservas y reactiva disponibilidad con fechas antiguas guardadas como VARCHAR', async () => {
+  await db.exec(`
+    ALTER TABLE Restaurantes ALTER COLUMN tiempo_reactivacion TYPE VARCHAR USING tiempo_reactivacion::text;
+    ALTER TABLE Platos ALTER COLUMN tiempo_disponible TYPE VARCHAR USING tiempo_disponible::text;
+    ALTER TABLE Pedidos ALTER COLUMN fecha_programada TYPE VARCHAR USING fecha_programada::text;
+  `);
+  try {
+    await db.query('UPDATE Restaurantes SET aceptando_pedidos = FALSE, tiempo_reactivacion = $1 WHERE id_restaurante = 10', [new Date(reloj.getTime() - 60_000).toISOString()]);
+    await db.query('UPDATE Platos SET disponible = FALSE, tiempo_disponible = $1 WHERE id_plato = 101', [new Date(reloj.getTime() - 60_000).toISOString()]);
+    await db.query(`INSERT INTO Pedidos (id_usuario,id_restaurante,id_plato,metodo_pago,direccion_envio,fecha_programada,estado) VALUES (1,10,101,'EFECTIVO','Recogida en el local',$1,'PROGRAMADO')`, [new Date(reloj.getTime() - 60_000).toISOString()]);
+    await servicio.procesarPendientes();
+    assert.equal((await db.query('SELECT estado FROM Pedidos')).rows[0].estado, 'PENDIENTE');
+    assert.equal((await db.query('SELECT aceptando_pedidos FROM Restaurantes WHERE id_restaurante = 10')).rows[0].aceptando_pedidos, true);
+    assert.equal((await db.query('SELECT disponible FROM Platos WHERE id_plato = 101')).rows[0].disponible, true);
+    await servicio.preparar(solicitud(), cliente);
+  } finally {
+    await db.exec(`
+      ALTER TABLE Restaurantes ALTER COLUMN tiempo_reactivacion TYPE TIMESTAMPTZ USING NULLIF(tiempo_reactivacion, '')::timestamptz;
+      ALTER TABLE Platos ALTER COLUMN tiempo_disponible TYPE TIMESTAMPTZ USING NULLIF(tiempo_disponible, '')::timestamptz;
+      ALTER TABLE Pedidos ALTER COLUMN fecha_programada TYPE TIMESTAMPTZ USING NULLIF(fecha_programada, '')::timestamptz;
+    `);
+  }
+});

@@ -62,8 +62,8 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
 
   async function cotizar(cx, solicitud, fase = 'preparar') {
     const momento = ahora();
-    await cx.query('UPDATE Restaurantes SET aceptando_pedidos = TRUE, tiempo_reactivacion = NULL WHERE id_restaurante = $1 AND aceptando_pedidos = FALSE AND tiempo_reactivacion <= $2', [solicitud.id_restaurante, momento]);
-    await cx.query('UPDATE Platos SET disponible = TRUE, tiempo_disponible = NULL WHERE id_restaurante = $1 AND disponible = FALSE AND tiempo_disponible <= $2', [solicitud.id_restaurante, momento]);
+    await cx.query(`UPDATE Restaurantes SET aceptando_pedidos = TRUE, tiempo_reactivacion = NULL WHERE id_restaurante = $1 AND aceptando_pedidos = FALSE AND NULLIF(tiempo_reactivacion::text, '')::timestamptz <= $2::timestamptz`, [solicitud.id_restaurante, momento]);
+    await cx.query(`UPDATE Platos SET disponible = TRUE, tiempo_disponible = NULL WHERE id_restaurante = $1 AND disponible = FALSE AND NULLIF(tiempo_disponible::text, '')::timestamptz <= $2::timestamptz`, [solicitud.id_restaurante, momento]);
     const local = (await cx.query('SELECT * FROM Restaurantes WHERE id_restaurante = $1 FOR SHARE', [solicitud.id_restaurante])).rows[0];
     if (!local) throw errorCompra('El local ya no está disponible.');
     const ids = solicitud.items.map(item => item.id_plato);
@@ -402,10 +402,10 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     // Los pedidos anteriores a esta migración conservan su fecha y su pago.
     const antiguos = (await pool.query(`
       SELECT pe.* FROM Pedidos pe JOIN Restaurantes r ON r.id_restaurante = pe.id_restaurante JOIN Platos p ON p.id_plato = pe.id_plato
-      WHERE pe.id_compra IS NULL AND pe.estado = 'PROGRAMADO' AND pe.fecha_programada <= $1
-        AND (r.aceptando_pedidos IS DISTINCT FROM FALSE OR r.tiempo_reactivacion <= $1)
-        AND (p.disponible IS DISTINCT FROM FALSE OR p.tiempo_disponible <= $1)
-        AND NOT EXISTS (SELECT 1 FROM Menu_Platos mp JOIN Platos incluido ON incluido.id_plato = mp.id_plato_incluido WHERE mp.id_menu = pe.id_plato AND incluido.disponible = FALSE AND (incluido.tiempo_disponible IS NULL OR incluido.tiempo_disponible > $1))
+      WHERE pe.id_compra IS NULL AND pe.estado = 'PROGRAMADO' AND NULLIF(pe.fecha_programada::text, '')::timestamptz <= $1::timestamptz
+        AND (r.aceptando_pedidos IS DISTINCT FROM FALSE OR NULLIF(r.tiempo_reactivacion::text, '')::timestamptz <= $1::timestamptz)
+        AND (p.disponible IS DISTINCT FROM FALSE OR NULLIF(p.tiempo_disponible::text, '')::timestamptz <= $1::timestamptz)
+        AND NOT EXISTS (SELECT 1 FROM Menu_Platos mp JOIN Platos incluido ON incluido.id_plato = mp.id_plato_incluido WHERE mp.id_menu = pe.id_plato AND incluido.disponible = FALSE AND (incluido.tiempo_disponible IS NULL OR NULLIF(incluido.tiempo_disponible::text, '')::timestamptz > $1::timestamptz))
       ORDER BY pe.id_pedido LIMIT 100
     `, [ahora()])).rows;
     for (const pedido of antiguos) {
@@ -414,7 +414,7 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
           await cx.query('BEGIN');
           try {
             await cotizar(cx, normalizarSolicitud({ clave: 'antiguo-pedido-' + pedido.id_pedido, id_restaurante: pedido.id_restaurante, items: [{ id_plato: pedido.id_plato, cantidad: 1 }], metodo_pago: 'EFECTIVO', tipo_entrega: pedido.direccion_envio?.toUpperCase().startsWith('RECOGIDA') ? 'RECOGIDA' : 'DOMICILIO' }), 'activar-antiguo');
-            await cx.query("UPDATE Pedidos SET estado = 'PENDIENTE' WHERE id_pedido = $1 AND estado = 'PROGRAMADO' AND fecha_programada <= $2", [pedido.id_pedido, ahora()]);
+            await cx.query("UPDATE Pedidos SET estado = 'PENDIENTE' WHERE id_pedido = $1 AND estado = 'PROGRAMADO' AND NULLIF(fecha_programada::text, '')::timestamptz <= $2::timestamptz", [pedido.id_pedido, ahora()]);
             await cx.query('COMMIT');
           } catch (error) { await cx.query('ROLLBACK'); throw error; }
         });
