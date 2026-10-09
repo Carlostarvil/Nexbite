@@ -22,8 +22,8 @@ export default function TarjetaLocalInicio({ local, onSeleccionar, tieneOferta =
       {tieneOferta && <span className="tarjeta-inicio-oferta">Ofertas</span>}
     </div>
     <div className="tarjeta-inicio-contenido">
-      <EtiquetasLocal tipo={local.tipo || 'RESTAURANTE'} />
       <h3 className="tarjeta-inicio-nombre">{local.nombre}</h3>
+      <EtiquetasLocal tipo={local.tipo || 'RESTAURANTE'} />
       {cerrado ? <EstadoDisponibilidad cerrado fecha={local.tiempo_reactivacion} compacto /> : <div className="tarjeta-inicio-local-pie">
         {tieneDistancia ? <span className="tarjeta-inicio-distancia"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></svg>{distancia.toLocaleString('es-ES', { maximumFractionDigits: 1, minimumFractionDigits: 1 })} km</span>
           : local.aceptando_pedidos === true ? <span className="tarjeta-inicio-abierto"><span aria-hidden="true" />Abierto</span> : <span />}
