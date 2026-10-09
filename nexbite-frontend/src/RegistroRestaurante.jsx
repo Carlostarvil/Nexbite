@@ -5,8 +5,10 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-lea
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { DIAS_RECOGIDA, validarHorariosRecogida } from '../../shared/horariosRecogida.js';
+import MensajeAccion, { IconoEstado } from './MensajeAccion';
+import { IconoVendedor, TituloVendedor } from './VendedorUI';
+import { categoriasLocal, textoCategoriaLocal } from './vendedorUtils';
 
-// Arreglo para los iconos de Leaflet en React
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -16,483 +18,189 @@ L.Icon.Default.mergeOptions({
 
 const REGISTRAR_NEGOCIO = gql`
   mutation RegistrarNegocio($nombre: String!, $tipo: String!, $latitud: Float, $longitud: Float, $imagen_url: String, $radio_cobertura_km: Float, $telefono: String, $direccion: String, $horarios_recogida: [FranjaRecogidaInput!]!) {
-    registrarNegocio(nombre: $nombre, tipo: $tipo, latitud: $latitud, longitud: $longitud, imagen_url: $imagen_url, radio_cobertura_km: $radio_cobertura_km, telefono: $telefono, direccion: $direccion, horarios_recogida: $horarios_recogida) {
-      id_restaurante
-      nombre
-    }
+    registrarNegocio(nombre: $nombre, tipo: $tipo, latitud: $latitud, longitud: $longitud, imagen_url: $imagen_url, radio_cobertura_km: $radio_cobertura_km, telefono: $telefono, direccion: $direccion, horarios_recogida: $horarios_recogida) { id_restaurante nombre }
   }
 `;
-
 const ACTUALIZAR_NEGOCIO = gql`
   mutation ActualizarNegocio($id_restaurante: ID!, $nombre: String!, $tipo: String!, $latitud: Float!, $longitud: Float!, $imagen_url: String!, $radio_cobertura_km: Float!, $telefono: String!, $direccion: String, $horarios_recogida: [FranjaRecogidaInput!]) {
     actualizarNegocio(id_restaurante: $id_restaurante, nombre: $nombre, tipo: $tipo, latitud: $latitud, longitud: $longitud, imagen_url: $imagen_url, radio_cobertura_km: $radio_cobertura_km, telefono: $telefono, direccion: $direccion, horarios_recogida: $horarios_recogida) {
-      id_restaurante
-      nombre
-      tipo
-      latitud
-      longitud
-      imagen_url
-      radio_cobertura_km
-      telefono
-      direccion
-      horarios_recogida { dia inicio fin }
-      aceptando_pedidos
-      tiempo_reactivacion
+      id_restaurante nombre tipo latitud longitud imagen_url radio_cobertura_km telefono direccion
+      horarios_recogida { dia inicio fin } aceptando_pedidos tiempo_reactivacion
     }
   }
 `;
-
-const CATEGORIAS_DISPONIBLES = [
-  { id: 'Restaurante', emoji: '🍽️' },
-  { id: 'Supermercado', emoji: '🛒' },
-  { id: 'Farmacia', emoji: '💊' },
-  { id: 'Hamburguesas', emoji: '🍔' },
-  { id: 'Pizza', emoji: '🍕' },
-  { id: 'Desayuno', emoji: '☕' },
-  { id: 'Asiática', emoji: '🍣' },
-  { id: 'Sana', emoji: '🥗' },
-  { id: 'Americana', emoji: '🌭' },
-  { id: 'Postres', emoji: '🍰' },
-  { id: 'Sándwiches', emoji: '🥪' },
-  { id: 'Mexicana', emoji: '🌮' },
-  { id: 'Pollo', emoji: '🍗' }
-];
+const CATEGORIAS = ['RESTAURANTE', 'SUPERMERCADO', 'FARMACIA', 'HAMBURGUESAS', 'PIZZA', 'DESAYUNO', 'ASIÁTICA', 'SANA', 'AMERICANA', 'POSTRES', 'SÁNDWICHES', 'MEXICANA', 'POLLO'];
 
 function CapturadorUbicacion({ posicion, setPosicion }) {
-  useMapEvents({
-    click(e) { setPosicion({ lat: e.latlng.lat, lng: e.latlng.lng }); },
-  });
+  useMapEvents({ click(e) { setPosicion({ lat: e.latlng.lat, lng: e.latlng.lng }); } });
   return posicion ? <Marker position={[posicion.lat, posicion.lng]} /> : null;
 }
-
 function RecentrarMapa({ lat, lng }) {
   const map = useMap();
-  useEffect(() => {
-    map.flyTo([lat, lng], 16);
-  }, [lat, lng, map]);
+  useEffect(() => { map.flyTo([lat, lng], 16); }, [lat, lng, map]);
   return null;
+}
+function CabeceraPanel({ numero, titulo, descripcion }) {
+  return <div className="vendedor-panel-titulo"><span>{numero}</span><div><h2>{titulo}</h2><p>{descripcion}</p></div></div>;
 }
 
 export default function RegistroRestaurante({ restaurante = null, onGuardado, onCancelar }) {
   const esEdicion = Boolean(restaurante?.id_restaurante);
-  const ubicacionInicial = restaurante?.latitud != null && restaurante?.longitud != null
-    ? { lat: restaurante.latitud, lng: restaurante.longitud } : null;
+  const ubicacionInicial = restaurante?.latitud != null && restaurante?.longitud != null ? { lat: restaurante.latitud, lng: restaurante.longitud } : null;
   const radioInicial = restaurante?.radio_cobertura_km ?? 10;
   const radioPredefinido = [3, 5, 10, 20].includes(radioInicial);
-  
-  const normalizarTipoInicial = (tipo) => {
-    if (!tipo) return 'Restaurante';
-    if (tipo === 'RESTAURANTE') return 'Restaurante';
-    if (tipo === 'SUPERMERCADO') return 'Supermercado';
-    if (tipo === 'FARMACIA') return 'Farmacia';
-    return tipo;
-  };
-
   const [formData, setFormData] = useState(() => ({
-    nombre: restaurante?.nombre ?? '',
-    tipo: normalizarTipoInicial(restaurante?.tipo),
-    imagen_url: restaurante?.imagen_url ?? '',
-    telefono: restaurante?.telefono ?? '',
-    direccion: restaurante?.direccion ?? '',
+    nombre: restaurante?.nombre ?? '', tipo: categoriasLocal(restaurante?.tipo || 'RESTAURANTE').map(t => t.toUpperCase()),
+    imagen_url: restaurante?.imagen_url ?? '', telefono: restaurante?.telefono ?? '', direccion: restaurante?.direccion ?? '',
   }));
-
   const [radioSeleccion, setRadioSeleccion] = useState(radioPredefinido ? String(radioInicial) : 'otro');
-  const [configurarHorarios, setConfigurarHorarios] = useState(!esEdicion || restaurante.horarios_recogida != null);
-  
-  const [horariosRecogida, setHorariosRecogida] = useState(() =>
-    DIAS_RECOGIDA.map((_, dia) => {
-      const franjas = restaurante?.horarios_recogida?.filter(franja => franja.dia === dia)
-        .map(({ inicio, fin }) => ({ inicio, fin }));
-      return {
-        activo: franjas ? franjas.length > 0 : true,
-        franjas: franjas?.length ? franjas : [{ inicio: '12:00', fin: '23:00' }],
-      };
-    })
-  );
-
-  const actualizarDia = (dia, actualizar) => setHorariosRecogida(anterior =>
-    anterior.map((horario, indice) => indice === dia ? actualizar(horario) : horario)
-  );
-  
   const [radioPersonalizado, setRadioPersonalizado] = useState(radioPredefinido ? '' : String(radioInicial));
-
+  const [configurarHorarios, setConfigurarHorarios] = useState(!esEdicion || restaurante.horarios_recogida != null);
+  const [horariosRecogida, setHorariosRecogida] = useState(() => DIAS_RECOGIDA.map((_, dia) => {
+    const franjas = restaurante?.horarios_recogida?.filter(f => f.dia === dia).map(({ inicio, fin }) => ({ inicio, fin }));
+    return { activo: franjas ? franjas.length > 0 : true, franjas: franjas?.length ? franjas : [{ inicio: '12:00', fin: '23:00' }] };
+  }));
   const [posicion, setPosicion] = useState(ubicacionInicial);
   const [centroMapa, setCentroMapa] = useState(ubicacionInicial ? [ubicacionInicial.lat, ubicacionInicial.lng] : [40.4168, -3.7038]);
   const [busqueda, setBusqueda] = useState(restaurante?.direccion ?? '');
   const [sugerencias, setSugerencias] = useState([]);
   const [buscando, setBuscando] = useState(false);
-
+  const [errorFormulario, setErrorFormulario] = useState(null);
+  const [leyendoImagen, setLeyendoImagen] = useState(false);
   const seleccionAutomatica = useRef(esEdicion);
-
+  const guardando = useRef(false);
+  const errorRef = useRef(null);
   const [registrar, { loading: registrando }] = useMutation(REGISTRAR_NEGOCIO);
   const [actualizar, { loading: actualizando }] = useMutation(ACTUALIZAR_NEGOCIO);
-  const [errorFormulario, setErrorFormulario] = useState('');
   const loading = registrando || actualizando;
+  const ocupado = loading || leyendoImagen;
 
   useEffect(() => {
-    if (esEdicion) return;
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          setCentroMapa([lat, lng]);
-          setPosicion({ lat, lng });
-        },
-        () => console.log("Sin GPS. Usando ubicación por defecto.")
-      );
-    }
+    if (esEdicion || !navigator.geolocation) return;
+    let activo = true;
+    navigator.geolocation.getCurrentPosition(pos => {
+      if (!activo) return;
+      const { latitude: lat, longitude: lng } = pos.coords;
+      setCentroMapa([lat, lng]);
+    }, () => {});
+    return () => { activo = false; };
   }, [esEdicion]);
 
   useEffect(() => {
-    if (busqueda.trim().length < 4 || seleccionAutomatica.current) {
-      setSugerencias([]);
-      return;
-    }
-
-    const timerDeBusqueda = setTimeout(async () => {
+    if (busqueda.trim().length < 4 || seleccionAutomatica.current) return;
+    const controlador = new AbortController();
+    const timer = setTimeout(async () => {
       setBuscando(true);
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(busqueda)}`);
-        const data = await res.json();
-        setSugerencias(data);
-      } catch (err) {
-        console.error("Error al buscar dirección", err);
-      }
-      setBuscando(false);
-    }, 600); 
-
-    return () => clearTimeout(timerDeBusqueda); 
+        const respuesta = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&q=' + encodeURIComponent(busqueda), { signal: controlador.signal });
+        if (!respuesta.ok) throw new Error('No se pudo buscar');
+        const resultados = await respuesta.json();
+        if (!controlador.signal.aborted) setSugerencias(resultados);
+      } catch {
+        if (!controlador.signal.aborted) setSugerencias([]);
+      } finally { if (!controlador.signal.aborted) setBuscando(false); }
+    }, 600);
+    return () => { clearTimeout(timer); controlador.abort(); };
   }, [busqueda]);
 
-  // VALIDACIÓN AVANZADA DE IMAGEN (CALIDAD Y FORMATO PANORÁMICO)
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        alert('Por favor, selecciona solo un archivo de imagen válido (JPG, PNG, WEBP, etc).');
-        e.target.value = ''; 
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const img = new Image();
-        img.onload = () => {
-          const ratio = img.width / img.height;
-          
-          if (img.width < 800) {
-            alert(`⚠️ La imagen es muy pequeña (${img.width}px de ancho). \nDebe tener al menos 800px para verse profesional en la cabecera.`);
-            e.target.value = ''; 
-            return;
-          }
-          if (ratio < 1.3) {
-            alert(`⚠️ La imagen debe ser rectangular (panorámica). \nTu imagen es demasiado cuadrada o vertical. Recórtala o elige otra.`);
-            e.target.value = ''; 
-            return;
-          }
-
-          setFormData(anterior => ({ ...anterior, imagen_url: reader.result }));
-        };
-        img.src = reader.result;
+  const mostrarError = descripcion => {
+    setErrorFormulario({ tipo: 'error', titulo: 'Revisa la información del local', descripcion });
+    requestAnimationFrame(() => { errorRef.current?.focus(); errorRef.current?.scrollIntoView({ block: 'center' }); });
+  };
+  const actualizarDia = (dia, actualizarDiaActual) => setHorariosRecogida(prev => prev.map((horario, i) => i === dia ? actualizarDiaActual(horario) : horario));
+  const cambiar = (campo, valor) => { setErrorFormulario(null); setFormData(prev => ({ ...prev, [campo]: valor })); };
+  const handleImageChange = e => {
+    const entrada = e.target;
+    const archivo = entrada.files[0];
+    if (!archivo) return;
+    setErrorFormulario(null);
+    if (!archivo.type.startsWith('image/')) { mostrarError('Selecciona una imagen JPG, PNG, WEBP o GIF.'); entrada.value = ''; return; }
+    setLeyendoImagen(true);
+    const fallo = texto => { setLeyendoImagen(false); entrada.value = ''; mostrarError(texto); };
+    const lector = new FileReader();
+    lector.onerror = () => fallo('No hemos podido leer la imagen. Prueba con otra.');
+    lector.onload = () => {
+      const imagen = new Image();
+      imagen.onerror = () => fallo('El archivo no se puede abrir como imagen. Selecciona otra foto.');
+      imagen.onload = () => {
+        if (imagen.width < 800) return fallo('La portada debe tener al menos 800 píxeles de ancho.');
+        if (imagen.width / imagen.height < 1.3) return fallo('Elige una portada horizontal y panorámica para que tu local se vea bien.');
+        cambiar('imagen_url', lector.result); setLeyendoImagen(false);
       };
-      reader.readAsDataURL(file);
-    }
+      imagen.src = lector.result;
+    };
+    lector.readAsDataURL(archivo);
   };
-
-  const seleccionarSugerencia = (lugar) => {
-    seleccionAutomatica.current = true; 
-    const lat = parseFloat(lugar.lat);
-    const lng = parseFloat(lugar.lon);
-
-    setPosicion({ lat, lng });
-    setCentroMapa([lat, lng]); 
-    setBusqueda(lugar.display_name); 
-    setFormData(prev => ({ ...prev, direccion: lugar.display_name })); 
-    setSugerencias([]); 
+  const seleccionarSugerencia = lugar => {
+    const lat = Number(lugar.lat), lng = Number(lugar.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    seleccionAutomatica.current = true;
+    setPosicion({ lat, lng }); setCentroMapa([lat, lng]); setBusqueda(lugar.display_name);
+    cambiar('direccion', lugar.display_name); setSugerencias([]); setBuscando(false);
   };
-
-  const handleChangeBuscador = (e) => {
-    seleccionAutomatica.current = false; 
-    setBusqueda(e.target.value);
-    setFormData(prev => ({ ...prev, direccion: e.target.value })); 
-  };
-
-  const toggleCategoria = (catId) => {
-    const seleccionados = formData.tipo ? formData.tipo.split(',').map(t => t.trim()) : [];
-    let nuevosSeleccionados;
-    
-    if (seleccionados.includes(catId)) {
-      nuevosSeleccionados = seleccionados.filter(t => t !== catId);
-    } else {
-      nuevosSeleccionados = [...seleccionados, catId];
-    }
-    
-    setFormData({ ...formData, tipo: nuevosSeleccionados.join(', ') });
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    if (loading) return;
-    setErrorFormulario('');
-
-    if (!formData.tipo || formData.tipo.trim() === '') {
-      return alert('⚠️ Selecciona al menos una categoría para tu local.');
-    }
-
-    if (!formData.imagen_url) {
-      return alert('⚠️ Es obligatorio subir una imagen de portada para tu negocio.');
-    }
-
-    if (!posicion) {
-      return alert('⚠️ Por favor, busca tu dirección o haz clic en el mapa para colocar el pin.');
-    }
-
-    const radioFinal = parseFloat(radioSeleccion === 'otro' ? radioPersonalizado : radioSeleccion);
-    if (!Number.isFinite(radioFinal) || radioFinal <= 0 || radioFinal > 500) {
-      return alert('⚠️ La distancia de reparto debe ser un número válido entre 0 y 500 kilómetros.');
-    }
-
+    if (guardando.current || ocupado) return;
+    setErrorFormulario(null);
+    if (!formData.nombre.trim()) return mostrarError('Escribe el nombre de tu local.');
+    if (!formData.telefono.trim()) return mostrarError('Añade un teléfono de contacto.');
+    if (!formData.tipo.length) return mostrarError('Selecciona al menos una categoría para tu local.');
+    if (!formData.imagen_url) return mostrarError('Sube una imagen de portada para presentar tu negocio.');
+    if (!posicion) return mostrarError('Selecciona una dirección de la lista o coloca el pin en el mapa.');
+    const radioFinal = Number(radioSeleccion === 'otro' ? radioPersonalizado : radioSeleccion);
+    if (!Number.isFinite(radioFinal) || radioFinal <= 0 || radioFinal > 500) return mostrarError('La distancia de reparto debe ser mayor que 0 y no superar 500 km.');
+    guardando.current = true;
     try {
-      const horarios = configurarHorarios ? validarHorariosRecogida(horariosRecogida.flatMap((horario, dia) =>
-        horario.activo ? horario.franjas.map(franja => ({ dia, ...franja })) : []
-      )) : null;
-      
-      const variables = {
-        ...formData,
-        tipo: formData.tipo.toUpperCase(), // FORZAMOS MAYÚSCULAS PARA EL SERVIDOR
-        radio_cobertura_km: radioFinal,
-        horarios_recogida: horarios,
-        latitud: posicion.lat,
-        longitud: posicion.lng,
-      };
-      
-      if (esEdicion) {
-        const resultado = await actualizar({ variables: { ...variables, id_restaurante: restaurante.id_restaurante } });
-        onGuardado?.(resultado.data.actualizarNegocio);
-      } else {
-        await registrar({ variables });
-        alert('✅ ¡Negocio registrado con éxito!');
-        window.location.reload();
-      }
-    } catch (err) {
-      setErrorFormulario(err.message);
-    }
+      const horarios = configurarHorarios ? validarHorariosRecogida(horariosRecogida.flatMap((horario, dia) => horario.activo ? horario.franjas.map(f => ({ dia, ...f })) : [])) : null;
+      const tipoAnterior = String(restaurante?.tipo || '');
+      const metadatos = tipoAnterior.includes('|') ? tipoAnterior.slice(tipoAnterior.indexOf('|')) : '';
+      const variables = { ...formData, nombre: formData.nombre.trim(), telefono: formData.telefono.trim(), tipo: formData.tipo.join(', ') + metadatos, radio_cobertura_km: radioFinal, horarios_recogida: horarios, latitud: posicion.lat, longitud: posicion.lng };
+      const resultado = esEdicion ? await actualizar({ variables: { ...variables, id_restaurante: restaurante.id_restaurante } }) : await registrar({ variables });
+      const local = resultado.data?.[esEdicion ? 'actualizarNegocio' : 'registrarNegocio'];
+      if (!local) throw new Error('No se ha podido confirmar el guardado. Vuelve a intentarlo.');
+      onGuardado?.(local);
+    } catch (err) { mostrarError(err.message); }
+    finally { guardando.current = false; }
   };
 
-  const inputStyle = { padding: '12px', borderRadius: '6px', border: '1px solid #ccc', outline: 'none', fontSize: '1rem', width: '100%', boxSizing: 'border-box' };
-  const tiposActuales = formData.tipo ? formData.tipo.split(',').map(t => t.trim()) : [];
-
-  return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', background: '#fff', padding: '2rem', borderRadius: '12px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
-      <h2 style={{ textAlign: 'center', color: '#ff4500', marginTop: 0 }}>{esEdicion ? '✏️ Editar local' : '🏪 Abre tu Negocio en NexBite'}</h2>
-      {errorFormulario && <p role="alert" style={{ padding: '12px', background: '#fdecea', color: '#b71c1c', borderRadius: '6px' }}>{errorFormulario}</p>}
-
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-        <div>
-          <label style={{ fontWeight: 'bold', color: '#555', fontSize: '14px', display: 'block', marginBottom: '5px' }}>Nombre de tu local</label>
-          <input type="text" placeholder="Ej: Pizzería Luigi" required value={formData.nombre} onChange={(e) => setFormData({...formData, nombre: e.target.value})} style={inputStyle} />
+  return <>
+    <button type="button" className="vendedor-atras" disabled={ocupado} onClick={onCancelar}><IconoVendedor nombre="volver" />Volver a mis locales</button>
+    <TituloVendedor titulo={esEdicion ? 'Editar local' : 'Presenta tu negocio'} contexto={esEdicion ? restaurante.nombre : 'Un nuevo comienzo'} descripcion={esEdicion ? 'Mantén al día la información que ven tus clientes.' : 'Dale un nombre, una buena portada y un lugar en el mapa.'} />
+    <div ref={errorRef} tabIndex={-1} className="vendedor-form-mensaje"><MensajeAccion mensaje={errorFormulario} onCerrar={() => setErrorFormulario(null)} /></div>
+    <form onSubmit={handleSubmit} noValidate>
+      <fieldset disabled={ocupado}>
+      <div className="vendedor-form-layout">
+        <div className="vendedor-form-principal">
+          <section className="vendedor-panel"><CabeceraPanel numero="01" titulo="La esencia de tu local" descripcion="Lo primero que tus clientes van a conocer." />
+            <div className="vendedor-form-grid"><label className="vendedor-campo"><span>Nombre del local</span><input required placeholder="Ej: Pizzería Luigi" value={formData.nombre} onChange={e => cambiar('nombre', e.target.value)} /></label><label className="vendedor-campo"><span>Teléfono de contacto</span><input type="tel" required placeholder="Ej: +34 600 123 456" value={formData.telefono} onChange={e => cambiar('telefono', e.target.value)} /></label>
+              <div className="vendedor-form-fila-completa"><span className="vendedor-label" id="categorias-local-titulo">Categorías de tu negocio</span><div className="vendedor-opciones" role="group" aria-labelledby="categorias-local-titulo">{[...new Set([...CATEGORIAS, ...formData.tipo])].map(tipo => <button type="button" key={tipo} className="vendedor-opcion" aria-pressed={formData.tipo.includes(tipo)} onClick={() => cambiar('tipo', formData.tipo.includes(tipo) ? formData.tipo.filter(t => t !== tipo) : [...formData.tipo, tipo])}>{['RESTAURANTE', 'SUPERMERCADO', 'FARMACIA'].includes(tipo) && <IconoVendedor nombre={tipo === 'FARMACIA' ? 'farmacia' : tipo === 'SUPERMERCADO' ? 'mercado' : 'plato'} tamano={17} />}{textoCategoriaLocal(tipo)}</button>)}</div><small className="vendedor-ayuda-campo">Puedes elegir varias categorías para ayudar a encontrar tu local.</small></div>
+            </div>
+          </section>
+          <section className="vendedor-panel"><CabeceraPanel numero="02" titulo="Una portada que invite a entrar" descripcion="Muestra el ambiente y la personalidad de tu negocio." />
+            <div className="vendedor-carga-imagen"><div className="vendedor-carga-imagen-cabecera"><IconoVendedor nombre="subir" tamano={30} /><div><strong>{formData.imagen_url ? 'Cambiar imagen de portada' : 'Subir imagen de portada'}</strong><p>Foto horizontal · mínimo 800 px de ancho.</p></div></div><input type="file" aria-label="Imagen de portada del local" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageChange} />{leyendoImagen && <span role="status">Preparando tu imagen...</span>}</div>
+          </section>
+          <section className="vendedor-panel"><CabeceraPanel numero="03" titulo="Encuéntranos aquí" descripcion="La ubicación exacta se utiliza para calcular tu zona de reparto." />
+            <div className="vendedor-direccion"><label className="vendedor-campo"><span>Dirección del local</span><input placeholder="Ej: Gran Vía 12, Madrid..." autoComplete="street-address" value={busqueda} onChange={e => { seleccionAutomatica.current = false; setBusqueda(e.target.value); cambiar('direccion', e.target.value); setSugerencias([]); setPosicion(null); setBuscando(false); }} /></label>{buscando && <small className="vendedor-ayuda-campo" role="status">Buscando direcciones...</small>}
+              {sugerencias.length > 0 && <ul className="vendedor-sugerencias" aria-label="Direcciones sugeridas">{sugerencias.map((lugar, i) => <li key={lugar.place_id || i}><button type="button" onClick={() => seleccionarSugerencia(lugar)}><IconoVendedor nombre="mapa" tamano={16} /><span>{lugar.display_name}</span></button></li>)}</ul>}
+            </div>
+            <div className="vendedor-mapa"><MapContainer center={centroMapa} zoom={14} style={{ height: '265px', width: '100%' }}><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' /><CapturadorUbicacion posicion={posicion} setPosicion={setPosicion} /><RecentrarMapa lat={centroMapa[0]} lng={centroMapa[1]} /></MapContainer><div className="vendedor-mapa-pie"><IconoVendedor nombre={posicion ? 'check' : 'mapa'} tamano={15} /><span>{posicion ? 'Ubicación seleccionada. Puedes ajustar el pin pulsando en el mapa.' : 'Selecciona una dirección sugerida o pulsa en el mapa para colocar el pin.'}</span></div></div>
+          </section>
+          <section className="vendedor-panel"><CabeceraPanel numero="04" titulo="Reparto y recogida" descripcion="Decide hasta dónde llegas y cuándo pueden recoger sus pedidos." />
+            <label className="vendedor-campo"><span>Radio máximo de reparto</span><select aria-label="Radio máximo de reparto" value={radioSeleccion} onChange={e => setRadioSeleccion(e.target.value)}><option value="3">3 km · Zona cercana</option><option value="5">5 km · Ciudad</option><option value="10">10 km · Zona ampliada</option><option value="20">20 km · Municipio</option><option value="otro">Otra distancia</option></select></label>
+            {radioSeleccion === 'otro' && <label className="vendedor-campo" style={{ marginTop: 14 }}><span>Distancia personalizada (km)</span><input type="number" min=".1" max="500" step=".1" required value={radioPersonalizado} placeholder="Ej: 7.5" onChange={e => setRadioPersonalizado(e.target.value)} /></label>}
+            <div className="vendedor-panel-titulo" style={{ marginTop: 28 }}><span><IconoVendedor nombre="reloj" /></span><div><h2>Horarios de recogida</h2><p>Hora peninsular. Separa comida y cena con varias franjas.</p></div></div>
+            {esEdicion && restaurante.horarios_recogida == null && <label className="vendedor-checkbox" style={{ marginBottom: 20 }}><input type="checkbox" checked={configurarHorarios} onChange={e => setConfigurarHorarios(e.target.checked)} />Configurar horarios de recogida</label>}
+            {!configurarHorarios ? <p className="vendedor-ayuda-campo">Activa esta opción para indicar cuándo se pueden recoger pedidos.</p> : <div className="vendedor-horarios">{horariosRecogida.map((horario, dia) => <div key={dia} className="vendedor-horario-dia">
+              <div className="vendedor-horario-dia-cabecera"><label className="vendedor-checkbox"><input type="checkbox" checked={horario.activo} onChange={e => actualizarDia(dia, h => ({ ...h, activo: e.target.checked }))} />{DIAS_RECOGIDA[dia]}</label>{!horario.activo && <span className="vendedor-horario-inactivo">Sin recogida</span>}</div>
+              {horario.activo && <>{horario.franjas.map((franja, indice) => <div className="vendedor-horario-franja" key={indice}><label className="vendedor-campo"><span>Desde</span><input type="time" required aria-label={DIAS_RECOGIDA[dia] + ', inicio de franja ' + (indice + 1)} value={franja.inicio} onChange={e => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.map((f, i) => i === indice ? { ...f, inicio: e.target.value } : f) }))} /></label><label className="vendedor-campo"><span>Hasta</span><input type="time" required aria-label={DIAS_RECOGIDA[dia] + ', fin de franja ' + (indice + 1)} value={franja.fin} onChange={e => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.map((f, i) => i === indice ? { ...f, fin: e.target.value } : f) }))} /></label>{horario.franjas.length > 1 && <button type="button" className="vendedor-btn-icono" aria-label={'Eliminar franja ' + (indice + 1) + ' del ' + DIAS_RECOGIDA[dia]} onClick={() => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.filter((_, i) => i !== indice) }))}><IconoVendedor nombre="papelera" tamano={16} /></button>}</div>)}<button type="button" className="vendedor-link" disabled={horario.franjas.length >= 4} onClick={() => actualizarDia(dia, h => ({ ...h, franjas: [...h.franjas, { inicio: '', fin: '' }] }))}><IconoVendedor nombre="plus" tamano={14} />Añadir franja</button></>}
+            </div>)}</div>}
+            <small className="vendedor-ayuda-campo">Si el cierre es anterior a la apertura, la franja termina al día siguiente.</small>
+          </section>
+          <div className="vendedor-form-acciones"><span>Todo listo para tus clientes.</span><button type="button" className="vendedor-btn vendedor-btn-secundario" onClick={onCancelar}>Cancelar</button><button type="submit" className="vendedor-btn vendedor-btn-primario" aria-busy={loading}>{loading ? <IconoEstado tipo="cargando" tamano={18} /> : <IconoVendedor nombre="guardar" tamano={18} />}{loading ? 'Guardando...' : esEdicion ? 'Guardar cambios' : 'Registrar local'}</button></div>
         </div>
-
-        <div>
-          <label style={{ fontWeight: 'bold', color: '#555', fontSize: '14px', display: 'block', marginBottom: '8px' }}>Categorías del negocio (Elige varias)</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {CATEGORIAS_DISPONIBLES.map(cat => {
-              const isSelected = tiposActuales.includes(cat.id);
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => toggleCategoria(cat.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '20px', cursor: 'pointer',
-                    fontSize: '14px', fontWeight: isSelected ? 'bold' : 'normal',
-                    border: isSelected ? '1px solid #ff4500' : '1px solid #ddd',
-                    backgroundColor: isSelected ? '#fff0eb' : '#fff',
-                    color: isSelected ? '#ff4500' : '#444',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <span>{cat.emoji}</span> {cat.id}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <fieldset style={{ margin: 0, padding: '15px', border: '1px solid #e5e5e5', borderRadius: '8px', minWidth: 0 }}>
-          <legend style={{ fontWeight: 'bold', color: '#555' }}>Horarios de recogida</legend>
-          
-          {esEdicion && restaurante.horarios_recogida == null && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#555', marginBottom: '12px' }}>
-              <input type="checkbox" checked={configurarHorarios} onChange={e => setConfigurarHorarios(e.target.checked)} />
-              Configurar horarios de recogida
-            </label>
-          )}
-          
-          {!configurarHorarios && (
-            <p style={{ fontSize: '13px', color: '#666' }}>Este local aún no tiene horarios de recogida definidos. Puedes configurarlos al editarlo.</p>
-          )}
-
-          {configurarHorarios && (
-            <>
-              <p style={{ margin: '0 0 15px', fontSize: '13px', color: '#666' }}>
-                Selecciona los días y las horas en que los clientes pueden recoger sus pedidos (hora peninsular).
-                Puedes añadir varias franjas para separar comida y cena. Si la hora de cierre es anterior a la de apertura, termina al día siguiente.
-              </p>
-              
-              {horariosRecogida.map((horario, dia) => (
-                <div key={dia} style={{ padding: '10px 0', borderTop: dia ? '1px solid #eee' : 'none' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#444', marginBottom: '8px' }}>
-                    <input type="checkbox" checked={horario.activo} onChange={e => actualizarDia(dia, h => ({ ...h, activo: e.target.checked }))} />
-                    {DIAS_RECOGIDA[dia]}
-                    {!horario.activo && <span style={{ fontWeight: 'normal', color: '#888', fontSize: '13px' }}>Sin recogida</span>}
-                  </label>
-                  
-                  {horario.activo && (
-                    <>
-                      {horario.franjas.map((franja, indice) => (
-                        <div key={indice} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                          <label style={{ flex: '1 1 130px', fontSize: '13px', color: '#555' }}>
-                            Desde
-                            <input type="time" required aria-label={`${DIAS_RECOGIDA[dia]}, inicio de franja ${indice + 1}`} value={franja.inicio}
-                              onChange={e => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.map((f, i) => i === indice ? { ...f, inicio: e.target.value } : f) }))}
-                              style={{ ...inputStyle, marginTop: '4px' }} />
-                          </label>
-                          <label style={{ flex: '1 1 130px', fontSize: '13px', color: '#555' }}>
-                            Hasta
-                            <input type="time" required aria-label={`${DIAS_RECOGIDA[dia]}, fin de franja ${indice + 1}`} value={franja.fin}
-                              onChange={e => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.map((f, i) => i === indice ? { ...f, fin: e.target.value } : f) }))}
-                              style={{ ...inputStyle, marginTop: '4px' }} />
-                          </label>
-                          {horario.franjas.length > 1 && (
-                            <button type="button" aria-label={`Eliminar franja ${indice + 1} del ${DIAS_RECOGIDA[dia]}`}
-                              onClick={() => actualizarDia(dia, h => ({ ...h, franjas: h.franjas.filter((_, i) => i !== indice) }))}
-                              style={{ background: '#fff', border: '1px solid #ddd', padding: '10px', borderRadius: '6px', cursor: 'pointer', color: '#c0392b' }}>
-                              Eliminar
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      <button type="button" disabled={horario.franjas.length >= 4}
-                        onClick={() => actualizarDia(dia, h => ({ ...h, franjas: [...h.franjas, { inicio: '', fin: '' }] }))}
-                        style={{ border: 'none', background: 'none', color: '#0066cc', padding: '4px 0', cursor: 'pointer', fontWeight: 'bold' }}>
-                        + Añadir franja
-                      </button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </>
-          )}
-        </fieldset>
-
-        <div>
-          <label style={{ fontWeight: 'bold', color: '#555', fontSize: '14px', display: 'block', marginBottom: '5px' }}>Teléfono de contacto</label>
-          <input type="tel" placeholder="Ej: +34 600 123 456" required value={formData.telefono} onChange={(e) => setFormData({...formData, telefono: e.target.value})} style={inputStyle} />
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555' }}>
-            Radio máximo de reparto (Km): 🛵
-          </label>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <select 
-              value={radioSeleccion} 
-              onChange={(e) => setRadioSeleccion(e.target.value)}
-              style={{ ...inputStyle, flex: 1, minWidth: '200px' }}
-            >
-              <option value="3">3 km (Cercano / Zona céntrica)</option>
-              <option value="5">5 km (Estándar ciudad)</option>
-              <option value="10">10 km (Amplio / Extendido)</option>
-              <option value="20">20 km (Todo el municipio)</option>
-              <option value="otro">⚙️ Otra distancia (Personalizada)</option>
-            </select>
-            
-            {radioSeleccion === 'otro' && (
-              <input 
-                type="number" 
-                placeholder="Ej: 7.5" 
-                step="0.1"
-                min="0.1"
-                required={radioSeleccion === 'otro'}
-                value={radioPersonalizado}
-                onChange={(e) => setRadioPersonalizado(e.target.value)}
-                style={{ ...inputStyle, width: '120px' }}
-              />
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555' }}>
-            Imagen de Portada <span style={{ color: 'red' }}>* (Obligatorio panorámica, min 800px)</span>:
-          </label>
-          {esEdicion && formData.imagen_url && <p style={{ margin: '0 0 8px', color: '#666', fontSize: '13px' }}>La portada actual se conserva. Selecciona otra imagen si quieres cambiarla.</p>}
-          <input 
-            type="file" 
-            accept="image/jpeg, image/png, image/webp, image/gif" 
-            onChange={handleImageChange} 
-            required={!formData.imagen_url} 
-            style={inputStyle} 
-          />
-          {formData.imagen_url && <img src={formData.imagen_url} alt="Vista previa" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', marginTop: '10px' }} />}
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
-          <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555' }}>
-            Encuentra tu dirección (esto actualizará el mapa y tu dirección pública):
-          </label>
-
-          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
-            <input 
-              type="text" 
-              placeholder="Ej: Gran Vía 12, Madrid..." 
-              value={busqueda} 
-              onChange={handleChangeBuscador} 
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} 
-            />
-            {buscando && <span style={{ position: 'absolute', right: '10px', top: '12px', fontSize: '12px', color: '#888' }}>Buscando...</span>}
-
-            {sugerencias.length > 0 && (
-              <ul style={{ 
-                listStyle: 'none', padding: 0, margin: 0, 
-                border: '1px solid #ccc', borderRadius: '6px', 
-                maxHeight: '200px', overflowY: 'auto', 
-                background: '#fff', position: 'absolute', 
-                zIndex: 1000, width: '100%', top: '100%', marginTop: '4px',
-                boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-              }}>
-                {sugerencias.map((lugar, i) => (
-                  <li 
-                    key={i} 
-                    onClick={() => seleccionarSugerencia(lugar)} 
-                    style={{ padding: '12px', borderBottom: '1px solid #eee', cursor: 'pointer', fontSize: '14px', color: '#333' }} 
-                    onMouseEnter={(e) => e.target.style.background = '#f5f5f5'} 
-                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                  >
-                    📍 {lugar.display_name}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div style={{ border: '2px solid #eaeaea', borderRadius: '8px', overflow: 'hidden', position: 'relative', zIndex: 1, marginTop: '10px' }}>
-            <MapContainer center={centroMapa} zoom={14} style={{ height: '250px', width: '100%' }}>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <CapturadorUbicacion posicion={posicion} setPosicion={setPosicion} />
-              <RecentrarMapa lat={centroMapa[0]} lng={centroMapa[1]} />
-            </MapContainer>
-          </div>
-        </div>
-
-        <button type="submit" disabled={loading} style={{ padding: '1rem', background: '#ff4500', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', marginTop: '15px' }}>
-          {loading ? (esEdicion ? 'Guardando...' : 'Registrando...') : (esEdicion ? 'Guardar cambios' : '🚀 Registrar Negocio')}
-        </button>
-        {esEdicion && <button type="button" onClick={onCancelar} disabled={loading} style={{ padding: '1rem', background: '#f3f4f6', color: '#444', border: '1px solid #ddd', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>}
-      </form>
-    </div>
-  );
+        <aside className="vendedor-preview" aria-label="Vista previa del local"><p className="vendedor-preview-titulo"><IconoVendedor nombre="imagen" tamano={16} />Así se presenta tu local</p><article className="vendedor-local-card"><div className="vendedor-local-portada">{formData.imagen_url ? <img src={formData.imagen_url} alt="Vista previa de la portada" /> : <div className="vendedor-local-sin-foto"><IconoVendedor nombre="local" tamano={48} /></div>}</div><div className="vendedor-local-body"><div className="vendedor-tags">{formData.tipo.map(tipo => <span className="vendedor-tag" key={tipo}>{textoCategoriaLocal(tipo)}</span>)}</div><h2>{formData.nombre || 'El nombre de tu local'}</h2><div className="vendedor-preview-datos"><p><IconoVendedor nombre="mapa" tamano={16} /><span>{formData.direccion || 'Tu dirección, aquí'}</span></p><p><IconoVendedor nombre="telefono" tamano={16} /><span>{formData.telefono || 'Tu teléfono de contacto'}</span></p><p><IconoVendedor nombre="radio" tamano={16} /><span>{radioSeleccion === 'otro' ? radioPersonalizado || '—' : radioSeleccion} km de reparto</span></p></div></div></article><p className="vendedor-preview-nota">Una buena foto y los datos al día ayudan a que tus clientes te encuentren y elijan.</p></aside>
+      </div>
+      </fieldset>
+    </form>
+  </>;
 }

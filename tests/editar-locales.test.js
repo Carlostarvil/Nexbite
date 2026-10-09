@@ -58,6 +58,14 @@ test('rechaza sesiones anónimas y cuentas que no son de vendedor antes de escri
   assert.equal(llamadas.length, 0);
 });
 
+test('permite editar las categorías múltiples del registro y conserva la configuración de envío', async () => {
+  const { actualizar } = almacenPrueba();
+  const tipo = 'RESTAURANTE, PIZZA, HAMBURGUESAS|ENVIO:2.50';
+  const resultado = await actualizar(null, { ...datos, tipo }, propietario);
+  assert.equal(resultado.tipo, tipo);
+  assert.equal(resultado.aceptando_pedidos, false);
+});
+
 test('no permite modificar un local ajeno ni uno inexistente', async () => {
   const { actualizar, filas } = almacenPrueba();
   await assert.rejects(actualizar(null, { ...datos, id_restaurante: '10' }, propietario), /no te pertenece/);

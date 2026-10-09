@@ -8,8 +8,9 @@ export default function Header({ isLoggedIn = true, onInicio, onLogout, cantidad
   const esCliente = userRol !== 'VENDEDOR';
 
   return (
-    <header className={`nexbite-header${esCliente && isLoggedIn ? '' : ' nexbite-header-vendedor'}`}>
+    <header className={`nexbite-header${esCliente && isLoggedIn ? '' : ' nexbite-header-vendedor'}${isLoggedIn && !esCliente ? ' nexbite-header-espacio-vendedor' : ''}`}>
       <button type="button" className="header-marca" onClick={onInicio} aria-label="NexBite, inicio">NexBite</button>
+      {isLoggedIn && !esCliente && <div className="header-espacio-vendedor"><span aria-hidden="true" />Espacio vendedor</div>}
 
       {/* SOLO SE MUESTRA SI HA INICIADO SESIÓN Y ES CLIENTE */}
       {isLoggedIn && esCliente && <>

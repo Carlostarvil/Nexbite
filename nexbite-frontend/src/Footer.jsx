@@ -25,13 +25,13 @@ export default function Footer({ userRol, onNavegar, onAcceder, bloqueado = fals
           <div className="footer-presentacion">
             <button type="button" className="footer-marca" aria-label={sesionIniciada ? 'Volver al inicio de NexBite' : 'Acceder a NexBite'}
               onClick={() => sesionIniciada ? onNavegar('inicio') : onAcceder?.()}>NexBite<span aria-hidden="true">.</span></button>
-            <p>Tu próxima comida empieza cerca.</p>
-            <span>Descubre locales de tu zona y disfruta de tus favoritos a domicilio o para recoger.</span>
+            <p>{esVendedor ? 'Tu negocio, cada día más cerca.' : 'Tu próxima comida empieza cerca.'}</p>
+            <span>{esVendedor ? 'Un espacio para cuidar tus locales, presentar tus productos y gestionar cada pedido.' : 'Descubre locales de tu zona y disfruta de tus favoritos a domicilio o para recoger.'}</span>
           </div>
           <div className="footer-ventajas" aria-label="Opciones de NexBite">
-            <div><IconoFooter tipo="ubicacion" /><span>Locales cerca de ti</span></div>
-            <div><IconoFooter tipo="pedido" /><span>Entrega y recogida</span></div>
-            <div><IconoFooter tipo="pago" /><span>Tarjeta o efectivo</span></div>
+            <div><IconoFooter tipo="ubicacion" /><span>{esVendedor ? 'Tus locales' : 'Locales cerca de ti'}</span></div>
+            <div><IconoFooter tipo="pedido" /><span>{esVendedor ? 'Tus productos y pedidos' : 'Entrega y recogida'}</span></div>
+            <div><IconoFooter tipo="pago" /><span>{esVendedor ? 'Todo bajo tu control' : 'Tarjeta o efectivo'}</span></div>
           </div>
         </div>
 
@@ -61,7 +61,7 @@ export default function Footer({ userRol, onNavegar, onAcceder, bloqueado = fals
             </ul>
           </nav>
           <nav aria-label="Información para restaurantes">
-            <h2>Para restaurantes</h2>
+            <h2>{esVendedor ? 'Tu negocio' : 'Para restaurantes'}</h2>
             <ul>
               {sesionIniciada && esVendedor && <>
                 {accion('Mis locales', 'locales')}

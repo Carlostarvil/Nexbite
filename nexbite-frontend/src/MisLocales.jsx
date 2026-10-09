@@ -2,120 +2,59 @@ import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import { useState } from 'react';
 import RegistroRestaurante from './RegistroRestaurante';
+import MensajeAccion from './MensajeAccion';
+import { IconoVendedor, TituloVendedor, MetricasVendedor, VacioVendedor, CargandoVendedor, ErrorVendedor } from './VendedorUI';
+import { categoriasLocal, textoCategoriaLocal, fechaVendedor } from './vendedorUtils';
 
-// MODIFICACIÓN: Añadimos 'tiempo_reactivacion' a la consulta
 const OBTENER_MIS_RESTAURANTES = gql`
   query ObtenerMisRestaurantes {
     obtenerMisRestaurantes {
-      id_restaurante
-      nombre
-      tipo
-      imagen_url
-      aceptando_pedidos
-      tiempo_reactivacion
-      latitud
-      longitud
-      radio_cobertura_km
-      telefono
-      direccion
+      id_restaurante nombre tipo imagen_url aceptando_pedidos tiempo_reactivacion
+      latitud longitud radio_cobertura_km telefono direccion
       horarios_recogida { dia inicio fin }
     }
   }
 `;
 
-// Función para formatear fechas
-const formatearFecha = (fechaStr) => {
-  if (!fechaStr || String(fechaStr).includes('Indefinido')) return 'Sin estimación';
-  const timestamp = !isNaN(fechaStr) && String(fechaStr).trim() !== '' ? Number(fechaStr) : fechaStr;
-  const fecha = new Date(timestamp);
-  if (isNaN(fecha.getTime())) return String(fechaStr); 
-  return fecha.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-};
-
-export default function MisLocales({ onCrearNuevo, onGestionarMenu, onGestionarPedidos }) {
+export default function MisLocales({ onCrearNuevo, onGestionarMenu, onGestionarPedidos, onLocalActualizado, mensajeInicial, onCerrarMensaje }) {
   const [localEdicion, setLocalEdicion] = useState(null);
-  const [aviso, setAviso] = useState('');
-  const { loading, error, data, refetch } = useQuery(OBTENER_MIS_RESTAURANTES, { fetchPolicy: 'network-only' });
+  const [aviso, setAviso] = useState(null);
+  const [busqueda, setBusqueda] = useState('');
+  const [filtro, setFiltro] = useState('TODOS');
+  const { loading, error, data, refetch } = useQuery(OBTENER_MIS_RESTAURANTES, { fetchPolicy: 'network-only', notifyOnNetworkStatusChange: true });
+  const locales = data?.obtenerMisRestaurantes || [];
+  const abiertos = locales.filter(local => local.aceptando_pedidos !== false).length;
+  const visibles = locales.filter(local => (filtro === 'TODOS' || (filtro === 'ABIERTOS' ? local.aceptando_pedidos !== false : local.aceptando_pedidos === false)) && (local.nombre + ' ' + (local.direccion || '')).toLocaleLowerCase('es-ES').includes(busqueda.toLocaleLowerCase('es-ES')));
+  const volver = () => { setLocalEdicion(null); window.scrollTo(0, 0); };
 
   if (localEdicion) return <RegistroRestaurante key={localEdicion.id_restaurante} restaurante={localEdicion}
-    onCancelar={() => setLocalEdicion(null)}
-    onGuardado={() => {
-      setLocalEdicion(null);
-      setAviso('Los cambios del local se han guardado.');
-      refetch().catch(() => setAviso('Los cambios se han guardado, pero no se ha podido actualizar la lista.'));
+    onCancelar={volver} onGuardado={local => {
+      volver(); onLocalActualizado?.(local);
+      setAviso({ tipo: 'exito', titulo: 'Tu local ya está actualizado', descripcion: 'La información se ha guardado y tus clientes verán los cambios.' });
+      refetch().catch(() => setAviso({ tipo: 'aviso', titulo: 'Cambios guardados', descripcion: 'No hemos podido actualizar la lista. Pulsa «Volver a intentar» para verla de nuevo.' }));
     }} />;
 
-  if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Cargando tus negocios...</div>;
-  if (error) return <div style={{ padding: '2rem', color: 'red' }}>
-    {aviso && <p role="status">{aviso}</p>}
-    <p>Error al cargar: {error.message}</p>
-    <button onClick={() => refetch().catch(() => null)}>Volver a intentar</button>
-  </div>;
-
-  const locales = data?.obtenerMisRestaurantes || [];
-
-  return (
-    <div style={{ padding: '2rem', maxWidth: '1000px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '15px' }}>
-        <h2 style={{ color: '#333', margin: 0 }}>🏪 Mis Negocios</h2>
-        <button onClick={onCrearNuevo} style={{ padding: '0.8rem 1.5rem', background: '#ff4500', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-          + Registrar Nuevo Local
-        </button>
-      </div>
-
-      {aviso && <p role="status" style={{ padding: '12px 15px', borderRadius: '8px', background: '#e8f5e9', color: '#256029', marginTop: 0 }}>{aviso}</p>}
-
-      {locales.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem', background: '#fff', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-          <h3>Aún no tienes ningún negocio registrado</h3>
-          <p style={{ color: '#666' }}>Haz clic en el botón de arriba para registrar tu primer local y empezar a vender.</p>
+  return <>
+    <TituloVendedor titulo="Mis locales" contexto="Tu espacio NexBite" descripcion="Cuida cada detalle de tu negocio, desde la carta hasta el último pedido." acciones={<button type="button" className="vendedor-btn vendedor-btn-primario" onClick={onCrearNuevo}><IconoVendedor nombre="plus" />Registrar un local</button>} />
+    <MensajeAccion mensaje={aviso || mensajeInicial} onCerrar={() => { setAviso(null); onCerrarMensaje?.(); }} />
+    {loading && !data ? <CargandoVendedor texto="Preparando tus locales..." /> : error ? <ErrorVendedor descripcion="Comprueba tu conexión para ver tus locales. Los cambios guardados se conservan." onReintentar={() => refetch().catch(() => null)} /> : <>
+      <MetricasVendedor items={[{ etiqueta: 'Tus locales', valor: locales.length, icono: 'local' }, { etiqueta: 'Abiertos', valor: abiertos, icono: 'check', tono: 'verde' }, { etiqueta: 'En pausa', valor: locales.length - abiertos, icono: 'pausa', tono: 'ambar' }]} />
+      {locales.length === 0 ? <VacioVendedor titulo="Tu próximo gran comienzo" descripcion="Añade tu primer local, prepara tus productos y empieza a recibir pedidos." accion={<button type="button" className="vendedor-btn vendedor-btn-oscuro" onClick={onCrearNuevo}><IconoVendedor nombre="plus" />Crear mi primer local</button>} /> : <>
+        <div className="vendedor-toolbar">
+          <div className="vendedor-busqueda"><IconoVendedor nombre="buscar" /><input aria-label="Buscar mis locales" placeholder="Busca un local o una dirección" value={busqueda} onChange={e => setBusqueda(e.target.value)} /></div>
+          <div className="vendedor-filtros" role="group" aria-label="Filtrar locales">{[['TODOS', 'Todos'], ['ABIERTOS', 'Abiertos'], ['PAUSADOS', 'En pausa']].map(([valor, nombre]) => <button type="button" key={valor} aria-pressed={filtro === valor} onClick={() => setFiltro(valor)}>{nombre}</button>)}</div>
         </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: '1.5rem' }}>
-          {locales.map(local => (
-            <div key={local.id_restaurante} style={{ background: '#fff', border: '1px solid #eaeaea', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-              {local.imagen_url ? (
-                <img src={local.imagen_url} alt={local.nombre} style={{ width: '100%', height: '180px', objectFit: 'cover' }} />
-              ) : (
-                <div style={{ width: '100%', height: '180px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>🏪</div>
-              )}
-              <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-                <h3 style={{ margin: '0 0 10px 0' }}>{local.nombre}</h3>
-                <div>
-                  <span style={{ fontSize: '12px', background: '#ffe4cc', color: '#ff4500', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>{local.tipo}</span>
-                  
-                  {/* MODIFICACIÓN: Mostramos la hora exacta en la etiqueta de pausa */}
-                  {local.aceptando_pedidos === false && (
-                    <span style={{ fontSize: '12px', background: '#ffcccc', color: '#cc0000', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold', marginLeft: '10px' }}>
-                      ⏸️ Pausado (Vuelve: {formatearFecha(local.tiempo_reactivacion)})
-                    </span>
-                  )}
-                </div>
-                
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: 'auto', paddingTop: '15px' }}>
-                  <button type="button" aria-label={`Editar ${local.nombre}`}
-                    onClick={() => { setAviso(''); setLocalEdicion(local); }}
-                    style={{ flex: '1 1 80px', padding: '0.8rem', background: '#f3f4f6', color: '#333', border: '1px solid #ddd', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
-                    ✏️ Editar
-                  </button>
-                  <button 
-                    onClick={() => onGestionarMenu(local)} 
-                    style={{ flex: 1, padding: '0.8rem', background: '#0066cc', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'background 0.2s', fontSize: '14px' }}
-                  >
-                    📋 Menú
-                  </button>
-                  <button 
-                    onClick={() => onGestionarPedidos(local)} 
-                    style={{ flex: 1, padding: '0.8rem', background: '#28a745', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'background 0.2s', fontSize: '14px' }}
-                  >
-                    🛵 Pedidos
-                  </button>
-                </div>
-              </div>
+        {visibles.length === 0 ? <VacioVendedor icono="buscar" titulo="No encontramos ese local" descripcion="Prueba con otro nombre o cambia el filtro." accion={<button type="button" className="vendedor-btn vendedor-btn-secundario" onClick={() => { setBusqueda(''); setFiltro('TODOS'); }}>Ver todos los locales</button>} /> : <div className="vendedor-grid-locales">
+          {visibles.map(local => <article className="vendedor-local-card" key={local.id_restaurante} aria-label={local.nombre}>
+            <div className="vendedor-local-portada">{local.imagen_url ? <img src={local.imagen_url} alt={local.nombre} loading="lazy" /> : <div className="vendedor-local-sin-foto"><IconoVendedor nombre="local" tamano={48} /></div>}<span className={'vendedor-badge' + (local.aceptando_pedidos === false ? ' vendedor-badge-cerrado' : '')}>{local.aceptando_pedidos === false ? 'En pausa' : 'Abierto'}</span></div>
+            <div className="vendedor-local-body">
+              <div className="vendedor-tags">{categoriasLocal(local.tipo).map(tipo => <span className="vendedor-tag" key={tipo}>{textoCategoriaLocal(tipo)}</span>)}</div><h2>{local.nombre}</h2>
+              <div className="vendedor-local-info"><p><IconoVendedor nombre="mapa" /><span>{local.direccion || 'Dirección sin completar'}</span></p><p><IconoVendedor nombre="telefono" /><span>{local.telefono || 'Teléfono sin completar'}</span></p><p><IconoVendedor nombre="radio" /><span>Reparto hasta {local.radio_cobertura_km ?? 10} km</span></p>{local.aceptando_pedidos === false && <p><IconoVendedor nombre="reloj" /><span>{local.tiempo_reactivacion ? 'Reabre: ' + fechaVendedor(local.tiempo_reactivacion) : 'Reanúdalo cuando estés listo'}</span></p>}</div>
+              <div className="vendedor-local-acciones"><button type="button" className="vendedor-btn vendedor-btn-oscuro" onClick={() => onGestionarMenu(local)} aria-label={'Gestionar menú de ' + local.nombre}><IconoVendedor nombre="menu" tamano={17} />Menú</button><button type="button" className="vendedor-btn vendedor-btn-secundario" onClick={() => onGestionarPedidos(local)} aria-label={'Gestionar pedidos de ' + local.nombre}><IconoVendedor nombre="pedidos" tamano={17} />Pedidos</button><button type="button" className="vendedor-btn-icono" aria-label={'Editar ' + local.nombre} title="Editar local" onClick={() => { setAviso(null); setLocalEdicion(local); window.scrollTo(0, 0); }}><IconoVendedor nombre="editar" tamano={18} /></button></div>
             </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+          </article>)}
+        </div>}
+      </>}
+    </>}
+  </>;
 }

@@ -15,6 +15,7 @@ import { crearConsultasZona } from './consultasZona.js';
 import { crearBuscadorDirecciones } from './direcciones.js';
 import { crearOperacionesPago } from './pagos.js';
 import { crearResolversImagenesMenu, crearPlatoConItems } from './imagenesMenu.js';
+import { crearEditorPlato } from './editarPlato.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const operacionesPago = crearOperacionesPago(pool, stripe);
@@ -132,7 +133,7 @@ export const resolvers = {
 
     obtenerRestaurantesSimilares: async (_, { id_restaurante }) => (await pool.query(`SELECT r2.* FROM Restaurantes r1 JOIN Restaurantes r2 ON r1.tipo = r2.tipo AND r1.id_restaurante != r2.id_restaurante WHERE r1.id_restaurante = $1 LIMIT 5;`, [id_restaurante])).rows,
 
-    obtenerPedidosVendedor: async (_, { id_restaurante }) => (await pool.query(`SELECT pe.id_pedido, pe.id_restaurante, pe.estado, pe.metodo_pago, pe.direccion_envio, pl.nombre AS nombre_plato FROM Pedidos pe JOIN Platos pl ON pe.id_plato = pl.id_plato WHERE pe.id_restaurante = $1 ORDER BY pe.id_pedido DESC`, [id_restaurante])).rows,
+    obtenerPedidosVendedor: async (_, { id_restaurante }) => (await pool.query(`SELECT pe.id_pedido, pe.id_restaurante, pe.estado, pe.metodo_pago, pe.direccion_envio, pe.fecha_pedido, pe.fecha_programada, pl.nombre AS nombre_plato, pl.imagen_url AS imagen_plato FROM Pedidos pe LEFT JOIN Platos pl ON pe.id_plato = pl.id_plato WHERE pe.id_restaurante = $1 ORDER BY pe.id_pedido DESC`, [id_restaurante])).rows,
 
     obtenerPedidosCliente: async (_, { id_usuario }) => {
       const res = await pool.query(`
@@ -539,6 +540,7 @@ export const resolvers = {
     actualizarNegocio: crearActualizadorNegocio(pool),
 
     crearPlato: crearPlatoConItems(pool),
+    actualizarPlato: crearEditorPlato(pool),
 
     alternarFavorito: async (_, { id_restaurante }, ctx) => {
       const existe = await pool.query(

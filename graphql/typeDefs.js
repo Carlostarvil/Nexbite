@@ -181,6 +181,17 @@ export const typeDefs = `#graphql
         platos_existentes: [ID!]
     ): Plato
 
+    actualizarPlato(
+        id_plato: ID!,
+        id_restaurante: ID!,
+        nombre: String!,
+        descripcion: String!,
+        precio: Float!,
+        categoria: [String]!,
+        imagen_url: String,
+        platos_existentes: [ID!]
+    ): Plato
+
     alternarFavorito(id_restaurante: ID!): String
     alternarFavoritoPlato(id_plato: ID!): String
 

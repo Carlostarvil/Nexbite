@@ -12,6 +12,8 @@ import MisFavoritos from './MisFavoritos';
 import MisLocales from './MisLocales'; 
 import GestorMenu from './GestorMenu'; 
 import GestorPedidos from './GestorPedidos'; 
+import EspacioVendedor from './EspacioVendedor';
+import PerfilVendedor from './PerfilVendedor';
 import ErrorBoundary from './ErrorBoundary'; 
 import DetallePlato from './DetallePlato'; 
 import PerfilUsuario from './PerfilUsuario';
@@ -113,6 +115,7 @@ function App() {
 
   const [vistaVendedor, setVistaVendedor] = useState('MIS_LOCALES'); 
   const [localSeleccionado, setLocalSeleccionado] = useState(null); 
+  const [mensajeVendedor, setMensajeVendedor] = useState(null);
   
   const [categoriaFiltroInicio, setCategoriaFiltroInicio] = useState(null);
   
@@ -354,7 +357,7 @@ function App() {
   return (
     <EstadoCarritoContext.Provider value={{ carrito, restarDelCarrito }}>
     <ErrorBoundary>
-      <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: '#ffffff', position: 'relative' }}>
+      <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: userRol === 'VENDEDOR' ? '#f7f9f5' : '#ffffff', position: 'relative' }}>
         <div className="header-contenedor" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)}>
         <Header 
           onInicio={handleInicio} onLogout={handleCerrarSesion} 
@@ -376,16 +379,25 @@ function App() {
         />
         </div>
 
-        <main className="nexbite-contenido" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)} style={{ padding: 'clamp(1rem, 4vw, 2rem)', maxWidth: '1200px', margin: '0 auto' }}>
+        <main className="nexbite-contenido" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)} style={{ padding: 'clamp(1rem, 4vw, 2rem)', maxWidth: userRol === 'VENDEDOR' ? '1440px' : '1200px', margin: '0 auto' }}>
           
-          {mostrarPerfil ? (
+          {userRol === 'VENDEDOR' ? (
+            <EspacioVendedor vista={mostrarPerfil ? 'PERFIL' : vistaVendedor} local={localSeleccionado} onNavegar={vista => {
+              if (vista === 'PERFIL') abrirPerfil();
+              else { setMostrarPerfil(false); setVistaVendedor(vista); }
+            }}>
+              {mostrarPerfil ? <PerfilVendedor idUsuario={userId} onVerLocales={() => { setMostrarPerfil(false); setVistaVendedor('MIS_LOCALES'); }} />
+              : vistaVendedor === 'REGISTRAR' ? <RegistroRestaurante onCancelar={() => setVistaVendedor('MIS_LOCALES')} onGuardado={local => {
+                setMensajeVendedor({ tipo: 'exito', titulo: '¡Tu local ya está en NexBite!', descripcion: local.nombre + ' está listo. Añade tus productos desde «Menú».' });
+                setVistaVendedor('MIS_LOCALES');
+              }} />
+              : vistaVendedor === 'GESTOR_MENU' && localSeleccionado ? <GestorMenu key={localSeleccionado.id_restaurante} idRestaurante={localSeleccionado.id_restaurante} nombreRestaurante={localSeleccionado.nombre} />
+              : vistaVendedor === 'GESTOR_PEDIDOS' && localSeleccionado ? <GestorPedidos key={localSeleccionado.id_restaurante} idRestaurante={localSeleccionado.id_restaurante} nombreRestaurante={localSeleccionado.nombre} estadoPausa={localSeleccionado.aceptando_pedidos} onEstadoLocal={cambios => setLocalSeleccionado(local => ({ ...local, ...cambios }))} />
+              : <MisLocales mensajeInicial={mensajeVendedor} onCerrarMensaje={() => setMensajeVendedor(null)} onCrearNuevo={() => setVistaVendedor('REGISTRAR')} onGestionarMenu={local => { setLocalSeleccionado(local); setVistaVendedor('GESTOR_MENU'); }} onGestionarPedidos={local => { setLocalSeleccionado(local); setVistaVendedor('GESTOR_PEDIDOS'); }} onLocalActualizado={local => setLocalSeleccionado(anterior => anterior?.id_restaurante === local.id_restaurante ? local : anterior)} />}
+            </EspacioVendedor>
+          ) : mostrarPerfil ? (
             <PerfilUsuario irAPedidos={irAPedidosPerfil} onVolver={() => setMostrarPerfil(false)} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={abrirDetalleDesdePedido} />
           
-          ) : userRol === 'VENDEDOR' ? (
-            vistaVendedor === 'REGISTRAR' ? <RegistroRestaurante />
-            : vistaVendedor === 'GESTOR_MENU' ? <GestorMenu idRestaurante={localSeleccionado.id_restaurante} nombreRestaurante={localSeleccionado.nombre} />
-            : vistaVendedor === 'GESTOR_PEDIDOS' ? <GestorPedidos idRestaurante={localSeleccionado.id_restaurante} nombreRestaurante={localSeleccionado.nombre} estadoPausa={localSeleccionado.aceptando_pedidos} />
-            : <MisLocales onCrearNuevo={() => setVistaVendedor('REGISTRAR')} onGestionarMenu={(local) => { setLocalSeleccionado(local); setVistaVendedor('GESTOR_MENU'); }} onGestionarPedidos={(local) => { setLocalSeleccionado(local); setVistaVendedor('GESTOR_PEDIDOS'); }} />
           ) : (
             
             !ubicacionEntrega ? (

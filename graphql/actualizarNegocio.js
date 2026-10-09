@@ -9,8 +9,10 @@ export function crearActualizadorNegocio(pool) {
       throw new Error('Inicia sesión como vendedor para editar un local.');
     }
     if (!nombre.trim()) throw new Error('El nombre del local es obligatorio.');
-    if (!['RESTAURANTE', 'SUPERMERCADO', 'FARMACIA'].includes(tipo)) {
-      throw new Error('Selecciona un tipo de negocio válido.');
+    const categorias = tipo.split('|')[0].split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+    const permitidas = ['RESTAURANTE', 'SUPERMERCADO', 'FARMACIA', 'HAMBURGUESAS', 'PIZZA', 'DESAYUNO', 'ASIÁTICA', 'SANA', 'AMERICANA', 'POSTRES', 'SÁNDWICHES', 'MEXICANA', 'POLLO'];
+    if (!categorias.length || categorias.some(c => !permitidas.includes(c))) {
+      throw new Error('Selecciona categorías válidas para tu negocio.');
     }
     if (!telefono.trim()) throw new Error('El teléfono de contacto es obligatorio.');
     if (!imagen_url.trim()) throw new Error('La imagen de portada es obligatoria.');
