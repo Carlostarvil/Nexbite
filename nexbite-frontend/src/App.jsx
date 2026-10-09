@@ -19,12 +19,10 @@ import DetallePlato from './DetallePlato';
 import PerfilUsuario from './PerfilUsuario';
 import CarruselPlatos from './CarruselPlatos';
 import CategoriasInicio from './CategoriasInicio';
-import EtiquetasLocal from './EtiquetasLocal';
+import TarjetaLocalInicio from './TarjetaLocalInicio';
+import TarjetaProductoInicio from './TarjetaProductoInicio';
 import SelectorRecomendaciones from './SelectorRecomendaciones';
 import TituloSeccion, { ControlesCarrusel } from './TituloSeccion';
-import BotonAgregarCarrito from './BotonAgregarCarrito';
-import ImagenPlato from './ImagenPlato';
-import EstadoDisponibilidad from './EstadoDisponibilidad';
 import AvisoCarrito from './AvisoCarrito';
 import ConfirmacionPedido from './ConfirmacionPedido';
 import { EstadoCarritoContext } from './estadoCarrito';
@@ -418,8 +416,8 @@ function App() {
                 <CategoriasInicio seleccionada={categoriaFiltroInicio} onSeleccionar={setCategoriaFiltroInicio} />
 
                 {platosEnOferta.length > 0 && !categoriaFiltroInicio && (
-                  <div style={{ marginTop: '2rem', padding: '1rem', background: '#ffebee', borderRadius: '16px', border: '1px solid #ffcdd2' }}>
-                    <CarruselPlatos titulo="Ofertas Especiales" descripcion="Aprovecha estos descuentos y chollos increíbles." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(platosEnOferta)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                  <div className="inicio-ofertas">
+                    <CarruselPlatos tarjetasInicio titulo="Ofertas Especiales" descripcion="Aprovecha estos descuentos y chollos increíbles." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(platosEnOferta)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
                   </div>
                 )}
 
@@ -431,41 +429,11 @@ function App() {
                     {/* VISTA DE LOCALES RECOMENDADOS */}
                     <div role="tabpanel" id="recomendaciones-panel-locales" aria-labelledby="recomendaciones-tab-locales" hidden={pestañaElegidoParaTi !== 'LOCALES'} tabIndex={0}>
                       {restaurantesRecomendados.length > 0 ? (
-                      <div className="elegido-para-ti-locales">
-                        {restaurantesRecomendados.map(restaurante => {
-                          const tieneOferta = platosEnOferta.some(p => String(p.id_restaurante) === String(restaurante.id_restaurante));
-                          return (
-                            <div key={`rec-rest-${restaurante.id_restaurante}`} role="button" tabIndex={0} aria-label={'Ver ' + restaurante.nombre} onKeyDown={evento => { if (evento.key === 'Enter' || evento.key === ' ') { evento.preventDefault(); setRestauranteActivo(restaurante.id_restaurante); } }} onClick={() => setRestauranteActivo(restaurante.id_restaurante)} style={{ backgroundColor: '#fff', border: '1px solid #ffcca3', padding: '1.2rem', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', cursor: 'pointer', transition: 'all 0.2s ease', opacity: restaurante.aceptando_pedidos === false ? 0.7 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(255,69,0,0.1)'; e.currentTarget.style.borderColor = '#ff4500'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; e.currentTarget.style.borderColor = '#ffcca3'; }}>
-                              <div style={{ position: 'relative' }}>
-                                {restaurante.imagen_url ? (
-                                    <img src={restaurante.imagen_url} alt={restaurante.nombre} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px' }} />
-                                ) : (
-                                    <div style={{ width: '100%', height: '120px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', fontSize: '1.5rem' }}>🏪</div>
-                                )}
-                                
-                                {tieneOferta && (
-                                  <div style={{ position: 'absolute', top: '10px', left: '10px', background: '#c62828', color: '#fff', padding: '4px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', textTransform: 'uppercase' }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
-                                    Ofertas
-                                  </div>
-                                )}
-                              </div>
-                              
-                              <EtiquetasLocal tipo={restaurante.tipo || 'RESTAURANTE'} className="etiquetas-local-inicio" />
-                              <h3 style={{ margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                  <span style={{ fontSize: '1.1rem', color: '#1a1a1a' }}>{restaurante.nombre}</span>
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', backgroundColor: '#fff5f2', color: '#ff4500', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold', width: 'fit-content' }}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#ffc107" stroke="#ffc107" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                                    {restaurante.calificacion > 0 ? restaurante.calificacion.toFixed(1) : 'Nuevo'}
-                                  </span>
-                                </div>
-                              </h3>
-                              {restaurante.aceptando_pedidos === false && <div style={{ marginBottom: '10px' }}><EstadoDisponibilidad cerrado fecha={restaurante.tiempo_reactivacion} compacto /></div>}
-                              
-                            </div>
-                          );
-                        })}
+                      <div className="elegido-para-ti-locales tarjetas-inicio-grid">
+                        {restaurantesRecomendados.map(restaurante => <TarjetaLocalInicio
+                          key={'rec-rest-' + restaurante.id_restaurante} local={restaurante}
+                          onSeleccionar={setRestauranteActivo}
+                          tieneOferta={platosEnOferta.some(p => String(p.id_restaurante) === String(restaurante.id_restaurante))} />)}
                       </div>
                       ) : (
                         <p className="elegido-para-ti-vacio" role="status"><strong>Aún no tenemos locales para recomendarte.</strong>Añade locales a favoritos o prueba alguno de tu zona.</p>
@@ -475,7 +443,7 @@ function App() {
                     {/* VISTA DE PRODUCTOS RECOMENDADOS */}
                     <div role="tabpanel" id="recomendaciones-panel-productos" aria-labelledby="recomendaciones-tab-productos" hidden={pestañaElegidoParaTi !== 'PRODUCTOS'} tabIndex={0}>
                       {pestañaElegidoParaTi === 'PRODUCTOS' && (platosRecomendados.length > 0 ? (
-                        <CarruselPlatos titulo="" descripcion="" cabeceraInicio={false} mostrarIcono={false} platos={asignarEstadoRestaurante(platosRecomendados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                        <CarruselPlatos tarjetasInicio titulo="" descripcion="" cabeceraInicio={false} mostrarIcono={false} platos={asignarEstadoRestaurante(platosRecomendados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
                       ) : (
                         <p className="elegido-para-ti-vacio" role="status"><strong>Aún no tenemos productos para recomendarte.</strong>Añade productos a favoritos para descubrir recomendaciones.</p>
                       ))}
@@ -486,7 +454,7 @@ function App() {
 
                 {!categoriaFiltroInicio && (
                   <div style={{ marginTop: '2rem' }}>
-                    <CarruselPlatos titulo="Top Ventas" descripcion="Descubre los platos destacados de tu zona." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(data?.obtenerPlatosDestacados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                    <CarruselPlatos tarjetasInicio titulo="Top Ventas" descripcion="Descubre los platos destacados de tu zona." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(data?.obtenerPlatosDestacados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
                   </div>
                 )}
 
@@ -494,50 +462,17 @@ function App() {
                   <div style={{ marginTop: '1rem', marginBottom: '3rem', position: 'relative' }}>
                     <TituloSeccion titulo="¿Repetimos?" descripcion={historialBackend.length === 1 ? 'Tu último pedido.' : `Tus últimos ${historialBackend.length} pedidos.`} acciones={<ControlesCarrusel titulo="¿Repetimos?" onAnterior={() => scrollRepetimos(-300)} onSiguiente={() => scrollRepetimos(300)} />} />
                     
-                    <div ref={repetimosRef} className="ocultar-scrollbar" style={{ position: 'relative', maxWidth: '100%', display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px', scrollBehavior: 'smooth' }}>
+                    <div ref={repetimosRef} className="ocultar-scrollbar carrusel-tarjetas-inicio">
                       {data.obtenerUltimosPedidos.map(pedido => {
                         const puedeRecomprar = pedido.restaurante_abierto && pedido.plato_disponible;
-                        // NUEVA COMPROBACIÓN DE OFERTAS
-                        const esOferta = platosEnOferta.some(p => String(p.id_plato) === String(pedido.id_plato));
-
-                        return (
-                          <div 
-                            key={`reciente-${pedido.id_pedido}`} 
-                            onClick={() => abrirDetalleDesdePedido(pedido)}
-                            style={{ minWidth: '280px', maxWidth: '300px', backgroundColor: '#fff', border: '1px solid #eaeaea', borderRadius: '12px', padding: '1.2rem', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s', opacity: puedeRecomprar ? 1 : 0.7 }}
-                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.08)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.05)'; }}
-                          >
-                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
-                              <ImagenPlato plato={{ nombre: pedido.nombre_plato || 'Plato retirado', imagen_url: pedido.imagen_plato }} style={{ width: '50px', height: '50px', borderRadius: '8px' }} />
-                              <div>
-                                <h4 style={{ margin: '0 0 5px 0', color: '#333', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                  {pedido.nombre_plato || 'Plato retirado'}
-                                  {/* ETIQUETA DE OFERTA EN REPETIMOS */}
-                                  {esOferta && (
-                                    <span style={{ background: '#c62828', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '2px', textTransform: 'uppercase' }}>
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
-                                      Oferta
-                                    </span>
-                                  )}
-                                </h4>
-                                <p style={{ margin: 0, color: '#666', fontSize: '12px' }}>{pedido.nombre_restaurante || 'Restaurante cerrado'}</p>
-                              </div>
-                            </div>
-                            
-                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
-                              <span style={{ fontWeight: 'bold', color: '#000000' }}>{pedido.precio_plato?.toFixed(2)}&nbsp;€</span>
-                              {puedeRecomprar ? (
-                                <BotonAgregarCarrito onAgregar={event => handleRecomprarRapido(event, pedido)} idPlato={pedido.id_plato} nombrePlato={pedido.nombre_plato} variante="repetir" />
-                              ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
-                                  <span style={{ fontSize: '11px', color: '#dc3545', fontWeight: 'bold' }}>No disponible</span>
-                                  <BotonAgregarCarrito onAgregar={event => handleRecomprarRapido(event, pedido)} idPlato={pedido.id_plato} nombrePlato={pedido.nombre_plato} variante="reserva" />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
+                        const productoActual = data.obtenerPlatosDestacados?.find(p => String(p.id_plato) === String(pedido.id_plato));
+                        const plato = { ...productoActual, id_plato: pedido.id_plato, id_restaurante: pedido.id_restaurante,
+                          nombre: pedido.nombre_plato || 'Plato retirado', precio: pedido.precio_plato, descripcion: pedido.descripcion_plato,
+                          nombre_restaurante: pedido.nombre_restaurante, imagen_url: pedido.imagen_plato };
+                        return <TarjetaProductoInicio key={'reciente-' + pedido.id_pedido} plato={plato} repetir
+                          onSeleccionar={() => abrirDetalleDesdePedido(pedido)} onAgregar={(_, event) => handleRecomprarRapido(event, pedido)}
+                          tieneOferta={platosEnOferta.some(p => String(p.id_plato) === String(pedido.id_plato))}
+                          noDisponible={!puedeRecomprar} localCerrado={pedido.restaurante_abierto === false} />;
                       })}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '8px' }}>
@@ -619,45 +554,10 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
-                    {restaurantesFiltrados.map((restaurante) => {
-                      const tieneOferta = platosEnOferta.some(p => String(p.id_restaurante) === String(restaurante.id_restaurante));
-
-                      return (
-                      <div key={restaurante.id_restaurante} onClick={() => setRestauranteActivo(restaurante.id_restaurante)} style={{ backgroundColor: '#fff', border: '1px solid #eaeaea', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: 'pointer', transition: 'all 0.2s ease', opacity: restaurante.aceptando_pedidos === false ? 0.7 : 1 }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(0,0,0,0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}>
-                        
-                        <div style={{ position: 'relative' }}>
-                          {restaurante.imagen_url ? (
-                              <img src={restaurante.imagen_url} alt={restaurante.nombre} style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px' }} />
-                          ) : (
-                              <div style={{ width: '100%', height: '140px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px', fontSize: '2rem' }}>🏪</div>
-                          )}
-                          
-                          {tieneOferta && (
-                            <div style={{ position: 'absolute', top: '10px', left: '10px', background: '#c62828', color: '#fff', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
-                              Ofertas
-                            </div>
-                          )}
-                        </div>
-                        
-                        <EtiquetasLocal tipo={restaurante.tipo || 'RESTAURANTE'} className="etiquetas-local-inicio" />
-                        <h3 style={{ margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <span style={{ fontSize: '1.2rem', color: '#1a1a1a' }}>{restaurante.nombre}</span>
-                            
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '13px', backgroundColor: '#fff5f2', color: '#ff4500', padding: '4px 8px', borderRadius: '8px', fontWeight: 'bold', width: 'fit-content' }}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="#ffc107" stroke="#ffc107" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                              {restaurante.calificacion > 0 ? restaurante.calificacion.toFixed(1) : 'Nuevo'}
-                            </span>
-                          </div>
-
-                        </h3>
-                        {restaurante.aceptando_pedidos === false && <div style={{ marginBottom: '10px' }}><EstadoDisponibilidad cerrado fecha={restaurante.tiempo_reactivacion} compacto /></div>}
-                        
-
-                      </div>
-                    )})}
+                  <div className="tarjetas-inicio-grid">
+                    {restaurantesFiltrados.map(restaurante => <TarjetaLocalInicio key={restaurante.id_restaurante}
+                      local={restaurante} onSeleccionar={setRestauranteActivo}
+                      tieneOferta={platosEnOferta.some(p => String(p.id_restaurante) === String(restaurante.id_restaurante))} />)}
                   </div>
                 )}
 

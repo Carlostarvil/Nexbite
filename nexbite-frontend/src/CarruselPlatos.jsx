@@ -3,6 +3,7 @@ import BotonAgregarCarrito from './BotonAgregarCarrito';
 import TituloSeccion from './TituloSeccion'; 
 import EstadoDisponibilidad from './EstadoDisponibilidad';
 import ImagenPlato from './ImagenPlato';
+import TarjetaProductoInicio from './TarjetaProductoInicio';
 
 // Función para extraer el precio antiguo de la descripción
 const extraerPrecioAnterior = (descripcion) => {
@@ -33,7 +34,7 @@ const esPlatoEnOferta = (plato) => {
 };
 
 
-export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgregarAlCarrito, mostrarIcono = true, cabeceraInicio = false, descripcion, restaurantePausado = false, tiempoReactivacionRestaurante = null }) {
+export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgregarAlCarrito, mostrarIcono = true, cabeceraInicio = false, descripcion, restaurantePausado = false, tiempoReactivacionRestaurante = null, tarjetasInicio = false }) {
   const scrollRef = useRef(null);
   const intervaloRef = useRef(null);
 
@@ -137,8 +138,8 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
       
       <div 
         ref={scrollRef}
-        className="ocultar-scrollbar"
-        style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '15px', scrollBehavior: 'smooth' }}
+        className={'ocultar-scrollbar' + (tarjetasInicio ? ' carrusel-tarjetas-inicio' : '')}
+        style={tarjetasInicio ? undefined : { display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '15px', scrollBehavior: 'smooth' }}
       >
         {platos.map(plato => {
           const estaNoDisponible = restaurantePausado || plato.disponible === false || plato.restaurante_abierto === false;
@@ -146,6 +147,11 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
           const tieneOferta = esPlatoEnOferta(plato);
           
           const localCerrado = restaurantePausado || plato.restaurante_abierto === false;
+
+          if (tarjetasInicio) return <TarjetaProductoInicio key={plato.id_plato} plato={plato}
+            onSeleccionar={onSelectPlato} onAgregar={onAgregarAlCarrito} tieneOferta={tieneOferta}
+            precioAnterior={precioAnterior} noDisponible={estaNoDisponible} localCerrado={localCerrado}
+            fechaDisponible={localCerrado ? tiempoReactivacionRestaurante || plato.tiempo_reactivacion_restaurante : plato.tiempo_disponible} />;
 
           return (
           <div 

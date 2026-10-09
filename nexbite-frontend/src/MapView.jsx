@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import TituloSeccion from './TituloSeccion';
+import TarjetaLocalInicio from './TarjetaLocalInicio';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -23,6 +24,7 @@ const OBTENER_CERCANOS = gql`
       longitud
       distancia_km
       imagen_url
+      calificacion
     }
   }
 `;
@@ -146,28 +148,9 @@ export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega
       {error && <p role="alert" style={{ color: '#b42318' }}>No se pudieron cargar los locales del mapa.</p>}
       {!loading && !error && data?.obtenerRestaurantesCercanos?.length === 0 && <p>No hay locales disponibles en esta zona.</p>}
       
-      <div className="locales-cercanos-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 250px), 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
-        {data?.obtenerRestaurantesCercanos?.map((rest) => (
-          <div 
-            key={rest.id_restaurante} 
-            role="button" tabIndex={0} aria-label={'Ver ' + rest.nombre}
-            onKeyDown={evento => { if (evento.key === 'Enter' || evento.key === ' ') { evento.preventDefault(); onSelectRestaurante(rest.id_restaurante); } }}
-            onClick={() => onSelectRestaurante(rest.id_restaurante)}
-            style={{ backgroundColor: '#fff', border: '1px solid #eaeaea', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', cursor: 'pointer' }}
-          >
-            {rest.imagen_url ? <img src={rest.imagen_url} alt={rest.nombre} loading="lazy" style={{ display: 'block', width: '100%', height: '140px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px' }} />
-              : <div style={{ width: '100%', height: '140px', backgroundColor: '#eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px' }} aria-hidden="true"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10h18L19 4H5l-2 6ZM4 10v10h16V10M9 20v-6h6v6M3 10a3 3 0 0 0 4.5 2.5A3 3 0 0 0 12 12a3 3 0 0 0 4.5.5A3 3 0 0 0 21 10" /></svg></div>}
-            <h4 style={{ margin: '0 0 10px 0' }}>{rest.nombre}</h4>
-            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-              {(rest.tipo || 'RESTAURANTE').split(',').map(tipo => tipo.trim()).filter(Boolean).map((tipo, indice) => (
-                <span key={tipo + '-' + indice} style={{ background: '#f3f4f6', color: '#333', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', maxWidth: '100%', boxSizing: 'border-box', overflowWrap: 'anywhere' }}>
-                  {tipo}
-                </span>
-              ))}
-            </div>
-            <p style={{ margin: '10px 0 0 0', fontSize: '14px', color: '#555' }}>Distancia: <b>{rest.distancia_km.toFixed(1)} km</b></p>
-          </div>
-        ))}
+      <div className="locales-cercanos-grid tarjetas-inicio-grid">
+        {data?.obtenerRestaurantesCercanos?.map(rest => <TarjetaLocalInicio key={rest.id_restaurante}
+          local={rest} onSeleccionar={onSelectRestaurante} />)}
       </div>
     </div>
   );
