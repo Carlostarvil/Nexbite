@@ -96,39 +96,13 @@ test('las tarjetas de una cuenta no aparecen en otra ni se pueden consultar por 
   assert.deepEqual(tarjetas.map(t => t.id), ['pm_ajeno']);
 });
 
-test('una tarjeta sin vincular, ajena o inexistente no inicia un cobro', async () => {
+test('la pasarela antigua rechaza cualquier importe del navegador y exige el carrito verificado', async () => {
   const e = entorno();
   e.usuarios.get(7).stripe_customer_id = 'cus_7';
-  for (const id_tarjeta of ['pm_propietario', 'pm_ajeno', 'pm_inexistente', 'id_invalido']) {
-    await assert.rejects(e.Mutation.crearIntencionPago(null, { ...pago, id_tarjeta }, contexto(7)), error => error.extensions.code === 'TARJETA_NO_DISPONIBLE');
+  e.tarjetas.get('pm_propietario').customer = 'cus_7';
+  for (const monto of [0.50, 12.50, 1000, -2, NaN]) {
+    await assert.rejects(e.Mutation.crearIntencionPago(null, { ...pago, monto }, contexto(7)), error => error.extensions.code === 'CLIENTE_DESACTUALIZADO');
   }
-  assert.equal(e.llamadas.pagos.length, 0);
-});
-
-test('la misma tarjeta vinculada sirve para dos compras independientes', async () => {
-  const e = entorno();
-  e.usuarios.get(7).stripe_customer_id = 'cus_7';
-  e.tarjetas.get('pm_propietario').customer = 'cus_7';
-  const primero = await e.Mutation.crearIntencionPago(null, pago, contexto(7));
-  const segundo = await e.Mutation.crearIntencionPago(null, { ...pago, monto: 9.99, clave_pago: 'b60c69a7-0cf5-4f22-9b6b-2116f0c3d584' }, contexto(7));
-  assert.notEqual(primero, segundo);
-  assert.deepEqual(e.llamadas.pagos.map(p => [p.datos.customer, p.datos.payment_method, p.datos.amount]), [
-    ['cus_7', 'pm_propietario', 1250], ['cus_7', 'pm_propietario', 999],
-  ]);
-});
-
-test('un reintento con la misma clave reutiliza la intención de pago', async () => {
-  const e = entorno();
-  e.usuarios.get(7).stripe_customer_id = 'cus_7';
-  e.tarjetas.get('pm_propietario').customer = 'cus_7';
-  assert.equal(await e.Mutation.crearIntencionPago(null, pago, contexto(7)), await e.Mutation.crearIntencionPago(null, pago, contexto(7)));
-  assert.equal(e.llamadas.pagos[0].opciones.idempotencyKey, e.llamadas.pagos[1].opciones.idempotencyKey);
-});
-
-test('rechaza importes o identificadores inválidos antes de iniciar cobros', async () => {
-  const e = entorno();
-  for (const monto of [0, -2, NaN, Infinity, 0.1, 1_000_000]) await assert.rejects(e.Mutation.crearIntencionPago(null, { ...pago, monto }, contexto(7)), /importe/);
-  await assert.rejects(e.Mutation.crearIntencionPago(null, { ...pago, clave_pago: 'corta' }, contexto(7)), /identificador/);
   assert.equal(e.llamadas.pagos.length, 0);
 });
 

@@ -11,7 +11,16 @@ export function crearResolversImagenesMenu(pool) {
         JOIN Platos menu ON menu.id_plato = vinculo.id_menu
         WHERE vinculo.id_menu = $1 AND incluido.id_restaurante = menu.id_restaurante
         ORDER BY incluido.id_plato
-      `, [plato.id_plato]).then(resultado => resultado.rows));
+      `, [plato.id_plato]).then(async resultado => {
+        for (const item of resultado.rows) {
+          if (item.disponible === false && item.tiempo_disponible && new Date(item.tiempo_disponible) <= new Date()) {
+            await pool.query('UPDATE Platos SET disponible = TRUE, tiempo_disponible = NULL WHERE id_plato = $1 AND tiempo_disponible <= NOW()', [item.id_plato]);
+            item.disponible = true;
+            item.tiempo_disponible = null;
+          }
+        }
+        return resultado.rows;
+      }));
     }
     return consultas.get(plato);
   };

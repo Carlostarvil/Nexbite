@@ -9,13 +9,14 @@ import { OAuth2Client } from 'google-auth-library';
 import Stripe from 'stripe';
 import crypto from 'crypto';
 import { crearActualizadorNegocio } from './actualizarNegocio.js';
-import { validarHorariosRecogida, validarFechaRecogida } from '../shared/horariosRecogida.js';
-import { validarZonaEntrega } from '../shared/zonaEntrega.js';
+import { validarHorariosRecogida } from '../shared/horariosRecogida.js';
 import { crearConsultasZona } from './consultasZona.js';
 import { crearBuscadorDirecciones } from './direcciones.js';
 import { crearOperacionesPago } from './pagos.js';
 import { crearResolversImagenesMenu, crearPlatoConItems } from './imagenesMenu.js';
 import { crearEditorPlato } from './editarPlato.js';
+import { protegerResolvers, exigirCuentaPropia, exigirLocalPropio } from './permisos.js';
+import { crearServicioCompras } from './compras.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const operacionesPago = crearOperacionesPago(pool, stripe);
@@ -33,6 +34,21 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS
   }
 });
+
+
+const compras = crearServicioCompras(pool, stripe, {
+  notificar: async (compra, pedidos, conexion) => {
+    const usuario = (await conexion.query('SELECT email, nombre FROM Usuarios WHERE id_usuario = $1', [compra.id_usuario])).rows[0];
+    for (const pedido of pedidos) eventEmitter.emit(PEDIDO_CREADO, { nuevoPedido: pedido });
+    if (usuario?.email) await transporter.sendMail({
+      from: `"NexBite" <${process.env.EMAIL_USER}>`, to: usuario.email,
+      subject: compra.estado === 'RESERVADA' ? 'Reserva confirmada en NexBite' : 'Pedido confirmado en NexBite',
+      text: `Hola ${usuario.nombre}, hemos guardado tu pedido completo en ${compra.resumen.nombre_restaurante}. Total: ${(compra.total_centimos / 100).toFixed(2)} €.${compra.solicitud.fecha_programada ? ' La reserva mantiene la fecha elegida. Con tarjeta, el importe se autoriza ahora y se cobra cuando se active el pedido.' : ''}`,
+    });
+  },
+});
+
+export const procesarComprasPendientes = () => compras.procesarPendientes();
 
 const calcularExpiracion = (tiempoStr) => {
   if (!tiempoStr || tiempoStr === 'Indefinido') return null;
@@ -57,10 +73,14 @@ const calcularExpiracion = (tiempoStr) => {
   return ahora;
 };
 
-export const resolvers = {
+const resolversBase = {
   Plato: crearResolversImagenesMenu(pool),
+  Pedido: {
+    imagen_plato: async pedido => pedido.imagen_plato || (pedido.id_plato ? (await pool.query('SELECT p.imagen_url FROM Menu_Platos mp JOIN Platos p ON p.id_plato = mp.id_plato_incluido JOIN Platos m ON m.id_plato = mp.id_menu WHERE mp.id_menu = $1 AND p.id_restaurante = m.id_restaurante AND p.imagen_url IS NOT NULL ORDER BY p.id_plato LIMIT 1', [pedido.id_plato])).rows[0]?.imagen_url || null : null),
+  },
   Query: {
     ...operacionesPago.Query,
+    ...compras.Query,
     ...crearConsultasZona(pool),
     ...crearBuscadorDirecciones(),
     obtenerTags: async () => (await pool.query('SELECT * FROM Preferencias_Tags')).rows,
@@ -70,7 +90,7 @@ export const resolvers = {
       try {
         const textoUsuario = args.mensaje || args.texto || "";
         console.log("📩 LLEGÓ PETICIÓN A RESOLVERS.JS:", textoUsuario);
-        const respuesta = await procesarMensaje(textoUsuario, contexto, pool);
+        const respuesta = await procesarMensaje(textoUsuario, contexto, pool, compras);
         return respuesta;
       } catch (error) {
         console.error("Error en el chatbot:", error);
@@ -133,16 +153,17 @@ export const resolvers = {
 
     obtenerRestaurantesSimilares: async (_, { id_restaurante }) => (await pool.query(`SELECT r2.* FROM Restaurantes r1 JOIN Restaurantes r2 ON r1.tipo = r2.tipo AND r1.id_restaurante != r2.id_restaurante WHERE r1.id_restaurante = $1 LIMIT 5;`, [id_restaurante])).rows,
 
-    obtenerPedidosVendedor: async (_, { id_restaurante }) => (await pool.query(`SELECT pe.id_pedido, pe.id_restaurante, pe.estado, pe.metodo_pago, pe.direccion_envio, pe.fecha_pedido, pe.fecha_programada, pl.nombre AS nombre_plato, pl.imagen_url AS imagen_plato FROM Pedidos pe LEFT JOIN Platos pl ON pe.id_plato = pl.id_plato WHERE pe.id_restaurante = $1 ORDER BY pe.id_pedido DESC`, [id_restaurante])).rows,
+    obtenerPedidosVendedor: async (_, { id_restaurante }) => (await pool.query(`SELECT pe.*, c.estado AS estado_pago, c.motivo AS mensaje_pago, COALESCE(pe.nombre_producto, pl.nombre) AS nombre_plato, pl.imagen_url AS imagen_plato FROM Pedidos pe LEFT JOIN Platos pl ON pe.id_plato = pl.id_plato LEFT JOIN Compras c ON c.id_compra = pe.id_compra WHERE pe.id_restaurante = $1 ORDER BY pe.id_pedido DESC`, [id_restaurante])).rows,
 
     obtenerPedidosCliente: async (_, { id_usuario }) => {
       const res = await pool.query(`
-        SELECT pe.id_pedido, pe.id_restaurante, pe.id_plato, pe.estado, pe.metodo_pago, pe.direccion_envio, pe.fecha_programada, pe.fecha_pedido,
-               pl.nombre AS nombre_plato, pl.precio AS precio_plato, pl.disponible AS plato_disponible, pl.descripcion AS descripcion_plato, pl.imagen_url AS imagen_plato,
+        SELECT pe.id_pedido, pe.id_restaurante, pe.id_plato, pe.estado, pe.metodo_pago, pe.direccion_envio, pe.fecha_programada, pe.fecha_pedido, pe.id_compra, c.estado AS estado_pago, c.motivo AS mensaje_pago,
+               COALESCE(pe.nombre_producto, pl.nombre) AS nombre_plato, COALESCE(pe.precio_centimos / 100.0, pl.precio) AS precio_plato, pl.disponible AS plato_disponible, pl.descripcion AS descripcion_plato, pl.imagen_url AS imagen_plato,
                r.nombre AS nombre_restaurante, r.imagen_url AS imagen_restaurante, r.aceptando_pedidos AS restaurante_abierto
         FROM Pedidos pe
         LEFT JOIN Platos pl ON pe.id_plato = pl.id_plato
         LEFT JOIN Restaurantes r ON pe.id_restaurante = r.id_restaurante
+        LEFT JOIN Compras c ON c.id_compra = pe.id_compra
         WHERE pe.id_usuario = $1
         ORDER BY pe.id_pedido DESC
       `, [id_usuario]);
@@ -196,36 +217,6 @@ export const resolvers = {
       }
     }
   },
-  
-  // Añade este bloque justo antes de "Mutation: {"
-  Plato: {
-    items_menu: async (parent) => {
-      try {
-        // Buscamos los platos que pertenecen a este menú
-        const res = await pool.query(`
-          SELECT p.* FROM Platos p
-          JOIN Menu_Platos mp ON p.id_plato = mp.id_plato_incluido
-          WHERE mp.id_menu = $1
-        `, [parent.id_plato]);
-        
-        // Comprobamos si alguno se ha reactivado automáticamente
-        const ahora = new Date();
-        for (let plato of res.rows) {
-          if (plato.disponible === false && plato.tiempo_disponible) {
-            if (ahora >= new Date(plato.tiempo_disponible)) {
-              await pool.query('UPDATE Platos SET disponible = true, tiempo_disponible = NULL WHERE id_plato = $1', [plato.id_plato]);
-              plato.disponible = true;
-              plato.tiempo_disponible = null;
-            }
-          }
-        }
-        return res.rows;
-      } catch (error) {
-        return [];
-      }
-    }
-  },
-
   
   Mutation: {
     actualizarPerfilUsuario: async (_, { id_usuario, telefono, direccion }) => {
@@ -302,6 +293,7 @@ export const resolvers = {
     },
 
     ...operacionesPago.Mutation,
+    ...compras.Mutation,
 
     solicitarAviso: async (_, { id_usuario, tipo, id_referencia }) => {
       const check = await pool.query('SELECT * FROM Alertas_Disponibilidad WHERE id_usuario = $1 AND tipo = $2 AND id_referencia = $3 AND email_enviado = FALSE', [id_usuario, tipo, id_referencia]);
@@ -314,6 +306,7 @@ export const resolvers = {
     },
 
     registrarUsuario: async (_, { nombre, email, password, rol = 'CLIENTE' }) => {
+      if (!['CLIENTE', 'VENDEDOR'].includes(rol)) throw new Error('Selecciona un tipo de cuenta válido.');
       const emailExistente = await pool.query('SELECT id_usuario FROM Usuarios WHERE email = $1', [email]);
 
       if (emailExistente.rows.length > 0) {
@@ -367,6 +360,7 @@ export const resolvers = {
     },
 
     iniciarSesionGoogle: async (_, { token_google, rol = 'CLIENTE' }) => {
+      if (!['CLIENTE', 'VENDEDOR'].includes(rol)) throw new Error('Selecciona un tipo de cuenta válido.');
       try {
         const ticket = await googleClient.verifyIdToken({
           idToken: token_google,
@@ -408,105 +402,21 @@ export const resolvers = {
       }
     },
 
-    guardarPreferencias: async () => "Preferencias guardadas exitosamente.",
-
-    crearPedido: async (_, {
-      id_usuario,
-      id_restaurante,
-      id_plato,
-      metodo_pago,
-      direccion_envio,
-      fecha_programada,
-      latitud_cliente,
-      longitud_cliente
-    }, contexto) => {
-      console.log("==========================================");
-      console.log("🛒 INTENTO DE CREAR PEDIDO RECIBIDO");
-      console.log("==========================================");
-
+    guardarPreferencias: async (_, { id_usuario, tags }) => {
+      const conexion = await pool.connect();
       try {
-        if (!contexto.usuario || contexto.usuario.id_usuario !== parseInt(id_usuario)) {
-          throw new Error('⛔ Fraude detectado.');
-        }
+        await conexion.query('BEGIN');
+        await conexion.query('DELETE FROM Usuario_Preferencias WHERE id_usuario = $1', [id_usuario]);
+        if (tags.length) await conexion.query('INSERT INTO Usuario_Preferencias (id_usuario, id_tag) SELECT $1, unnest($2::int[])', [id_usuario, [...new Set(tags)]]);
+        await conexion.query('COMMIT');
+        return 'Preferencias guardadas.';
+      } catch (error) { await conexion.query('ROLLBACK'); throw error; }
+      finally { conexion.release(); }
+    },
 
-        const resRestaurante = await pool.query(
-          'SELECT aceptando_pedidos, tiempo_reactivacion, latitud, longitud, radio_cobertura_km, horarios_recogida FROM Restaurantes WHERE id_restaurante = $1',
-          [id_restaurante]
-        );
-
-        const restaurante = resRestaurante.rows[0];
-        if (!restaurante) throw new Error('El restaurante no existe.');
-
-        if (direccion_envio === 'Recogida en el local') {
-          validarFechaRecogida(restaurante.horarios_recogida, fecha_programada);
-        } else {
-          validarZonaEntrega(restaurante, latitud_cliente, longitud_cliente);
-        }
-
-        if (!restaurante.aceptando_pedidos && !fecha_programada) {
-          throw new Error('⛔ El restaurante está pausado temporalmente.');
-        }
-
-        const platoResCheck = await pool.query(
-          'SELECT nombre, disponible, tiempo_disponible FROM Platos WHERE id_plato = $1',
-          [id_plato]
-        );
-
-        let estaDisponible = platoResCheck.rows[0].disponible;
-
-        if (!estaDisponible && !fecha_programada) {
-          throw new Error('⛔ El producto está agotado.');
-        }
-
-        const estadoInicial = fecha_programada ? 'PROGRAMADO' : 'PENDIENTE';
-
-        let fechaFormateada = null;
-
-        if (fecha_programada) {
-          const timestamp = !isNaN(fecha_programada) ? Number(fecha_programada) : fecha_programada;
-          fechaFormateada = new Date(timestamp).toISOString();
-        }
-
-        const res = await pool.query(
-          'INSERT INTO Pedidos (id_usuario, id_restaurante, id_plato, metodo_pago, direccion_envio, estado, fecha_programada) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-          [id_usuario, id_restaurante, id_plato, metodo_pago, direccion_envio, estadoInicial, fechaFormateada]
-        );
-
-        await pool.query(
-          'UPDATE Usuarios SET puntos_acumulados = puntos_acumulados + 10 WHERE id_usuario = $1',
-          [id_usuario]
-        );
-
-        const usuarioRes = await pool.query(
-          'SELECT email, nombre FROM Usuarios WHERE id_usuario = $1',
-          [id_usuario]
-        );
-
-        const nuevoPedido = res.rows[0];
-        nuevoPedido.nombre_plato = platoResCheck.rows[0].nombre;
-
-        if (fecha_programada) {
-          transporter.sendMail({
-            from: `"NexBite Delivery" <${process.env.EMAIL_USER}>`,
-            to: usuarioRes.rows[0].email,
-            subject: '📅 Pedido Programado con éxito',
-            text: `Hola ${usuarioRes.rows[0].nombre}, tu pedido de ${platoResCheck.rows[0].nombre} ha sido programado. ¡Te avisaremos cuando empiecen a cocinarlo!`
-          }).catch(console.error);
-        } else {
-          transporter.sendMail({
-            from: `"NexBite Delivery" <${process.env.EMAIL_USER}>`,
-            to: usuarioRes.rows[0].email,
-            subject: `Actualización de tu pedido: ${platoResCheck.rows[0].nombre} 🍔`,
-            text: `¡Hemos recibido tu pedido de ${platoResCheck.rows[0].nombre}! 📝 El restaurante lo está revisando.`
-          }).catch(console.error);
-        }
-
-        eventEmitter.emit(PEDIDO_CREADO, { nuevoPedido });
-        return nuevoPedido;
-      } catch (error) {
-        console.error("❌ ERROR CRÍTICO AL CREAR EL PEDIDO:", error.message);
-        throw error;
-      }
+    crearPedido: async (_, { id_usuario }, contexto) => {
+      exigirCuentaPropia(contexto, id_usuario);
+      throw new Error('Actualiza la página: el pedido completo se confirma desde el carrito.');
     },
 
     registrarNegocio: async (_, {
@@ -625,28 +535,6 @@ export const resolvers = {
           );
         }
 
-        const pedidosProgramados = await pool.query(
-          `SELECT p.id_pedido, u.email, u.nombre, pl.nombre AS nombre_plato
-           FROM Pedidos p
-           JOIN Usuarios u ON p.id_usuario = u.id_usuario
-           JOIN Platos pl ON p.id_plato = pl.id_plato
-           WHERE p.id_restaurante = $1 AND p.estado = 'PROGRAMADO'`,
-          [id_restaurante]
-        );
-
-        for (const pedido of pedidosProgramados.rows) {
-          await pool.query(
-            "UPDATE Pedidos SET estado = 'PENDIENTE', fecha_programada = NULL WHERE id_pedido = $1",
-            [pedido.id_pedido]
-          );
-
-          transporter.sendMail({
-            from: `"NexBite Delivery" <${process.env.EMAIL_USER}>`,
-            to: pedido.email,
-            subject: `🍳 Tu pedido de ${pedido.nombre_plato} ya ha entrado a cocina`,
-            text: `¡Hola ${pedido.nombre}! El restaurante acaba de abrir y tu pedido programado ha sido enviado al cocinero.`
-          }).catch(console.error);
-        }
       }
 
       return res.rows[0];
@@ -696,14 +584,16 @@ export const resolvers = {
       nuevo_estado,
       motivo_rechazo,
       mensaje_personalizado
-    }) => {
-      const res = await pool.query(
-        'UPDATE Pedidos SET estado = $1 WHERE id_pedido = $2 RETURNING *',
+    }, contexto) => {
+      const conexion = contexto.conexionConsulta;
+      const res = await conexion.query(
+        "UPDATE Pedidos SET estado = $1 WHERE id_pedido = $2 AND estado NOT IN ('ENTREGADO','CANCELADO','RECHAZADO') RETURNING *",
         [nuevo_estado, id_pedido]
       );
 
       const pedido = res.rows[0];
-      const userRes = await pool.query(
+      if (!pedido) throw new Error('El pedido ha cambiado. Actualiza la lista.');
+      const userRes = await conexion.query(
         'SELECT email, nombre FROM Usuarios WHERE id_usuario = $1',
         [pedido.id_usuario]
       );
@@ -791,11 +681,14 @@ export const resolvers = {
 
   Subscription: {
     nuevoPedido: {
-      subscribe: async function* (_, { id_restaurante }) {
+      subscribe: async function* (_, { id_restaurante }, contexto) {
+        await exigirLocalPropio(pool, contexto, id_restaurante);
         for await (const [evento] of on(eventEmitter, PEDIDO_CREADO)) {
-          yield evento;
+          if (String(evento.nuevoPedido.id_restaurante) === String(id_restaurante)) yield evento;
         }
       }
     }
   }
 };
+
+export const resolvers = protegerResolvers(pool, resolversBase, compras);

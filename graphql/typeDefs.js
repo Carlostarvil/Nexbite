@@ -68,6 +68,9 @@ export const typeDefs = `#graphql
     fecha_pedido: String
     descripcion_plato: String
     imagen_plato: String
+    id_compra: ID
+    estado_pago: String
+    mensaje_pago: String
   }
 
   type Usuario {
@@ -94,7 +97,36 @@ export const typeDefs = `#graphql
     fecha: String!
   }
 
+  input ItemCompraInput { id_plato: ID!, cantidad: Int! }
+  input CompraInput {
+    clave: ID!
+    id_restaurante: ID!
+    items: [ItemCompraInput!]!
+    metodo_pago: String!
+    id_tarjeta: ID
+    tipo_entrega: String!
+    direccion_envio: String
+    latitud_cliente: Float
+    longitud_cliente: Float
+    fecha_programada: String
+  }
+  type ItemCompra { id_plato: ID!, nombre: String!, cantidad: Int!, precio: Float! }
+  type Compra {
+    id_compra: ID!
+    estado: String!
+    subtotal: Float!
+    envio: Float!
+    total: Float!
+    client_secret: String
+    fecha_programada: String
+    autorizacion_hasta: String
+    mensaje: String!
+    items: [ItemCompra!]!
+    pedidos: [Pedido!]!
+  }
+
   type Query {
+    consultarCompra(id_compra: ID!): Compra!
     obtenerMisTarjetas(id_usuario: ID!): [TarjetaGuardada!]!
     buscarDirecciones(termino: String!): [DireccionUbicacion!]!
     obtenerDireccionUbicacion(latitud: Float!, longitud: Float!): DireccionUbicacion
@@ -130,6 +162,8 @@ export const typeDefs = `#graphql
   }
 
   type Mutation {
+    prepararCompra(input: CompraInput!): Compra!
+    confirmarCompra(id_compra: ID!): Compra!
     registrarUsuario(nombre: String!, email: String!, password: String!, rol: String): UsuarioAuth
     guardarPreferencias(id_usuario: ID!, tags: [ID!]!): String
     
@@ -142,7 +176,7 @@ export const typeDefs = `#graphql
       fecha_programada: String,
       latitud_cliente: Float,
       longitud_cliente: Float
-    ): Pedido
+    ): Pedido @deprecated(reason: "Utiliza prepararCompra y confirmarCompra para guardar el pedido completo.")
     
     solicitarAviso(id_usuario: ID!, tipo: String!, id_referencia: ID!): String
 
@@ -217,7 +251,7 @@ export const typeDefs = `#graphql
     
     crearConfiguracionTarjeta: String!
     eliminarTarjetaGuardada(id_tarjeta: ID!): Boolean!
-    crearIntencionPago(monto: Float!, id_tarjeta: ID!, clave_pago: ID!): String!
+    crearIntencionPago(monto: Float!, id_tarjeta: ID!, clave_pago: ID!): String! @deprecated(reason: "El importe se calcula en prepararCompra.")
     actualizarPerfilUsuario(id_usuario: ID!, telefono: String, direccion: String): Usuario
 
     crearResena(id_restaurante: ID!, id_usuario: ID!, puntuacion: Int!, comentario: String!): Resena

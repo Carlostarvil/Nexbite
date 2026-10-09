@@ -462,7 +462,7 @@ function App() {
                               {restaurante.aceptando_pedidos === false && <div style={{ marginBottom: '10px' }}><EstadoDisponibilidad cerrado fecha={restaurante.tiempo_reactivacion} compacto /></div>}
                               
                               <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                                {restaurante.tipo ? restaurante.tipo.split(',').slice(0, 2).map((t, idx) => (
+                                {restaurante.tipo ? restaurante.tipo.split('|')[0].split(',').slice(0, 2).map((t, idx) => (
                                   <span key={idx} style={{ background: '#fff0eb', color: '#c43c00', padding: '3px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>
                                     {t.trim()}
                                   </span>
@@ -499,7 +499,7 @@ function App() {
                   <div style={{ marginTop: '1rem', marginBottom: '3rem', position: 'relative' }}>
                     <TituloSeccion titulo="¿Repetimos?" descripcion={historialBackend.length === 1 ? 'Tu último pedido.' : `Tus últimos ${historialBackend.length} pedidos.`} acciones={<ControlesCarrusel titulo="¿Repetimos?" onAnterior={() => scrollRepetimos(-300)} onSiguiente={() => scrollRepetimos(300)} />} />
                     
-                    <div ref={repetimosRef} className="ocultar-scrollbar" style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px', scrollBehavior: 'smooth' }}>
+                    <div ref={repetimosRef} className="ocultar-scrollbar" style={{ position: 'relative', maxWidth: '100%', display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px', scrollBehavior: 'smooth' }}>
                       {data.obtenerUltimosPedidos.map(pedido => {
                         const puedeRecomprar = pedido.restaurante_abierto && pedido.plato_disponible;
                         // NUEVA COMPROBACIÓN DE OFERTAS
@@ -660,7 +660,7 @@ function App() {
                         {restaurante.aceptando_pedidos === false && <div style={{ marginBottom: '10px' }}><EstadoDisponibilidad cerrado fecha={restaurante.tiempo_reactivacion} compacto /></div>}
                         
                         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                          {restaurante.tipo ? restaurante.tipo.split(',').map((t, idx) => (
+                          {restaurante.tipo ? restaurante.tipo.split('|')[0].split(',').map((t, idx) => (
                             <span key={idx} style={{ background: '#f3f4f6', color: '#333', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
                               {t.trim()}
                             </span>

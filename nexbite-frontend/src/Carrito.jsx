@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { useMutation, useQuery } from '@apollo/client/react/index.js';
+import { useState, useEffect, useRef } from 'react';
+import { useMutation, useQuery, useApolloClient } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
-import { generarOpcionesRecogida, recogidaDisponible, validarFechaRecogida } from '../../shared/horariosRecogida.js';
-import { coordenadasValidas, validarZonaEntrega } from '../../shared/zonaEntrega.js';
+import { generarOpcionesRecogida, recogidaDisponible } from '../../shared/horariosRecogida.js';
+import { coordenadasValidas, validarZonaEntrega, calcularDistancia } from '../../shared/zonaEntrega.js';
 import MensajeAccion, { IconoEstado } from './MensajeAccion';
 import DireccionLocal from './DireccionLocal';
 import IconoInfoRestaurante from './IconoInfoRestaurante';
+import ImagenPlato from './ImagenPlato';
+import { centimos, configuracionEnvio, costeEnvio } from '../../shared/preciosCompra.js';
 import './Carrito.css';
 
 import { loadStripe } from '@stripe/stripe-js';
@@ -13,23 +15,28 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 
 const stripePromise = loadStripe('pk_test_51TvpS8Q6Lca9bAZqO8Skya79dRCVkCyvtSrQqZkCUHVdM43VK4xQUCBzANz8i3BbUFEISBeJdo1mb8Uj1lahMH9q009ej7QEHn');
 
-const CREAR_PEDIDO = gql`
-  mutation CrearPedido($id_usuario: ID!, $id_restaurante: ID!, $id_plato: ID!, $metodo_pago: String!, $direccion_envio: String!, $fecha_programada: String, $latitud_cliente: Float, $longitud_cliente: Float) {
-    crearPedido(id_usuario: $id_usuario, id_restaurante: $id_restaurante, id_plato: $id_plato, metodo_pago: $metodo_pago, direccion_envio: $direccion_envio, fecha_programada: $fecha_programada, latitud_cliente: $latitud_cliente, longitud_cliente: $longitud_cliente) {
-      id_pedido
+const PREPARAR_COMPRA = gql`
+  mutation PrepararCompra($input: CompraInput!) {
+    prepararCompra(input: $input) {
+      id_compra estado subtotal envio total client_secret fecha_programada autorizacion_hasta mensaje
+      items { id_plato nombre cantidad precio } pedidos { id_pedido }
     }
   }
 `;
-
-const SOLICITAR_AVISO = gql`
-  mutation SolicitarAviso($id_usuario: ID!, $tipo: String!, $id_referencia: ID!) {
-    solicitarAviso(id_usuario: $id_usuario, tipo: $tipo, id_referencia: $id_referencia)
+const CONFIRMAR_COMPRA = gql`
+  mutation ConfirmarCompra($id: ID!) {
+    confirmarCompra(id_compra: $id) {
+      id_compra estado subtotal envio total fecha_programada autorizacion_hasta mensaje
+      items { id_plato nombre cantidad precio } pedidos { id_pedido }
+    }
   }
 `;
-
-const CREAR_INTENCION_PAGO = gql`
-  mutation CrearIntencionPago($monto: Float!, $id_tarjeta: ID!, $clave_pago: ID!) {
-    crearIntencionPago(monto: $monto, id_tarjeta: $id_tarjeta, clave_pago: $clave_pago)
+const CONSULTAR_COMPRA = gql`
+  query ConsultarCompra($id: ID!) {
+    consultarCompra(id_compra: $id) {
+      id_compra estado subtotal envio total fecha_programada autorizacion_hasta mensaje
+      items { id_plato nombre cantidad precio } pedidos { id_pedido }
+    }
   }
 `;
 
@@ -79,36 +86,6 @@ const parsearFechaSegura = (fechaStr) => {
   return isNaN(fecha.getTime()) ? null : fecha;
 };
 
-const calcularDistancia = (lat1, lon1, lat2, lon2) => {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
-  const R = 6371; 
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; 
-};
-
-const extraerConfigEnvio = (tipoBackend) => {
-  let tipoLimpio = tipoBackend || '';
-  let base = 1.90; 
-  let porKm = 0.50; 
-  let gratisDesde = 15.00; 
-
-  const matchBase = tipoLimpio.match(/\|ENVIO:\s*([\d.,]+)/i);
-  if (matchBase) base = parseFloat(matchBase[1].replace(',', '.'));
-  
-  const matchKm = tipoLimpio.match(/\|KM:\s*([\d.,]+)/i);
-  if (matchKm) porKm = parseFloat(matchKm[1].replace(',', '.'));
-
-  const matchGratis = tipoLimpio.match(/\|GRATIS:\s*([\d.,]+)/i);
-  if (matchGratis) gratisDesde = parseFloat(matchGratis[1].replace(',', '.'));
-
-  return { base, porKm, gratisDesde };
-};
-
 function IconoPapelera() {
   return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
     <path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5 6l1 14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1l1-14M10 10v7M14 10v7" />
@@ -152,9 +129,12 @@ function TarjetaCarritoGrupo({ grupo, onSeleccionar, onEliminar }) {
 
 function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuario, ubicacionEntrega, onCambiarUbicacion, tipoEntregaInicial = 'DOMICILIO', idRestauranteInicial = null, irAPago = false, onPedidoConfirmado }) {
   const stripe = useStripe();
+  const clienteApollo = useApolloClient();
   const elements = useElements();
 
-  const [idCartActivo, setIdCartActivo] = useState(() => idRestauranteInicial == null ? null : carrito.find(plato => String(plato.id_restaurante) === String(idRestauranteInicial))?.id_restaurante ?? null);
+  const [idCartSeleccionado, setIdCartActivo] = useState(() => idRestauranteInicial == null ? null : carrito.find(plato => String(plato.id_restaurante) === String(idRestauranteInicial))?.id_restaurante ?? null);
+  const idsCarritos = [...new Set(carrito.map(p => p.id_restaurante))];
+  const idCartActivo = idsCarritos.includes(idCartSeleccionado) ? idCartSeleccionado : idsCarritos.length === 1 ? idsCarritos[0] : null;
   const formularioPago = useRef(null);
   
   const [modalIntercepcion, setModalIntercepcion] = useState(null);
@@ -215,7 +195,8 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const [quitarTarjeta] = useMutation(ELIMINAR_TARJETA_GUARDADA);
   const pagoEnCurso = useRef(false);
   const intentosPago = useRef(new Map());
-  const [pedidoPagadoSinRegistrar, setPedidoPagadoSinRegistrar] = useState(null);
+  const [compraPorComprobar, setCompraPorComprobar] = useState(null);
+  const [cotizacion, setCotizacion] = useState(null);
   const [mensajePago, setMensajePago] = useState(null);
   const mensajePagoRef = useRef(null);
   
@@ -280,20 +261,9 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   };
 
   const [procesandoStripe, setProcesandoStripe] = useState(false);
-  const [comprobandoHorario, setComprobandoHorario] = useState(false);
-  const [crearPedido, { loading: procesandoPago }] = useMutation(CREAR_PEDIDO);
-  const [crearIntencion] = useMutation(CREAR_INTENCION_PAGO);
-  const [pedirAviso] = useMutation(SOLICITAR_AVISO);
-
-  const handlePedirAvisoRestaurante = async () => {
-    await pedirAviso({ variables: { id_usuario: idUsuario, tipo: 'RESTAURANTE', id_referencia: idRestauranteCarrito } });
-    alert("¡Anotado! Te enviaremos un email automático en cuanto el restaurante vuelva a abrir.");
-  };
-
-  const handlePedirAvisoPlato = async (idPlato) => {
-    await pedirAviso({ variables: { id_usuario: idUsuario, tipo: 'PLATO', id_referencia: idPlato } });
-    alert("¡Anotado! Te enviaremos un email en cuanto este plato vuelva a estar disponible.");
-  };
+  const [prepararCompra, { loading: preparandoCompra }] = useMutation(PREPARAR_COMPRA);
+  const [confirmarCompra, { loading: confirmandoCompra }] = useMutation(CONFIRMAR_COMPRA);
+  const procesandoPago = preparandoCompra || confirmandoCompra;
 
   const gruposObj = carrito.reduce((acc, plato) => {
     if (!acc[plato.id_restaurante]) acc[plato.id_restaurante] = { id_restaurante: plato.id_restaurante, platos: [], totalItems: 0 };
@@ -303,20 +273,15 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   }, {});
   const grupos = Object.values(gruposObj);
 
-  useEffect(() => {
-    if (grupos.length === 1 && !idCartActivo) setIdCartActivo(grupos[0].id_restaurante);
-    else if (grupos.length === 0) setIdCartActivo(null);
-    else if (idCartActivo && !grupos.find(g => g.id_restaurante === idCartActivo)) setIdCartActivo(null); 
-  }, [grupos, idCartActivo]);
 
   const carritoEnUso = idCartActivo ? carrito.filter(p => p.id_restaurante === idCartActivo) : [];
   const idRestauranteCarrito = idCartActivo;
 
-  const aumentarCantidad = (id_plato) => { if (!pagoEnCurso.current) setCarrito(carrito.map(p => String(p.id_plato) === String(id_plato) ? { ...p, cantidad: (p.cantidad || 1) + 1 } : p)); };
+  const aumentarCantidad = (id_plato) => { if (!pagoEnCurso.current && !compraPorComprobar) setCarrito(carrito.map(p => String(p.id_plato) === String(id_plato) ? { ...p, cantidad: (p.cantidad || 1) + 1 } : p)); };
   const disminuirCantidad = (id_plato) => { if (!pagoEnCurso.current) setCarrito(carrito.map(p => (String(p.id_plato) === String(id_plato) && p.cantidad > 1) ? { ...p, cantidad: p.cantidad - 1 } : p)); };
   const eliminarPlato = (id_plato) => { if (!pagoEnCurso.current) setCarrito(carrito.filter(p => p.id_plato !== id_plato)); };
 
-  const { data: dataRest, loading: cargandoRestaurante, error: errorRestaurante, refetch: refrescarRestaurante } = useQuery(OBTENER_ESTADO_RESTAURANTE, { variables: { id: idRestauranteCarrito }, skip: !idRestauranteCarrito });
+  const { data: dataRest, loading: cargandoRestaurante, error: errorRestaurante } = useQuery(OBTENER_ESTADO_RESTAURANTE, { variables: { id: idRestauranteCarrito }, skip: !idRestauranteCarrito });
   const restaurante = dataRest?.obtenerRestaurantePorId;
   
   // FUNCIONES DE INSPECCIÓN EN CASCADA (PARA MENÚS PROFUNDOS)
@@ -391,7 +356,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const platosTemporales = carritoEnUso.filter(p => !esIndefinido(p) && esTemporal(p));
 
   // Algoritmo para calcular el "Tiempo Efectivo" de disponibilidad (recursivo para menús)
-  const maxTiempoEfectivo = useMemo(() => {
+  const maxTiempoEfectivo = (() => {
     let maxTime = ahora.getTime();
     
     // 1. Revisar si hay platos pausados y coger el que más tarde (incluyendo sub-componentes)
@@ -414,8 +379,8 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
       }
     }
     
-    return new Date(maxTime);
-  }, [platosTemporales, ahora, restaurante]);
+    return maxTime;
+  })();
 
   const latitudLocal = restaurante?.latitud;
   const longitudLocal = restaurante?.longitud;
@@ -428,7 +393,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const urlUbicacionLocal = destinoLocal ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(destinoLocal) : null;
   
   // Le pasamos 'maxTiempoEfectivo' al generador en lugar de 'ahora'
-  const opcionesRecogida = useMemo(() => restaurante ? generarOpcionesRecogida(restaurante.horarios_recogida, maxTiempoEfectivo) : [], [restaurante, maxTiempoEfectivo]);
+  const opcionesRecogida = restaurante ? generarOpcionesRecogida(restaurante.horarios_recogida, new Date(maxTiempoEfectivo)) : [];
   const diasDisponibles = opcionesRecogida;
   const horasDisponiblesList = diasDisponibles.find(dia => dia.valor === diaProgramado)?.horas || [];
   const opcionProgramada = diasDisponibles.flatMap(dia => dia.horas).find(hora => hora.valor === horaProgramada);
@@ -457,22 +422,28 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   }, [direccionGuardadaLocal, tieneCoordenadasLocal, latitudLocal, longitudLocal]);
 
   // LÓGICA DE PRECIOS, DISTANCIA Y ENVÍO
-  const subtotal = carritoEnUso.reduce((suma, plato) => suma + (plato.precio * (plato.cantidad || 1)), 0);
-  const { base, porKm, gratisDesde } = extraerConfigEnvio(restaurante?.tipo);
-  
-  let distanciaKm = 0;
-  let gastosEnvio = 0;
-
-  if (tipoEntrega === 'DOMICILIO' && tieneCoordenadasLocal && coordenadasEnvio?.lat && coordenadasEnvio?.lng) {
-    distanciaKm = calcularDistancia(latitudLocal, longitudLocal, coordenadasEnvio.lat, coordenadasEnvio.lng);
-    gastosEnvio = base + (distanciaKm * porKm);
-  }
-
-  const superaGratis = subtotal >= gratisDesde;
-  const envioFinal = (tipoEntrega === 'RECOGIDA' || superaGratis) ? 0 : gastosEnvio;
-  const totalFinal = subtotal + envioFinal;
+  const direccionFinal = tipoEntrega === 'RECOGIDA' ? 'RECOGIDA EN LOCAL' : (detallesDireccion.trim() ? direccion + '\nDetalles: ' + detallesDireccion : direccion);
+  const solicitud = {
+    id_restaurante: String(idCartActivo), items: carritoEnUso.map(p => ({ id_plato: String(p.id_plato), cantidad: p.cantidad || 1 })),
+    metodo_pago: metodoPago, id_tarjeta: metodoPago === 'TARJETA' ? tarjetaSeleccionada : null,
+    tipo_entrega: tipoEntrega, direccion_envio: direccionFinal,
+    fecha_programada: modoRecogida === 'PROGRAMADO' ? horaProgramada || null : null,
+    latitud_cliente: tipoEntrega === 'DOMICILIO' ? coordenadasEnvio?.lat ?? null : null,
+    longitud_cliente: tipoEntrega === 'DOMICILIO' ? coordenadasEnvio?.lng ?? null : null,
+  };
+  const huellaCompra = JSON.stringify(solicitud);
+  const cotizacionActual = cotizacion?.huella === huellaCompra ? cotizacion.compra : null;
+  const subtotalEstimado = carritoEnUso.reduce((suma, plato) => suma + centimos(plato.precio) * (plato.cantidad || 1), 0);
+  const { gratisDesde } = configuracionEnvio(restaurante?.tipo);
+  const distanciaKm = tipoEntrega === 'DOMICILIO' && tieneCoordenadasLocal && coordenadasValidas(coordenadasEnvio?.lat, coordenadasEnvio?.lng)
+    ? calcularDistancia(latitudLocal, longitudLocal, coordenadasEnvio.lat, coordenadasEnvio.lng) : 0;
+  const subtotal = cotizacionActual?.subtotal ?? subtotalEstimado / 100;
+  const gastosEnvio = cotizacionActual?.envio ?? costeEnvio(subtotalEstimado, restaurante?.tipo, distanciaKm, tipoEntrega === 'RECOGIDA') / 100;
+  const superaGratis = centimos(subtotal) >= centimos(gratisDesde);
+  const totalFinal = cotizacionActual?.total ?? subtotal + gastosEnvio;
 
   const iniciarPago = () => {
+    if (compraPorComprobar) { handlePagar(); return; }
     if (carritoEnUso.length === 0) return mostrarMensajePago('Tu carrito está vacío', 'Añade un plato para continuar con el pedido.');
     if (tipoEntrega === 'DOMICILIO' && (!direccion.trim() || !coordenadasEnvio)) return mostrarMensajePago('Elige dónde recibir tu pedido', 'Selecciona una dirección de entrega antes de continuar.');
 
@@ -507,146 +478,98 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
   const handlePagar = async () => {
     if (pagoEnCurso.current || guardadoEnCurso.current || eliminandoTarjeta) return;
-    if (pedidoPagadoSinRegistrar === idCartActivo) return;
-    if (metodoPago === 'TARJETA' && (cargandoTarjetas || errorTarjetas)) return;
-    
     setMensajePago(null);
     pagoEnCurso.current = true;
     setProcesandoStripe(true);
-    let pagoConfirmado = false;
-    let huellaPago = null;
+    const almacenamiento = 'nexbite_compra_pendiente_' + idUsuario + '_' + idCartActivo;
+    let intento = intentosPago.current.get(huellaCompra);
+    let hayOperacionPendiente = false;
+    const guardarIntento = valor => {
+      intentosPago.current.set(huellaCompra, valor);
+      try { localStorage.setItem(almacenamiento, JSON.stringify({ huella: huellaCompra, ...valor })); } catch { /* El servidor conserva la compra aunque no haya almacenamiento. */ }
+    };
+    const olvidar = () => {
+      intentosPago.current.delete(huellaCompra);
+      try { localStorage.removeItem(almacenamiento); } catch { /* Sin almacenamiento. */ }
+      setCompraPorComprobar(null);
+    };
+    const consultar = clave => clienteApollo.query({ query: CONSULTAR_COMPRA, variables: { id: clave }, fetchPolicy: 'network-only' }).then(r => r.data.consultarCompra);
+    const terminar = compra => {
+      if (['CANCELADA', 'CANCELANDO', 'REEMBOLSADA', 'REEMBOLSO_PENDIENTE', 'REEMBOLSO_FALLIDO'].includes(compra.estado)) {
+        olvidar();
+        mostrarMensajePago('Compra cancelada', compra.mensaje, 'aviso');
+        return true;
+      }
+      if (!['CONFIRMADA', 'RESERVADA', 'AUTORIZADA'].includes(compra.estado)) return false;
+      olvidar();
+      const carritoRestante = carrito.filter(p => String(p.id_restaurante) !== String(idCartActivo));
+      setCarrito(carritoRestante);
+      onPedidoConfirmado?.({
+        nombreRestaurante: restaurante?.nombre, total: compra.total,
+        articulos: compra.items.reduce((suma, item) => suma + item.cantidad, 0),
+        metodoPago, tipoEntrega, fechaProgramada: compra.fecha_programada,
+        direccionLocal: direccionRestaurante, urlMapa: urlUbicacionLocal, direccionEntrega: direccionFinal,
+        estadoCompra: compra.estado, mensaje: compra.mensaje, idCompra: compra.id_compra,
+        autorizacionHasta: compra.autorizacion_hasta,
+      });
+      if (carritoRestante.length) setIdCartActivo(null);
+      else { vaciarCarrito(); onVolver(); }
+      return true;
+    };
     try {
-
-      if (tipoEntrega === 'DOMICILIO') {
-        setComprobandoHorario(true);
-        try {
-          const { data } = await refrescarRestaurante();
-          validarZonaEntrega(data?.obtenerRestaurantePorId, coordenadasEnvio.lat, coordenadasEnvio.lng);
-        } catch (error) {
-          return mostrarMensajePago('Revisa la dirección de entrega', error.message);
-        } finally {
-          setComprobandoHorario(false);
-        }
+      if (compraPorComprobar) {
+        hayOperacionPendiente = true;
+        intento = { clave: compraPorComprobar.clave };
+        const compra = await consultar(intento.clave);
+        if (terminar(compra)) return;
+        setCompraPorComprobar(null);
+        return mostrarMensajePago('Puedes continuar con la compra', 'El banco aún no ha autorizado el pago. Revisa el carrito y vuelve a confirmar.', 'info');
       }
-
-      const direccionFinal = tipoEntrega === 'RECOGIDA' 
-        ? 'Recogida en el local' 
-        : (detallesDireccion.trim() ? `${direccion}\nDetalles: ${detallesDireccion}` : direccion);
-
-      // Determinamos la fecha programada para el backend
-      let fechaFinalBackend = null;
-      
-      if (modoRecogida === 'PROGRAMADO' && horaProgramada) {
-        setComprobandoHorario(true);
+      if (metodoPago === 'TARJETA' && !tarjetaSeleccionada) return mostrarMensajePago('Añade una tarjeta para continuar', 'Guarda una tarjeta o elige pagar en efectivo.');
+      if (metodoPago === 'TARJETA' && !stripe) return mostrarMensajePago('El pago está cargando', 'Espera unos segundos y vuelve a confirmar.', 'info');
+      if (!intento) {
         try {
-          const { data } = await refrescarRestaurante();
-          const local = data?.obtenerRestaurantePorId;
-          if (!local) throw new Error('No se ha podido comprobar el horario del restaurante.');
-          fechaFinalBackend = validarFechaRecogida(local.horarios_recogida, horaProgramada);
-        } catch (error) {
-          return mostrarMensajePago('Revisa la hora de tu reserva', error.message);
-        } finally {
-          setComprobandoHorario(false);
-        }
-      } else if (modoRecogida === 'AHORA') {
-        setComprobandoHorario(true);
-        try {
-          const { data } = await refrescarRestaurante();
-          const local = data?.obtenerRestaurantePorId;
-          if (!local?.aceptando_pedidos) throw new Error('El local no acepta pedidos inmediatos en este momento.');
-        } catch(e) {
-          return mostrarMensajePago('El restaurante ya no está disponible', e.message);
-        } finally { setComprobandoHorario(false); }
+          const anterior = JSON.parse(localStorage.getItem(almacenamiento));
+          if (anterior?.huella === huellaCompra) intento = { clave: anterior.clave };
+        } catch { /* Sin intento anterior. */ }
       }
-
+      if (!intento) intento = { clave: crypto.randomUUID() };
+      guardarIntento(intento);
+      let compra = (await prepararCompra({ variables: { input: { ...solicitud, clave: intento.clave } } })).data.prepararCompra;
+      if (terminar(compra)) return;
+      setCotizacion({ huella: huellaCompra, compra });
+      const cambianPrecios = centimos(compra.total) !== centimos(totalFinal) || compra.items.some(item => centimos(carritoEnUso.find(p => String(p.id_plato) === String(item.id_plato)).precio) !== centimos(item.precio));
+      if (cambianPrecios) {
+        setCarrito(anterior => anterior.map(p => {
+          const item = String(p.id_restaurante) === String(idCartActivo) && compra.items.find(i => String(i.id_plato) === String(p.id_plato));
+          return item ? { ...p, precio: item.precio } : p;
+        }));
+        return mostrarMensajePago('Importe actualizado', 'El total verificado es ' + compra.total.toFixed(2) + ' €. Revisa el desglose y pulsa de nuevo para confirmar. Aún no se ha autorizado ni cobrado la tarjeta.', 'aviso');
+      }
       if (metodoPago === 'TARJETA') {
-        if (!tarjetaSeleccionada) return mostrarMensajePago('Añade una tarjeta para continuar', 'Guarda una tarjeta de crédito o débito, o elige pagar en efectivo.');
-        if (!stripe) return mostrarMensajePago('El pago todavía está cargando', 'Espera unos segundos y vuelve a pulsar Pagar.', 'info');
-        
-        const huella = JSON.stringify([idUsuario, idCartActivo, totalFinal, carritoEnUso.map(p => [p.id_plato, p.cantidad || 1]), direccionFinal, fechaFinalBackend]);
-        huellaPago = huella;
-        try {
-          let intento = intentosPago.current.get(huella);
-          if (!intento) {
-            intento = { clave: crypto.randomUUID(), tarjeta: tarjetaSeleccionada, secreto: null };
-            intentosPago.current.set(huella, intento);
-          }
-          if (!intento.secreto) {
-            const { data } = await crearIntencion({ variables: { monto: totalFinal, id_tarjeta: intento.tarjeta, clave_pago: intento.clave } });
-            intento.secreto = data.crearIntencionPago;
-          } else {
-            const estado = await stripe.retrievePaymentIntent(intento.secreto);
-            if (estado.error) throw new Error(estado.error.message);
-            if (estado.paymentIntent?.status === 'succeeded') pagoConfirmado = true;
-            if (estado.paymentIntent?.status === 'processing') return mostrarMensajePago('Tu banco está confirmando el pago', 'Espera unos segundos y vuelve a consultar pulsando Pagar.', 'info');
-            if (estado.paymentIntent?.status === 'canceled') {
-              intentosPago.current.delete(huella);
-              return mostrarMensajePago('El intento de pago se ha cancelado', 'Vuelve a pulsar Pagar para iniciar otro intento.', 'aviso');
-            }
-          }
-          if (!pagoConfirmado) {
-            const resultado = await stripe.confirmCardPayment(intento.secreto, { payment_method: tarjetaSeleccionada });
-            if (resultado.error) throw new Error(resultado.error.message);
-            if (resultado.paymentIntent?.status !== 'succeeded') return mostrarMensajePago('El pago aún no está confirmado', 'Espera unos segundos y vuelve a consultar pulsando Pagar.', 'info');
-            pagoConfirmado = true;
-          }
-        } catch (error) {
-          if (error.message.includes('Añádela de nuevo')) {
-            intentosPago.current.delete(huella);
-            await refrescarTarjetas().catch(() => {});
-            setMostrarModalTarjeta(true);
-          }
-          return mostrarMensajePago('No se ha completado el pago', error.message);
+        hayOperacionPendiente = true;
+        const resultado = await stripe.confirmCardPayment(compra.client_secret, { payment_method: tarjetaSeleccionada });
+        if (resultado.error) throw new Error(resultado.error.message);
+        if (resultado.paymentIntent?.status !== 'requires_capture') {
+          const actual = await consultar(intento.clave);
+          if (terminar(actual)) return;
+          setCompraPorComprobar({ clave: intento.clave, idRestaurante: idCartActivo });
+          return mostrarMensajePago('Tu banco está comprobando la autorización', 'Pulsa Comprobar compra para recuperar el estado sin crear otro pedido.', 'info');
         }
       }
-
-      try {
-        const promesas = [];
-        carritoEnUso.forEach(plato => {
-          const cantidadDeEstePlato = plato.cantidad || 1;
-          for (let i = 0; i < cantidadDeEstePlato; i++) {
-            promesas.push(
-              crearPedido({
-                variables: {
-                  id_usuario: idUsuario, 
-                  id_restaurante: plato.id_restaurante, 
-                  id_plato: plato.id_plato,
-                  metodo_pago: metodoPago, 
-                  direccion_envio: direccionFinal, 
-                  fecha_programada: fechaFinalBackend,
-                  latitud_cliente: tipoEntrega === 'RECOGIDA' ? null : coordenadasEnvio?.lat,
-                  longitud_cliente: tipoEntrega === 'RECOGIDA' ? null : coordenadasEnvio?.lng
-                }
-              })
-            );
-          }
-        });
-        await Promise.all(promesas);
-        if (huellaPago) intentosPago.current.delete(huellaPago);
-
-        const carritoRestante = carrito.filter(p => p.id_restaurante !== idCartActivo);
-        setCarrito(carritoRestante);
-
-        onPedidoConfirmado?.({
-          nombreRestaurante: restaurante?.nombre,
-          total: totalFinal,
-          articulos: carritoEnUso.reduce((suma, plato) => suma + (plato.cantidad || 1), 0),
-          metodoPago,
-          tipoEntrega,
-          fechaProgramada: fechaFinalBackend,
-          direccionLocal: direccionRestaurante,
-          urlMapa: urlUbicacionLocal,
-          direccionEntrega: direccionFinal,
-        });
-
-        if (carritoRestante.length > 0) setIdCartActivo(null); 
-        else { vaciarCarrito(); onVolver(); }
-      } catch(e) {
-        if (pagoConfirmado) {
-          setPedidoPagadoSinRegistrar(idCartActivo);
-          mostrarMensajePago('El pago está confirmado: revisa tu pedido', 'No se ha podido registrar todo el pedido. Revisa Mis pedidos y contacta con el local antes de volver a pagar.', 'aviso');
-        } else mostrarMensajePago('No se ha podido confirmar el pedido', e.message.replace('GraphQL error: ', ''));
-      }
+      hayOperacionPendiente = true;
+      compra = (await confirmarCompra({ variables: { id: intento.clave } })).data.confirmarCompra;
+      terminar(compra);
+    } catch (error) {
+      if (intento && hayOperacionPendiente) {
+        try {
+          const actual = await consultar(intento.clave);
+          if (terminar(actual)) return;
+          if (actual.estado === 'BORRADOR') return mostrarMensajePago('No se ha confirmado el pedido', error.message);
+        } catch { /* Una respuesta perdida se recupera usando la misma compra. */ }
+        setCompraPorComprobar({ clave: intento.clave, idRestaurante: idCartActivo });
+        mostrarMensajePago('Comprueba el estado de tu compra', 'No hemos podido recuperar la respuesta. Pulsa Comprobar compra; se reutilizará el mismo pedido y no se duplicará el cobro.', 'aviso');
+      } else mostrarMensajePago('Revisa tu carrito', error.message.replace('GraphQL error: ', ''));
     } finally {
       pagoEnCurso.current = false;
       setProcesandoStripe(false);
@@ -669,7 +592,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   }
 
   const entregaBloqueada = tipoEntrega === 'DOMICILIO' && (cargandoRestaurante || errorRestaurante || !restaurante || Boolean(errorZonaEntrega));
-  const bloqueado = procesandoPago || procesandoStripe || comprobandoHorario || guardandoTarjeta || Boolean(eliminandoTarjeta) || entregaBloqueada || pedidoPagadoSinRegistrar === idCartActivo || (metodoPago === 'TARJETA' && (cargandoTarjetas || Boolean(errorTarjetas)));
+  const bloqueado = procesandoPago || procesandoStripe || guardandoTarjeta || Boolean(eliminandoTarjeta) || (!compraPorComprobar && (entregaBloqueada || (metodoPago === 'TARJETA' && (cargandoTarjetas || Boolean(errorTarjetas)))));
   const urlMapaRestaurante = tieneCoordenadasLocal ? `https://static-maps.yandex.ru/1.x/?ll=${longitudLocal},${latitudLocal}&size=600,150&z=16&l=map&pt=${longitudLocal},${latitudLocal},pm2rdm` : null;
 
   return (
@@ -680,7 +603,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
       </button>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <button onClick={() => setCarrito(carrito.filter(p => p.id_restaurante !== idCartActivo))} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}>Vaciar este carrito</button>
+        <button disabled={procesandoStripe || Boolean(compraPorComprobar)} onClick={() => setCarrito(carrito.filter(p => p.id_restaurante !== idCartActivo))} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}>Vaciar este carrito</button>
       </div>
 
       {restauranteCerrado && (
@@ -701,7 +624,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '2rem' }}>
             {carritoEnUso.map(item => (
               <div key={item.id_plato} className="carrito-producto">
-                {item.imagen_url ? <img src={item.imagen_url} alt={item.nombre} className="carrito-foto" /> : <div className="carrito-foto carrito-foto-vacia"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg></div>}
+                <ImagenPlato plato={item} className="carrito-foto" style={{ width: '60px', height: '60px', borderRadius: '10px' }} />
                 <div className="carrito-producto-info">
                   <h4 style={{ margin: '0 0 5px 0', color: esTemporal(item) || esIndefinido(item) ? '#d63031' : '#333', fontSize: '16px' }}>
                     {item.nombre} 
@@ -712,18 +635,19 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                   <span style={{ color: '#0066cc', fontWeight: 'bold', fontSize: '14px' }}>{item.precio.toFixed(2)}&nbsp;€ /ud</span>
                 </div>
                 <div className="carrito-producto-cantidad" style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', padding: '5px 8px', borderRadius: '25px', border: '1px solid #ddd' }}>
-                  <button type="button" aria-label={'Reducir cantidad de ' + item.nombre} onClick={() => disminuirCantidad(item.id_plato)} disabled={item.cantidad <= 1} style={{ border: 'none', background: '#f5f5f5', borderRadius: '50%', width: '28px', height: '28px', cursor: item.cantidad <= 1 ? 'not-allowed' : 'pointer', fontWeight: 'bold', color: item.cantidad <= 1 ? '#ccc' : '#333' }}>-</button>
+                  <button type="button" aria-label={'Reducir cantidad de ' + item.nombre} onClick={() => disminuirCantidad(item.id_plato)} disabled={item.cantidad <= 1 || procesandoStripe || Boolean(compraPorComprobar)} style={{ border: 'none', background: '#f5f5f5', borderRadius: '50%', width: '28px', height: '28px', cursor: item.cantidad <= 1 ? 'not-allowed' : 'pointer', fontWeight: 'bold', color: item.cantidad <= 1 ? '#ccc' : '#333' }}>-</button>
                   <span style={{ fontWeight: 'bold', width: '20px', textAlign: 'center' }}>{item.cantidad || 1}</span>
-                  <button type="button" aria-label={'Aumentar cantidad de ' + item.nombre} onClick={() => aumentarCantidad(item.id_plato)} style={{ border: 'none', background: '#f5f5f5', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
+                  <button type="button" aria-label={'Aumentar cantidad de ' + item.nombre} onClick={() => aumentarCantidad(item.id_plato)} disabled={procesandoStripe || Boolean(compraPorComprobar)} style={{ border: 'none', background: '#f5f5f5', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
                 </div>
                 <div className="carrito-producto-total" style={{ textAlign: 'right' }}><p style={{ margin: '0', fontWeight: 'bold', color: '#ff4500', fontSize: '16px' }}>{(item.precio * (item.cantidad || 1)).toFixed(2)}&nbsp;€</p></div>
-                <button type="button" className="carrito-eliminar" onClick={() => eliminarPlato(item.id_plato)} aria-label={'Eliminar ' + item.nombre + ' del carrito'} title="Eliminar producto"><IconoPapelera /></button>
+                <button type="button" className="carrito-eliminar" onClick={() => eliminarPlato(item.id_plato)} disabled={procesandoStripe || Boolean(compraPorComprobar)} aria-label={'Eliminar ' + item.nombre + ' del carrito'} title="Eliminar producto"><IconoPapelera /></button>
               </div>
             ))}
           </div>
 
           <div ref={formularioPago} className="carrito-pago" role="region" aria-label="Completar el pedido" tabIndex={-1} style={{ backgroundColor: '#f8f9fa', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '1rem', scrollMarginTop: '90px' }}>
             
+            <fieldset disabled={procesandoStripe || Boolean(compraPorComprobar)} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             <div style={{ marginBottom: '15px' }}>
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '10px', display: 'block' }}>Forma de entrega:</label>
               
@@ -925,6 +849,8 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
               </div>
             )}
 
+            </fieldset>
+            {modoRecogida === 'PROGRAMADO' && <p className="carrito-aviso-reserva">Con tarjeta, el banco retiene el importe ahora y solo se cobra cuando llegue la hora y el pedido esté disponible. La fecha debe caber en el plazo de autorización de tu tarjeta. Si no puede servirse en los 30 minutos siguientes, se cancela sin cobrar. Con efectivo, pagarás al recibir o recoger.</p>}
             <div className="carrito-desglose" style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #eaeaea', marginTop: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#666', fontSize: '15px' }}>
                 <span>Subtotal</span>
@@ -956,11 +882,11 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
               )}
             </div>
 
-            <button type="button" className="boton-con-estado" onClick={iniciarPago} disabled={bloqueado} aria-busy={procesandoPago || procesandoStripe || comprobandoHorario} style={{ padding: '1.2rem', background: '#16864a', color: '#fff', border: 'none', borderRadius: '10px', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.2rem', marginTop: '0.5rem', transition: 'all 0.2s' }}>
-              {(procesandoPago || procesandoStripe || comprobandoHorario) && <IconoEstado tipo="cargando" tamano={22} />}
-              {comprobandoHorario ? 'Comprobando tu pedido...' : procesandoPago ? 'Confirmando tu pedido...' : procesandoStripe ? metodoPago === 'TARJETA' ? 'Procesando el pago...' : 'Confirmando tu pedido...' : `Pagar ${totalFinal.toFixed(2)}\u00a0€`}
+            <button type="button" className="boton-con-estado" onClick={iniciarPago} disabled={bloqueado} aria-busy={procesandoPago || procesandoStripe} style={{ padding: '1.2rem', background: '#16864a', color: '#fff', border: 'none', borderRadius: '10px', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.2rem', marginTop: '0.5rem', transition: 'all 0.2s' }}>
+              {(procesandoPago || procesandoStripe) && <IconoEstado tipo="cargando" tamano={22} />}
+              {procesandoPago ? 'Confirmando tu pedido...' : procesandoStripe ? metodoPago === 'TARJETA' ? 'Procesando el pago...' : 'Confirmando tu pedido...' : compraPorComprobar ? 'Comprobar compra' : `${modoRecogida === 'PROGRAMADO' ? 'Reservar' : 'Pagar'} ${totalFinal.toFixed(2)}\u00a0€`}
             </button>
-            {mensajePago?.idRestaurante === idCartActivo && <div ref={mensajePagoRef} tabIndex={-1} style={{ outline: 'none' }}><MensajeAccion mensaje={mensajePago} onCerrar={pedidoPagadoSinRegistrar === idCartActivo ? undefined : () => setMensajePago(null)} /></div>}
+            {mensajePago?.idRestaurante === idCartActivo && <div ref={mensajePagoRef} tabIndex={-1} style={{ outline: 'none' }}><MensajeAccion mensaje={mensajePago} onCerrar={() => setMensajePago(null)} /></div>}
           </div>
         </>
       )}

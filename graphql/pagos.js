@@ -104,20 +104,9 @@ export function crearOperacionesPago(pool, stripe) {
           return true;
         }, 'No se ha podido eliminar la tarjeta. Inténtalo de nuevo.');
       },
-      crearIntencionPago: async (_, { monto, id_tarjeta, clave_pago }, contexto) => {
-        const idUsuario = exigirUsuario(contexto);
-        const importe = Math.round(monto * 100);
-        if (!Number.isFinite(monto) || importe < 50 || importe > 99999999) throw new GraphQLError('El importe del pago no es válido.');
-        if (!/^[a-zA-Z0-9-]{16,64}$/.test(clave_pago)) throw new GraphQLError('El identificador del pago no es válido.');
-        return ejecutar(async () => {
-          const cliente = await obtenerCliente(idUsuario);
-          await comprobarTarjeta(id_tarjeta, cliente);
-          const intencion = await stripe.paymentIntents.create({
-            amount: importe, currency: 'eur', customer: cliente,
-            payment_method: id_tarjeta, payment_method_types: ['card'],
-          }, { idempotencyKey: 'nexbite-pago-' + idUsuario + '-' + clave_pago });
-          return intencion.client_secret;
-        }, 'No se ha podido iniciar el pago. Inténtalo de nuevo.');
+      crearIntencionPago: async (_, __, contexto) => {
+        exigirUsuario(contexto);
+        throw new GraphQLError('Actualiza la página para pagar el carrito completo con su precio verificado.', { extensions: { code: 'CLIENTE_DESACTUALIZADO' } });
       },
     },
   };

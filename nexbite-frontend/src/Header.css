@@ -68,21 +68,25 @@ body { margin: 0; }
 .header-ubicacion-container:hover .tooltip-direccion {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
 }
 
 .tooltip-direccion {
   position: absolute;
   top: calc(100% + 12px);
-  left: 50%;
-  transform: translateX(-50%) translateY(-10px);
+  right: 0;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 32px));
+  box-sizing: border-box;
+  transform: translateY(-10px);
   background-color: #222;
   color: #fff;
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 13px;
   line-height: 1.4;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   box-shadow: 0 4px 15px rgba(0,0,0,0.2);
   opacity: 0;
   visibility: hidden;
@@ -96,7 +100,7 @@ body { margin: 0; }
   content: '';
   position: absolute;
   top: -6px;
-  left: 50%;
+  right: 12px;
   margin-left: -6px;
   border-width: 0 6px 6px 6px;
   border-style: solid;

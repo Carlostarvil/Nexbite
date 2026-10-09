@@ -16,7 +16,7 @@ const OBTENER_MIS_PEDIDOS = gql`
   query ObtenerPedidosCliente($id_usuario: ID!) {
     obtenerPedidosCliente(id_usuario: $id_usuario) {
       id_pedido, id_restaurante, id_plato, nombre_plato, precio_plato
-      estado, nombre_restaurante, imagen_restaurante, plato_disponible, restaurante_abierto
+      estado, fecha_programada, id_compra, estado_pago, mensaje_pago, nombre_restaurante, imagen_restaurante, plato_disponible, restaurante_abierto
       fecha_pedido, descripcion_plato, imagen_plato
     }
   }
@@ -244,8 +244,13 @@ export default function PerfilUsuario({ irAPedidos = false, onVolver, onAgregarA
                           {formatearFecha(pedido.fecha_pedido)}
                         </p>
                         <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: pedido.estado === 'ENTREGADO' ? '#e8f5e9' : '#f5f5f5', color: pedido.estado === 'ENTREGADO' ? '#166534' : '#666' }}>
-                          Estado: {pedido.estado}
+                          Estado: {pedido.estado_pago === 'AUTORIZADA' ? 'Confirmando el pago' : pedido.estado}
                         </span>
+                        {pedido.fecha_programada && <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#555' }}>Reservado para {new Date(Number.isFinite(Number(pedido.fecha_programada)) ? Number(pedido.fecha_programada) : pedido.fecha_programada).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}</p>}
+                        {pedido.estado_pago === 'RESERVADA' && pedido.metodo_pago === 'TARJETA' && <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#355044' }}>Importe autorizado. Se cobrará al activarse el pedido.</p>}
+                        {pedido.estado_pago === 'REEMBOLSADA' && <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#355044' }}>Devolución tramitada. Tu banco confirma cuándo estará disponible.</p>}
+                        {pedido.mensaje_pago && <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#555' }}>{pedido.mensaje_pago}</p>}
+
                       </div>
                     </div>
 

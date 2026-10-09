@@ -49,3 +49,4 @@
   .carrito-grupo, .carrito-eliminar, .carrito-cambiar-direccion { transition: none; }
   .carrito-eliminar:hover, .carrito-eliminar:active, .carrito-cambiar-direccion:hover, .carrito-cambiar-direccion:active { transform: none; }
 }
+.carrito-aviso-reserva { margin: 12px 0; padding: 14px 16px; border: 1px solid #dbe6df; border-radius: 12px; background: #f1f7f3; color: #355044; font-size: 13px; line-height: 1.6; }

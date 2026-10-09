@@ -1,5 +1,6 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
+import { SQL_COMPRAS } from '../graphql/migracionCompras.js';
 
 dotenv.config();
 const { Pool } = pg;
@@ -14,7 +15,7 @@ const pool = new Pool({
     port: process.env.DB_PORT,
 });
 
-pool.connect()
+pool.query('SELECT 1')
     .then(() => console.log('✅ Conexión a PostgreSQL (restaurantes_ai) exitosa'))
     .catch(err => console.error('❌ Error al conectar:', err.stack));
 
@@ -38,6 +39,8 @@ export const menusListos = pool.query(`
     PRIMARY KEY (id_menu, id_plato_incluido)
   );
 `);
+
+export const comprasListas = pool.query(SQL_COMPRAS);
 
 // Esto fuerza a Node a crear la tabla en la base de datos correcta si no existe
 pool.query(`

@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "test:recogida": "node --test tests/horarios-recogida.test.js",
     "test:locales": "node --test tests/editar-locales.test.js",
     "test:zona": "node --test tests/zona-entrega.test.js",
-    "test:pagos": "node --test tests/pagos.test.js"
+    "test:pagos": "node --test tests/pagos.test.js tests/compras.test.js"
   },
   "keywords": [],
   "author": "",
@@ -32,5 +32,8 @@
     "pg": "^8.23.0",
     "stripe": "^22.6.2",
     "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8"
   }
 }

@@ -7,6 +7,8 @@ export default function ConfirmacionPedido({ pedido, onCerrar, onVerPedidos }) {
   const dialogo = useRef(null);
   const recogida = pedido.tipoEntrega === 'RECOGIDA';
   const pagado = pedido.metodoPago === 'TARJETA';
+  const reservada = pedido.estadoCompra === 'RESERVADA';
+  const pendiente = pedido.estadoCompra === 'AUTORIZADA';
   const fecha = pedido.fechaProgramada ? new Date(pedido.fechaProgramada).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid' }) : null;
 
   useEffect(() => {
@@ -34,16 +36,17 @@ export default function ConfirmacionPedido({ pedido, onCerrar, onVerPedidos }) {
     <section ref={dialogo} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="titulo-confirmacion-pedido" aria-describedby="descripcion-confirmacion-pedido" className="confirmacion-pedido" onKeyDown={teclado}>
       <button type="button" className="confirmacion-pedido-cerrar" aria-label="Cerrar confirmación del pedido" onClick={onCerrar}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button>
       <div className="confirmacion-pedido-icono"><IconoEstado tipo="exito" tamano={54} /></div>
-      <p className="confirmacion-pedido-etiqueta">{fecha ? 'Recogida programada' : 'Pedido confirmado'}</p>
-      <h2 id="titulo-confirmacion-pedido">{pagado ? '¡Pago realizado!' : '¡Pedido confirmado!'}</h2>
-      <p id="descripcion-confirmacion-pedido">{recogida ? fecha ? 'Tu pedido está reservado para la hora que has elegido.' : 'El local preparará tu pedido para recogerlo lo antes posible.' : 'El local preparará tu pedido para enviarlo a tu dirección.'}</p>
+      <p className="confirmacion-pedido-etiqueta">{reservada ? 'Pedido programado' : pendiente ? 'Pedido guardado' : 'Pedido confirmado'}</p>
+      <h2 id="titulo-confirmacion-pedido">{reservada ? '¡Reserva confirmada!' : pendiente ? 'Confirmando el pago' : pagado ? '¡Pago realizado!' : '¡Pedido confirmado!'}</h2>
+      <p id="descripcion-confirmacion-pedido">{pedido.mensaje || (recogida ? 'El local preparará tu pedido para recogerlo.' : 'El local preparará tu pedido para enviarlo a tu dirección.')}</p>
       <dl className="confirmacion-pedido-resumen">
         <div><dt>Local</dt><dd>{pedido.nombreRestaurante || 'Tu restaurante'}</dd></div>
         <div><dt>Artículos</dt><dd>{pedido.articulos}</dd></div>
         <div><dt>Total del pedido</dt><dd className="confirmacion-pedido-total">{pedido.total.toFixed(2)}&nbsp;€</dd></div>
-        <div><dt>Pago</dt><dd>{pagado ? 'Pagado con tarjeta' : recogida ? 'En efectivo al recoger' : 'En efectivo al recibir'}</dd></div>
+        <div><dt>Pago</dt><dd>{pagado ? reservada ? 'Autorizado: se cobra al activar la reserva' : pendiente ? 'Pendiente de confirmación' : 'Pagado con tarjeta' : recogida ? 'En efectivo al recoger' : 'En efectivo al recibir'}</dd></div>
         <div><dt>{recogida ? 'Recogida' : 'Entrega'}</dt><dd>{fecha || (recogida ? 'Lo antes posible' : 'A domicilio')}</dd></div>
       </dl>
+      {reservada && pedido.autorizacionHasta && <p>La autorización de la tarjeta vence el {new Date(pedido.autorizacionHasta).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}.</p>}
       {recogida ? <div className="confirmacion-pedido-direccion"><strong>Dirección del local</strong><DireccionLocal direccion={pedido.direccionLocal} urlMapa={pedido.urlMapa} /></div> : <div className="confirmacion-pedido-direccion"><strong>Dirección de entrega</strong><p>{pedido.direccionEntrega}</p></div>}
       <div className="confirmacion-pedido-acciones">
         <button type="button" onClick={onVerPedidos}>Ver mis pedidos <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></button>

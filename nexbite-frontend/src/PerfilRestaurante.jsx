@@ -75,10 +75,9 @@ const ALTERNAR_FAVORITO_PLATO = gql`
 
 const OBTENER_HISTORIAL_COMPRAS = gql`
   query ObtenerHistorialCompras($id_usuario: ID!) {
-    obtenerPedidosUsuario(id_usuario: $id_usuario) {
+    obtenerPedidosCliente(id_usuario: $id_usuario) {
       id_plato
       id_restaurante
-      cantidad
     }
   }
 `;
@@ -277,9 +276,9 @@ function InfoRestauranteModal({ restaurante, onClose }) {
   );
 }
 
-export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAlCarrito, onSelectPlato, carrito = [] }) {
+export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, onAgregarAlCarrito, onSelectPlato, carrito = [] }) {
   const usuarioLogueado = JSON.parse(localStorage.getItem('user')) || {};
-  const idUsuarioActual = usuarioLogueado.id_usuario || "0"; 
+  const idUsuarioActual = String(idUsuario || usuarioLogueado.id_usuario || '0');
 
   const { loading, error, data } = useQuery(OBTENER_DATOS, { 
     variables: { id: idRestaurante, id_usuario: idUsuarioActual },
@@ -380,7 +379,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
     const puntuacionPlatos = {};
     const gustosEtiquetas = {};
 
-    const historialBackend = dataHistorial?.obtenerPedidosUsuario || [];
+    const historialBackend = dataHistorial?.obtenerPedidosCliente || [];
     const carritoActual = Array.isArray(carrito) ? carrito : [];
     
     const elementosInteraccion = [...historialBackend, ...carritoActual].filter(item => String(item.id_restaurante) === String(idRestaurante));
@@ -440,7 +439,7 @@ export default function PerfilRestaurante({ idRestaurante, onVolver, onAgregarAl
   seccionesSidebar.push('Valoraciones'); 
 
   const categoriaSeleccionada = seccionesSidebar.includes(categoriaActiva) ? categoriaActiva : seccionesSidebar[0];
-  const tiposLocal = [...new Set((restaurante?.tipo || '').split(',').map(tipo => tipo.trim()).filter(Boolean))];
+  const tiposLocal = [...new Set((restaurante?.tipo || '').split('|')[0].split(',').map(tipo => tipo.trim()).filter(Boolean))];
 
   useEffect(() => {
     const handleScroll = () => {
