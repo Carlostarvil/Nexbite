@@ -9,7 +9,7 @@ export default function EtiquetasInfoLocal({ tipo }) {
 
   return <ul className="info-restaurante-etiquetas" aria-label="Tipo de local y especialidades">
     {categorias.map(categoria => <li key={categoria} className={'info-restaurante-etiqueta info-restaurante-etiqueta-' + (ICONOS[categoria] || 'categoria')}>
-      <span className="info-restaurante-etiqueta-icono"><IconoInfoRestaurante tipo={ICONOS[categoria] || 'categoria'} /></span>
+      {ICONOS[categoria] && <span className="info-restaurante-etiqueta-icono"><IconoInfoRestaurante tipo={ICONOS[categoria]} /></span>}
       <span>{textoCategoriaLocal(categoria)}</span>
     </li>)}
   </ul>;
