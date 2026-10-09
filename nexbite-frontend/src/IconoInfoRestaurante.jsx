@@ -6,6 +6,10 @@ const PALETAS = {
   horario: ['#63d49a', '#2c9e6c', '#247c55'],
   'horario-cerrado': ['#ff939e', '#dd5064', '#b9394b'],
   entrega: ['#b396ff', '#7954dd', '#6441bb'],
+  restaurante: ['#ffac52', '#ee5424', '#b83f19'],
+  supermercado: ['#60b2ff', '#2675d9', '#1c5db3'],
+  farmacia: ['#63d49a', '#2c9e6c', '#247c55'],
+  categoria: ['#ffac52', '#ee5424', '#b83f19'],
 };
 
 export default function IconoInfoRestaurante({ tipo, className }) {
@@ -15,6 +19,33 @@ export default function IconoInfoRestaurante({ tipo, className }) {
   let dibujo;
 
   switch (tipo) {
+    case 'restaurante':
+      dibujo = <>
+        <circle cx="34" cy="32" r="19" fill="#fff" stroke={paleta[2]} strokeWidth="3" />
+        <circle cx="34" cy="32" r="12" fill={relleno} opacity=".25" />
+        <path d="M9 8v14m6-14v14M3 8v14a6 6 0 0 0 12 0M9 28v28M57 8c-6 4-8 11-8 23h8V8Zm0 23v25" stroke={paleta[2]} strokeWidth="3.5" />
+      </>;
+      break;
+    case 'supermercado':
+      dibujo = <>
+        <path d="M8 23h48l-5 28H13L8 23Z" fill={relleno} stroke={paleta[2]} strokeWidth="2.5" />
+        <path d="m20 24 9-14m15 14-9-14" stroke={paleta[2]} strokeWidth="4" />
+        <path d="M24 33v10m16-10v10M9 24h46" stroke="#fff" strokeWidth="3" />
+      </>;
+      break;
+    case 'farmacia':
+      dibujo = <>
+        <rect x="7" y="7" width="50" height="50" rx="15" fill={relleno} stroke={paleta[2]} strokeWidth="2" />
+        <path d="M26 17h12v9h9v12h-9v9H26v-9h-9V26h9V17Z" fill="#fff" />
+      </>;
+      break;
+    case 'categoria':
+      dibujo = <>
+        <path d="M9 9h24l23 23-24 24L9 33V9Z" fill={relleno} stroke={paleta[2]} strokeWidth="2.5" />
+        <circle cx="22" cy="22" r="5" fill="#fff" />
+        <path d="m33 29 10 10m-15-5 10 10" stroke="#fff" strokeWidth="3" />
+      </>;
+      break;
     case 'ubicacion':
       dibujo = <>
         <ellipse cx="32" cy="58" rx="25" ry="3" fill="#27516b" opacity=".1" />

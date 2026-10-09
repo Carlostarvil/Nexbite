@@ -8,6 +8,7 @@ import { nombreCategoria } from './categoriasPlatos';
 import CarruselPlatos from './CarruselPlatos';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
 import IconoInfoRestaurante from './IconoInfoRestaurante';
+import EtiquetasInfoLocal from './EtiquetasInfoLocal';
 import EstadoDisponibilidad from './EstadoDisponibilidad';
 import ImagenPlato from './ImagenPlato';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
@@ -229,7 +230,7 @@ function InfoRestauranteModal({ restaurante, onClose }) {
 
         <div className="info-restaurante-contenido">
           <h2 id="info-restaurante-titulo">{restaurante.nombre}</h2>
-          <p className="info-restaurante-tipo">{restaurante.tipo}</p>
+          <EtiquetasInfoLocal tipo={restaurante.tipo} />
 
           <div className="info-restaurante-datos">
             <div className="info-restaurante-fila">
