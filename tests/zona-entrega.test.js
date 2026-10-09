@@ -35,11 +35,11 @@ test('la búsqueda de recogida usa distancia propia y la de reparto usa el radio
   assert.throws(() => filtroZona({ latitud: 0, longitud: 0, radio_km: -1 }, []), /radio de búsqueda/);
 });
 
-test('los listados y el buscador aplican la zona antes de LIMIT y usan parámetros SQL', async () => {
+test('los listados de descubrimiento y el buscador aplican la zona antes de LIMIT y usan parámetros SQL', async () => {
   const llamadas = [];
   const consultas = crearConsultasZona({ query: async (sql, valores) => { llamadas.push({ sql, valores }); return { rows: [] }; } });
   const args = { latitud: 41.39, longitud: 2.17, solo_con_entrega: true, id_usuario: '7', termino: "pizza' OR TRUE" };
-  for (const nombre of Object.keys(consultas)) {
+  for (const nombre of Object.keys(consultas).filter(nombre => nombre !== 'obtenerUltimosPedidos')) {
     await consultas[nombre](null, args);
     const { sql, valores } = llamadas.at(-1);
     assert.match(sql, /WHERE[\s\S]*r\.radio_cobertura_km/);

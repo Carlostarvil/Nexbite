@@ -37,7 +37,7 @@ const OBTENER_DATOS_INICIO = gql`
     obtenerMejoresRestaurantes(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion, calificacion }
     obtenerFavoritos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion, calificacion }
     obtenerPlatosDestacados(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, nombre_restaurante, categoria, disponible, tiempo_disponible, items_menu { id_plato nombre imagen_url } }
-    obtenerUltimosPedidos(id_usuario: $id_usuario, latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) {
+    obtenerUltimosPedidos(id_usuario: $id_usuario) {
       id_pedido, id_restaurante, id_plato, nombre_plato, precio_plato
       estado, nombre_restaurante, imagen_restaurante, plato_disponible, restaurante_abierto
       fecha_pedido, descripcion_plato, imagen_plato
@@ -485,7 +485,7 @@ function App() {
 
                 {data?.obtenerUltimosPedidos && data.obtenerUltimosPedidos.length > 0 && !categoriaFiltroInicio && (
                   <div style={{ marginTop: '1rem', marginBottom: '3rem', position: 'relative' }}>
-                    <TituloSeccion titulo="¿Repetimos?" descripcion="Vuelve a pedir lo que ya te gusta." acciones={<ControlesCarrusel titulo="¿Repetimos?" onAnterior={() => scrollRepetimos(-300)} onSiguiente={() => scrollRepetimos(300)} />} />
+                    <TituloSeccion titulo="¿Repetimos?" descripcion={historialBackend.length === 1 ? 'Tu último pedido.' : `Tus últimos ${historialBackend.length} pedidos.`} acciones={<ControlesCarrusel titulo="¿Repetimos?" onAnterior={() => scrollRepetimos(-300)} onSiguiente={() => scrollRepetimos(300)} />} />
                     
                     <div ref={repetimosRef} className="ocultar-scrollbar" style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px', scrollBehavior: 'smooth' }}>
                       {data.obtenerUltimosPedidos.map(pedido => {

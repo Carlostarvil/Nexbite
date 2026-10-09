@@ -53,7 +53,8 @@ export function crearConsultasZona(pool) {
     obtenerPlatosFavoritos: (_, args) => ejecutar(args, [args.id_usuario], ({ condicion }) =>
       `SELECT p.* FROM Platos p JOIN Platos_Favoritos f ON p.id_plato = f.id_plato JOIN Restaurantes r ON r.id_restaurante = p.id_restaurante
        WHERE f.id_usuario = $1 AND ${condicion}`),
-    obtenerUltimosPedidos: (_, args) => ejecutar(args, [args.id_usuario], ({ condicion }) =>
+    // El historial pertenece al cliente y no depende de su ubicación actual.
+    obtenerUltimosPedidos: async (_, { id_usuario }) => (await pool.query(
       `SELECT pe.id_pedido, pe.id_restaurante, pe.id_plato, pe.estado, pe.metodo_pago, pe.direccion_envio, pe.fecha_programada, pe.fecha_pedido,
          pl.nombre AS nombre_plato, pl.precio AS precio_plato, pl.disponible AS plato_disponible, pl.descripcion AS descripcion_plato,
          COALESCE(NULLIF(pl.imagen_url, ''), (
@@ -63,6 +64,6 @@ export function crearConsultasZona(pool) {
          )) AS imagen_plato,
          r.nombre AS nombre_restaurante, r.imagen_url AS imagen_restaurante, r.aceptando_pedidos AS restaurante_abierto
        FROM Pedidos pe LEFT JOIN Platos pl ON pe.id_plato = pl.id_plato LEFT JOIN Restaurantes r ON pe.id_restaurante = r.id_restaurante
-       WHERE pe.id_usuario = $1 AND ${condicion} ORDER BY pe.id_pedido DESC LIMIT 8`),
+       WHERE pe.id_usuario = $1 ORDER BY pe.id_pedido DESC LIMIT 8`, [id_usuario])).rows,
   };
 }
