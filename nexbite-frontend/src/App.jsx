@@ -19,6 +19,7 @@ import DetallePlato from './DetallePlato';
 import PerfilUsuario from './PerfilUsuario';
 import CarruselPlatos from './CarruselPlatos';
 import CategoriasInicio from './CategoriasInicio';
+import EtiquetasLocal from './EtiquetasLocal';
 import SelectorRecomendaciones from './SelectorRecomendaciones';
 import TituloSeccion, { ControlesCarrusel } from './TituloSeccion';
 import BotonAgregarCarrito from './BotonAgregarCarrito';
@@ -450,6 +451,7 @@ function App() {
                                 )}
                               </div>
                               
+                              <EtiquetasLocal tipo={restaurante.tipo || 'RESTAURANTE'} className="etiquetas-local-inicio" />
                               <h3 style={{ margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                   <span style={{ fontSize: '1.1rem', color: '#1a1a1a' }}>{restaurante.nombre}</span>
@@ -461,13 +463,6 @@ function App() {
                               </h3>
                               {restaurante.aceptando_pedidos === false && <div style={{ marginBottom: '10px' }}><EstadoDisponibilidad cerrado fecha={restaurante.tiempo_reactivacion} compacto /></div>}
                               
-                              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                                {restaurante.tipo ? restaurante.tipo.split('|')[0].split(',').slice(0, 2).map((t, idx) => (
-                                  <span key={idx} style={{ background: '#fff0eb', color: '#c43c00', padding: '3px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                                    {t.trim()}
-                                  </span>
-                                )) : null}
-                              </div>
                             </div>
                           );
                         })}
@@ -646,6 +641,7 @@ function App() {
                           )}
                         </div>
                         
+                        <EtiquetasLocal tipo={restaurante.tipo || 'RESTAURANTE'} className="etiquetas-local-inicio" />
                         <h3 style={{ margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             <span style={{ fontSize: '1.2rem', color: '#1a1a1a' }}>{restaurante.nombre}</span>
@@ -659,17 +655,6 @@ function App() {
                         </h3>
                         {restaurante.aceptando_pedidos === false && <div style={{ marginBottom: '10px' }}><EstadoDisponibilidad cerrado fecha={restaurante.tiempo_reactivacion} compacto /></div>}
                         
-                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                          {restaurante.tipo ? restaurante.tipo.split('|')[0].split(',').map((t, idx) => (
-                            <span key={idx} style={{ background: '#f3f4f6', color: '#333', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                              {t.trim()}
-                            </span>
-                          )) : (
-                            <span style={{ background: '#f3f4f6', color: '#333', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold' }}>
-                              RESTAURANTE
-                            </span>
-                          )}
-                        </div>
 
                       </div>
                     )})}

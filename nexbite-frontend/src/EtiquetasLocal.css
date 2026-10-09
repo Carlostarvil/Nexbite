@@ -1,0 +1,4 @@
+.etiquetas-local { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.etiqueta-local { display: inline-flex; align-items: center; max-width: 100%; padding: 4px 9px; border-radius: 7px; background: #f1f5f1; color: #5b6d60; font-size: 10px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
+.etiquetas-local-inicio { margin: 0 0 10px; }
+.etiquetas-local-inicio .etiqueta-local { font-size: 11px; }
