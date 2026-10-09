@@ -58,9 +58,9 @@ const OBTENER_DATOS = gql`
       telefono
       direccion
     }
-    obtenerMenuRestaurante(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, categoria, imagen_url, disponible, tiempo_disponible, items_menu { id_plato nombre imagen_url } }
+    obtenerMenuRestaurante(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, categoria, imagen_url, disponible, tiempo_disponible, items_menu { id_plato, nombre, imagen_url, disponible, tiempo_disponible } }
     
-    obtenerMasVendidos(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, disponible, tiempo_disponible, items_menu { id_plato nombre imagen_url } }
+  obtenerMasVendidos(id_restaurante: $id) { id_plato, id_restaurante, nombre, descripcion, precio, imagen_url, disponible, tiempo_disponible, items_menu { id_plato, nombre, imagen_url, disponible, tiempo_disponible } }
     
     obtenerFavoritos(id_usuario: $id_usuario) { id_restaurante }
     obtenerPlatosFavoritos(id_usuario: $id_usuario) { id_plato }

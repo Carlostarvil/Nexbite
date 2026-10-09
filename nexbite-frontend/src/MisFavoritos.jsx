@@ -97,7 +97,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
           Volver
         </button>
         
-        <h2 style={{ fontSize: '2rem', color: '#1a1a1a', margin: '0 0 1.5rem 0', letterSpacing: '-0.5px' }}>Mis Favoritos</h2>
+        <h2 style={{ fontSize: '2rem', color: '#1a1a1a', margin: '0 0 1.5rem 0', letterSpacing: '-0.5px' }}></h2>
         
         {/* PESTAÑAS (TABS) MODERNAS */}
         <div style={{ display: 'flex', gap: '20px', borderBottom: '2px solid #eaeaea', paddingBottom: '0' }}>

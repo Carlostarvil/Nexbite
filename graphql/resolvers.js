@@ -195,7 +195,37 @@ export const resolvers = {
       }
     }
   },
+  
+  // Añade este bloque justo antes de "Mutation: {"
+  Plato: {
+    items_menu: async (parent) => {
+      try {
+        // Buscamos los platos que pertenecen a este menú
+        const res = await pool.query(`
+          SELECT p.* FROM Platos p
+          JOIN Menu_Platos mp ON p.id_plato = mp.id_plato_incluido
+          WHERE mp.id_menu = $1
+        `, [parent.id_plato]);
+        
+        // Comprobamos si alguno se ha reactivado automáticamente
+        const ahora = new Date();
+        for (let plato of res.rows) {
+          if (plato.disponible === false && plato.tiempo_disponible) {
+            if (ahora >= new Date(plato.tiempo_disponible)) {
+              await pool.query('UPDATE Platos SET disponible = true, tiempo_disponible = NULL WHERE id_plato = $1', [plato.id_plato]);
+              plato.disponible = true;
+              plato.tiempo_disponible = null;
+            }
+          }
+        }
+        return res.rows;
+      } catch (error) {
+        return [];
+      }
+    }
+  },
 
+  
   Mutation: {
     actualizarPerfilUsuario: async (_, { id_usuario, telefono, direccion }) => {
       const res = await pool.query(

@@ -71,6 +71,14 @@ const OBTENER_INFO_BASICA_REST = gql`
   }
 `;
 
+// Función segura para procesar cualquier formato de fecha sin que dé "Invalid date"
+const parsearFechaSegura = (fechaStr) => {
+  if (!fechaStr || String(fechaStr).includes('Indefinido')) return null;
+  const timestamp = !isNaN(fechaStr) && String(fechaStr).trim() !== '' ? Number(fechaStr) : fechaStr;
+  const fecha = new Date(timestamp);
+  return isNaN(fecha.getTime()) ? null : fecha;
+};
+
 const calcularDistancia = (lat1, lon1, lat2, lon2) => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
   const R = 6371; 
@@ -118,7 +126,9 @@ function TarjetaCarritoGrupo({ grupo, onSeleccionar, onEliminar }) {
       {rest?.imagen_url ? (
         <img src={rest.imagen_url} alt="" className="carrito-foto" />
       ) : (
-        <span className="carrito-foto carrito-foto-vacia" aria-hidden="true">🏪</span>
+        <span className="carrito-foto carrito-foto-vacia" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9h18v2H3z"></path><path d="M4 11v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9"></path><path d="M2 5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"></path><path d="M12 11v10"></path></svg>
+        </span>
       )}
       <span className="carrito-grupo-info">
         <strong className="carrito-grupo-nombre">{rest?.nombre || 'Cargando...'}</strong>
@@ -146,12 +156,16 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
   const [idCartActivo, setIdCartActivo] = useState(() => idRestauranteInicial == null ? null : carrito.find(plato => String(plato.id_restaurante) === String(idRestauranteInicial))?.id_restaurante ?? null);
   const formularioPago = useRef(null);
+  
+  const [modalIntercepcion, setModalIntercepcion] = useState(null);
+
   useEffect(() => {
     if (irAPago && idCartActivo && formularioPago.current) {
       formularioPago.current.focus({ preventScroll: true });
       formularioPago.current.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     }
   }, [irAPago, idCartActivo]);
+  
   const [tipoEntrega, setTipoEntrega] = useState(tipoEntregaInicial);
   
   const [seleccionesRecogida, setSeleccionesRecogida] = useState({});
@@ -167,6 +181,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const setDiaProgramado = valor => actualizarRecogida({ diaProgramado: valor });
   const setHoraProgramada = valor => actualizarRecogida({ horaProgramada: valor });
   const setHoraSeleccionadaTemp = valor => actualizarRecogida({ horaSeleccionadaTemp: valor });
+  
   const [ahora, setAhora] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setAhora(new Date()), 30_000);
@@ -203,6 +218,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const [pedidoPagadoSinRegistrar, setPedidoPagadoSinRegistrar] = useState(null);
   const [mensajePago, setMensajePago] = useState(null);
   const mensajePagoRef = useRef(null);
+  
   useEffect(() => {
     if (mensajePago && mensajePagoRef.current) {
       mensajePagoRef.current.focus({ preventScroll: true });
@@ -269,6 +285,16 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const [crearIntencion] = useMutation(CREAR_INTENCION_PAGO);
   const [pedirAviso] = useMutation(SOLICITAR_AVISO);
 
+  const handlePedirAvisoRestaurante = async () => {
+    await pedirAviso({ variables: { id_usuario: idUsuario, tipo: 'RESTAURANTE', id_referencia: idRestauranteCarrito } });
+    alert("¡Anotado! Te enviaremos un email automático en cuanto el restaurante vuelva a abrir.");
+  };
+
+  const handlePedirAvisoPlato = async (idPlato) => {
+    await pedirAviso({ variables: { id_usuario: idUsuario, tipo: 'PLATO', id_referencia: idPlato } });
+    alert("¡Anotado! Te enviaremos un email en cuanto este plato vuelva a estar disponible.");
+  };
+
   const gruposObj = carrito.reduce((acc, plato) => {
     if (!acc[plato.id_restaurante]) acc[plato.id_restaurante] = { id_restaurante: plato.id_restaurante, platos: [], totalItems: 0 };
     acc[plato.id_restaurante].platos.push(plato);
@@ -292,6 +318,105 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
   const { data: dataRest, loading: cargandoRestaurante, error: errorRestaurante, refetch: refrescarRestaurante } = useQuery(OBTENER_ESTADO_RESTAURANTE, { variables: { id: idRestauranteCarrito }, skip: !idRestauranteCarrito });
   const restaurante = dataRest?.obtenerRestaurantePorId;
+  
+  // FUNCIONES DE INSPECCIÓN EN CASCADA (PARA MENÚS PROFUNDOS)
+  const subPropiedades = ['platos', 'opciones', 'sub_platos', 'seleccion', 'componentes', 'items', 'elecciones', 'platos_menu', 'items_menu'];
+
+  const esIndefinido = (plato) => {
+    if (plato.disponible === false && (!plato.tiempo_disponible || String(plato.tiempo_disponible).includes('Indefinido'))) {
+      return true;
+    }
+    for (const prop of subPropiedades) {
+      if (Array.isArray(plato[prop])) {
+        if (plato[prop].some(sub => {
+          const inner = sub.plato || sub;
+          return inner && inner.disponible === false && (!inner.tiempo_disponible || String(inner.tiempo_disponible).includes('Indefinido'));
+        })) return true;
+      }
+    }
+    return false;
+  };
+
+  const esTemporal = (plato) => {
+    if (plato.disponible === false && plato.tiempo_disponible && !String(plato.tiempo_disponible).includes('Indefinido')) {
+      return true;
+    }
+    for (const prop of subPropiedades) {
+      if (Array.isArray(plato[prop])) {
+        if (plato[prop].some(sub => {
+          const inner = sub.plato || sub;
+          return inner && inner.disponible === false && inner.tiempo_disponible && !String(inner.tiempo_disponible).includes('Indefinido');
+        })) return true;
+      }
+    }
+    return false;
+  };
+
+  const obtenerNombresSubPausados = (plato, soloIndefinidos = false) => {
+    const listado = [];
+    subPropiedades.forEach(prop => {
+      if (Array.isArray(plato[prop])) {
+        plato[prop].forEach(sub => {
+          const inner = sub.plato || sub;
+          if (inner && inner.disponible === false) {
+            const esIndef = !inner.tiempo_disponible || String(inner.tiempo_disponible).includes('Indefinido');
+            if (soloIndefinidos && !esIndef) return;
+            if (!soloIndefinidos && esIndef) return;
+            listado.push(inner.nombre);
+          }
+        });
+      }
+    });
+    return listado;
+  };
+
+  const obtenerMaxTiempoCascada = (plato) => {
+    let subMax = 0;
+    subPropiedades.forEach(prop => {
+      if (Array.isArray(plato[prop])) {
+        plato[prop].forEach(sub => {
+          const inner = sub.plato || sub;
+          if (inner && inner.disponible === false && inner.tiempo_disponible && !String(inner.tiempo_disponible).includes('Indefinido')) {
+            const f = parsearFechaSegura(inner.tiempo_disponible);
+            if (f && f.getTime() > subMax) subMax = f.getTime();
+          }
+        });
+      }
+    });
+    return subMax > 0 ? new Date(subMax) : null;
+  };
+
+  // Categorizar platos pausados con el validador en cascada restaurado
+  const platosIndefinidos = carritoEnUso.filter(esIndefinido);
+  const platosTemporales = carritoEnUso.filter(p => !esIndefinido(p) && esTemporal(p));
+
+  // Algoritmo para calcular el "Tiempo Efectivo" de disponibilidad (recursivo para menús)
+  const maxTiempoEfectivo = useMemo(() => {
+    let maxTime = ahora.getTime();
+    
+    // 1. Revisar si hay platos pausados y coger el que más tarde (incluyendo sub-componentes)
+    platosTemporales.forEach(p => {
+      const dateObj = parsearFechaSegura(p.tiempo_disponible);
+      if (dateObj && dateObj.getTime() > maxTime) {
+        maxTime = dateObj.getTime();
+      }
+      const cascadaDate = obtenerMaxTiempoCascada(p);
+      if (cascadaDate && cascadaDate.getTime() > maxTime) {
+        maxTime = cascadaDate.getTime();
+      }
+    });
+
+    // 2. Si el restaurante está cerrado, también se respeta su tiempo de apertura
+    if (restaurante && !restaurante.aceptando_pedidos && restaurante.tiempo_reactivacion) {
+      const dateObj = parsearFechaSegura(restaurante.tiempo_reactivacion);
+      if (dateObj && dateObj.getTime() > maxTime) {
+        maxTime = dateObj.getTime();
+      }
+    }
+    
+    return new Date(maxTime);
+  }, [platosTemporales, ahora, restaurante]);
+
   const latitudLocal = restaurante?.latitud;
   const longitudLocal = restaurante?.longitud;
   const direccionGuardadaLocal = restaurante?.direccion?.trim();
@@ -301,21 +426,23 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     (tieneCoordenadasLocal ? Number(latitudLocal).toFixed(5) + ', ' + Number(longitudLocal).toFixed(5) : 'Ubicación del local no especificada');
   const destinoLocal = tieneCoordenadasLocal ? latitudLocal + ',' + longitudLocal : direccionGuardadaLocal;
   const urlUbicacionLocal = destinoLocal ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(destinoLocal) : null;
-  const opcionesRecogida = useMemo(() => restaurante ? generarOpcionesRecogida(restaurante.horarios_recogida, ahora) : [], [restaurante, ahora]);
+  
+  // Le pasamos 'maxTiempoEfectivo' al generador en lugar de 'ahora'
+  const opcionesRecogida = useMemo(() => restaurante ? generarOpcionesRecogida(restaurante.horarios_recogida, maxTiempoEfectivo) : [], [restaurante, maxTiempoEfectivo]);
   const diasDisponibles = opcionesRecogida;
   const horasDisponiblesList = diasDisponibles.find(dia => dia.valor === diaProgramado)?.horas || [];
   const opcionProgramada = diasDisponibles.flatMap(dia => dia.horas).find(hora => hora.valor === horaProgramada);
   const diaConfirmado = diasDisponibles.find(dia => dia.horas.some(hora => hora.valor === horaProgramada));
-  const recogidaAhoraDisponible = restaurante && restaurante.aceptando_pedidos && recogidaDisponible(restaurante.horarios_recogida, ahora, 15);
-
+  
+  // La recogida "AHORA" se desactiva matemáticamente si hay algo pausado
   const restauranteCerrado = restaurante ? !restaurante.aceptando_pedidos : false;
+  const recogidaAhoraDisponible = restaurante && !restauranteCerrado && platosTemporales.length === 0 && platosIndefinidos.length === 0 && recogidaDisponible(restaurante.horarios_recogida, ahora, 15);
+
   let errorZonaEntrega = '';
   if (tipoEntrega === 'DOMICILIO' && restaurante && !cargandoRestaurante) {
     try { validarZonaEntrega(restaurante, coordenadasEnvio?.lat, coordenadasEnvio?.lng); }
     catch (error) { errorZonaEntrega = error.message; }
   }
-  const platosIndefinidos = carritoEnUso.filter(p => p.disponible === false && (!p.tiempo_disponible || p.tiempo_disponible.includes('Indefinido')));
-  const platosTemporales = carritoEnUso.filter(p => p.disponible === false && p.tiempo_disponible && !p.tiempo_disponible.includes('Indefinido'));
 
   useEffect(() => {
     if (direccionGuardadaLocal || !tieneCoordenadasLocal) return;
@@ -345,21 +472,44 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const envioFinal = (tipoEntrega === 'RECOGIDA' || superaGratis) ? 0 : gastosEnvio;
   const totalFinal = subtotal + envioFinal;
 
-  const handlePedirAvisoRestaurante = async () => {
-    await pedirAviso({ variables: { id_usuario: idUsuario, tipo: 'RESTAURANTE', id_referencia: idRestauranteCarrito } });
-    alert("¡Anotado! Te enviaremos un email automático en cuanto el restaurante vuelva a abrir.");
+  const iniciarPago = () => {
+    if (carritoEnUso.length === 0) return mostrarMensajePago('Tu carrito está vacío', 'Añade un plato para continuar con el pedido.');
+    if (tipoEntrega === 'DOMICILIO' && (!direccion.trim() || !coordenadasEnvio)) return mostrarMensajePago('Elige dónde recibir tu pedido', 'Selecciona una dirección de entrega antes de continuar.');
+
+    const tieneReserva = modoRecogida === 'PROGRAMADO' && opcionProgramada;
+
+    // 1. Interceptar si hay platos agotados indefinidamente
+    if (platosIndefinidos.length > 0) {
+      setModalIntercepcion('PLATOS_PAUSADOS');
+      return;
+    }
+
+    // 2. Interceptar si hay platos pausados temporalmente Y NO hay reserva programada
+    if (platosTemporales.length > 0 && !tieneReserva) {
+      setModalIntercepcion('PLATOS_PAUSADOS');
+      return;
+    }
+    
+    // 3. Interceptar si el restaurante está cerrado y no hay reserva programada
+    if (restauranteCerrado && !tieneReserva) {
+      setModalIntercepcion('RESTAURANTE_CERRADO');
+      return;
+    }
+
+    // 4. Validar programación
+    if (modoRecogida === 'PROGRAMADO' && !opcionProgramada) {
+      return mostrarMensajePago('Horario inválido', 'Por favor, selecciona una hora válida para tu reserva.');
+    }
+
+    // Si todo está OK, procesamos pago
+    handlePagar();
   };
 
-  const handlePedirAvisoPlato = async (idPlato) => {
-    await pedirAviso({ variables: { id_usuario: idUsuario, tipo: 'PLATO', id_referencia: idPlato } });
-    alert("¡Anotado! Te enviaremos un email en cuanto este plato vuelva a estar disponible.");
-  };
-
-  const handlePagar = async (fechaParaProgramar = null) => {
+  const handlePagar = async () => {
     if (pagoEnCurso.current || guardadoEnCurso.current || eliminandoTarjeta) return;
     if (pedidoPagadoSinRegistrar === idCartActivo) return;
     if (metodoPago === 'TARJETA' && (cargandoTarjetas || errorTarjetas)) return;
-    if (carritoEnUso.length === 0) return mostrarMensajePago('Tu carrito está vacío', 'Añade un plato para continuar con el pedido.');
+    
     setMensajePago(null);
     pagoEnCurso.current = true;
     setProcesandoStripe(true);
@@ -368,7 +518,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     try {
 
       if (tipoEntrega === 'DOMICILIO') {
-        if (!direccion.trim() || !coordenadasEnvio) return mostrarMensajePago('Elige dónde recibir tu pedido', 'Selecciona una dirección de entrega antes de continuar.');
         setComprobandoHorario(true);
         try {
           const { data } = await refrescarRestaurante();
@@ -380,27 +529,34 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         }
       }
 
-      if (platosIndefinidos.length > 0) return mostrarMensajePago('Hay platos que ya no están disponibles', 'Elimina los productos agotados del carrito antes de continuar.');
-
       const direccionFinal = tipoEntrega === 'RECOGIDA' 
         ? 'Recogida en el local' 
-        : (detallesDireccion.trim() ? `${direccion} - Detalles: ${detallesDireccion}` : direccion);
+        : (detallesDireccion.trim() ? `${direccion}\nDetalles: ${detallesDireccion}` : direccion);
 
-      let fechaFinalBackend = fechaParaProgramar;
-      if (tipoEntrega === 'RECOGIDA') {
+      // Determinamos la fecha programada para el backend
+      let fechaFinalBackend = null;
+      
+      if (modoRecogida === 'PROGRAMADO' && horaProgramada) {
         setComprobandoHorario(true);
         try {
           const { data } = await refrescarRestaurante();
           const local = data?.obtenerRestaurantePorId;
           if (!local) throw new Error('No se ha podido comprobar el horario del restaurante.');
-          if (modoRecogida === 'PROGRAMADO' && !opcionProgramada) throw new Error('Vuelve a seleccionar una hora de recogida disponible.');
-          if (modoRecogida === 'AHORA' && !local.aceptando_pedidos) throw new Error('El local no acepta pedidos inmediatos.');
-          fechaFinalBackend = validarFechaRecogida(local.horarios_recogida, modoRecogida === 'PROGRAMADO' ? horaProgramada : fechaParaProgramar);
+          fechaFinalBackend = validarFechaRecogida(local.horarios_recogida, horaProgramada);
         } catch (error) {
-          return mostrarMensajePago('Revisa la hora de recogida', error.message);
+          return mostrarMensajePago('Revisa la hora de tu reserva', error.message);
         } finally {
           setComprobandoHorario(false);
         }
+      } else if (modoRecogida === 'AHORA') {
+        setComprobandoHorario(true);
+        try {
+          const { data } = await refrescarRestaurante();
+          const local = data?.obtenerRestaurantePorId;
+          if (!local?.aceptando_pedidos) throw new Error('El local no acepta pedidos inmediatos en este momento.');
+        } catch(e) {
+          return mostrarMensajePago('El restaurante ya no está disponible', e.message);
+        } finally { setComprobandoHorario(false); }
       }
 
       if (metodoPago === 'TARJETA') {
@@ -512,9 +668,8 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     );
   }
 
-  const recogidaBloqueada = tipoEntrega === 'RECOGIDA' && (cargandoRestaurante || errorRestaurante || !restaurante || (modoRecogida === 'AHORA' ? !recogidaAhoraDisponible : !opcionProgramada));
   const entregaBloqueada = tipoEntrega === 'DOMICILIO' && (cargandoRestaurante || errorRestaurante || !restaurante || Boolean(errorZonaEntrega));
-  const bloqueado = procesandoPago || procesandoStripe || comprobandoHorario || guardandoTarjeta || Boolean(eliminandoTarjeta) || recogidaBloqueada || entregaBloqueada || pedidoPagadoSinRegistrar === idCartActivo || (metodoPago === 'TARJETA' && (cargandoTarjetas || Boolean(errorTarjetas)));
+  const bloqueado = procesandoPago || procesandoStripe || comprobandoHorario || guardandoTarjeta || Boolean(eliminandoTarjeta) || entregaBloqueada || pedidoPagadoSinRegistrar === idCartActivo || (metodoPago === 'TARJETA' && (cargandoTarjetas || Boolean(errorTarjetas)));
   const urlMapaRestaurante = tieneCoordenadasLocal ? `https://static-maps.yandex.ru/1.x/?ll=${longitudLocal},${latitudLocal}&size=600,150&z=16&l=map&pt=${longitudLocal},${latitudLocal},pm2rdm` : null;
 
   return (
@@ -531,14 +686,11 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
       {restauranteCerrado && (
         <div style={{ backgroundColor: '#ffeeba', padding: '1.2rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #ffe8a1' }}>
           <h4 style={{ color: '#856404', margin: '0 0 10px 0', fontSize: '1.1rem' }}>⚠️ El restaurante está cerrado</h4>
-          <p style={{ margin: 0, fontSize: '14px', color: '#666' }}>Abre aproximadamente: <strong style={{ color: '#333' }}>{restaurante.tiempo_reactivacion ? new Date(Number(restaurante.tiempo_reactivacion)).toLocaleString() : 'Pronto'}</strong></p>
-        </div>
-      )}
-
-      {platosIndefinidos.length > 0 && (
-        <div style={{ backgroundColor: '#f8d7da', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #f5c6cb' }}>
-          <h4 style={{ color: '#721c24', margin: '0 0 10px 0' }}>⛔ Productos Agotados Indefinidamente</h4>
-          <p style={{ margin: 0, fontSize: '14px', color: '#721c24' }}>Debes eliminar los productos agotados para poder continuar.</p>
+          <p style={{ margin: 0, fontSize: '14px', color: '#666' }}>
+            Abre aproximadamente: <strong style={{ color: '#333' }}>
+              {restaurante.tiempo_reactivacion ? parsearFechaSegura(restaurante.tiempo_reactivacion)?.toLocaleString() || 'Pronto' : 'Pronto'}
+            </strong>
+          </p>
         </div>
       )}
 
@@ -549,9 +701,14 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '2rem' }}>
             {carritoEnUso.map(item => (
               <div key={item.id_plato} className="carrito-producto">
-                {item.imagen_url ? <img src={item.imagen_url} alt={item.nombre} className="carrito-foto" /> : <div className="carrito-foto carrito-foto-vacia">🍽</div>}
+                {item.imagen_url ? <img src={item.imagen_url} alt={item.nombre} className="carrito-foto" /> : <div className="carrito-foto carrito-foto-vacia"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg></div>}
                 <div className="carrito-producto-info">
-                  <h4 style={{ margin: '0 0 5px 0', color: item.disponible === false ? '#d63031' : '#333', fontSize: '16px' }}>{item.nombre} {item.disponible === false && "(Agotado)"}</h4>
+                  <h4 style={{ margin: '0 0 5px 0', color: esTemporal(item) || esIndefinido(item) ? '#d63031' : '#333', fontSize: '16px' }}>
+                    {item.nombre} 
+                    {(esTemporal(item) || esIndefinido(item)) && (
+                      <span style={{ fontSize: '11px', color: '#d63031', marginLeft: '6px', background: '#ffebee', padding: '2px 6px', borderRadius: '10px' }}>No disponible</span>
+                    )}
+                  </h4>
                   <span style={{ color: '#0066cc', fontWeight: 'bold', fontSize: '14px' }}>{item.precio.toFixed(2)}&nbsp;€ /ud</span>
                 </div>
                 <div className="carrito-producto-cantidad" style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', padding: '5px 8px', borderRadius: '25px', border: '1px solid #ddd' }}>
@@ -570,7 +727,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
             <div style={{ marginBottom: '15px' }}>
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '10px', display: 'block' }}>Forma de entrega:</label>
               
-              {/* NUEVO DISEÑO PLANO PARA DOMICILIO O RECOGIDA */}
               <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                 <button
                   type="button"
@@ -628,44 +784,38 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                     <DireccionLocal key={direccionRestaurante} direccion={direccionRestaurante} urlMapa={urlUbicacionLocal} />
                   </div>
                 </div>
-
-                <div style={{ border: '1px solid #ccc', borderRadius: '12px', padding: '15px', marginTop: '15px', backgroundColor: '#fff' }}>
-                  <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#333' }}>Opciones de recogida</h4>
-                  <div 
-                    onClick={() => { 
-                      const dia = diaConfirmado || diasDisponibles[0];
-                      setDiaProgramado(dia?.valor || '');
-                      setHoraSeleccionadaTemp(opcionProgramada?.valor || dia?.horas[0]?.valor || '');
-                      setMostrarModalProgramar(true); 
-                    }}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f5f5', padding: '15px', borderRadius: '8px', cursor: 'pointer', transition: 'background 0.2s' }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#eaeaea'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <span style={{ fontSize: '1.2rem' }}>🕒</span>
-                      <span style={{ fontWeight: 'bold', color: '#333', fontSize: '14px' }}>
-                        {modoRecogida === 'AHORA' 
-                          ? (recogidaAhoraDisponible ? 'Lo antes posible' : 'Selecciona una hora de recogida')
-                          : (opcionProgramada ? `${diaConfirmado.etiqueta}, ${opcionProgramada.etiqueta}` : 'Vuelve a seleccionar una hora disponible')}
-                      </span>
-                    </div>
-                    <span style={{ color: '#0066cc', fontWeight: 'bold', fontSize: '14px' }}>Editar</span>
-                  </div>
-                  {!recogidaAhoraDisponible && modoRecogida === 'AHORA' && <p style={{ fontSize: '13px', color: '#b45309', marginBottom: 0 }}>
-                    {cargandoRestaurante ? 'Consultando el horario…' : errorRestaurante ? 'No se ha podido cargar el horario. Inténtalo de nuevo.' : 'La recogida inmediata no está disponible. Programa una hora dentro del horario del local.'}
-                  </p>}
-                </div>
               </div>
             )}
+            
+            <div style={{ border: '1px solid #ccc', borderRadius: '12px', padding: '15px', marginTop: '15px', backgroundColor: '#fff' }}>
+              <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#333' }}>Cuándo quieres tu pedido</h4>
+              <div 
+                onClick={() => { 
+                  const dia = diaConfirmado || diasDisponibles[0];
+                  setDiaProgramado(dia?.valor || '');
+                  setHoraSeleccionadaTemp(opcionProgramada?.valor || dia?.horas[0]?.valor || '');
+                  setMostrarModalProgramar(true); 
+                }}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f5f5', padding: '15px', borderRadius: '8px', cursor: 'pointer', transition: 'background 0.2s' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#eaeaea'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  <span style={{ fontWeight: 'bold', color: '#333', fontSize: '14px' }}>
+                    {modoRecogida === 'AHORA' 
+                      ? (recogidaAhoraDisponible ? 'Lo antes posible' : 'Selecciona una hora')
+                      : (opcionProgramada ? `Programado para: ${diaConfirmado.etiqueta}, ${opcionProgramada.etiqueta}` : 'Selecciona una hora disponible')}
+                  </span>
+                </div>
+                <span style={{ color: '#0066cc', fontWeight: 'bold', fontSize: '14px' }}>Editar</span>
+              </div>
+            </div>
             
             <div style={{ marginTop: '20px', borderTop: '1px solid #ddd', paddingTop: '15px' }}>
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '10px', display: 'block' }}>Elige cómo quieres pagar:</label>
               
-              {/* NUEVAS TARJETAS VISUALES DE PAGO */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
-                
-                {/* OPCIÓN: TARJETA ONLINE */}
                 <button
                   type="button"
                   onClick={() => setMetodoPago('TARJETA')}
@@ -700,7 +850,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                   }} />
                 </button>
 
-                {/* OPCIÓN: EFECTIVO */}
                 <button
                   type="button"
                   onClick={() => setMetodoPago('EFECTIVO')}
@@ -770,12 +919,12 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                   </div>
                 )}
                 <button disabled={procesandoStripe || Boolean(eliminandoTarjeta)} onClick={() => setMostrarModalTarjeta(true)} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'none', border: '1px dashed #ccc', padding: '15px', width: '100%', borderRadius: '8px', cursor: 'pointer', color: '#0066cc', fontWeight: 'bold', fontSize: '14px', justifyContent: 'center' }}>
-                  <span>➕</span> Añadir una tarjeta de crédito o débito
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  Añadir una tarjeta de crédito o débito
                 </button>
               </div>
             )}
 
-            {/* DESGLOSE DE PRECIOS */}
             <div className="carrito-desglose" style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #eaeaea', marginTop: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#666', fontSize: '15px' }}>
                 <span>Subtotal</span>
@@ -807,7 +956,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
               )}
             </div>
 
-            <button type="button" className="boton-con-estado" onClick={() => handlePagar(null)} disabled={bloqueado} aria-busy={procesandoPago || procesandoStripe || comprobandoHorario} style={{ padding: '1.2rem', background: '#16864a', color: '#fff', border: 'none', borderRadius: '10px', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.2rem', marginTop: '0.5rem' }}>
+            <button type="button" className="boton-con-estado" onClick={iniciarPago} disabled={bloqueado} aria-busy={procesandoPago || procesandoStripe || comprobandoHorario} style={{ padding: '1.2rem', background: '#16864a', color: '#fff', border: 'none', borderRadius: '10px', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.2rem', marginTop: '0.5rem', transition: 'all 0.2s' }}>
               {(procesandoPago || procesandoStripe || comprobandoHorario) && <IconoEstado tipo="cargando" tamano={22} />}
               {comprobandoHorario ? 'Comprobando tu pedido...' : procesandoPago ? 'Confirmando tu pedido...' : procesandoStripe ? metodoPago === 'TARJETA' ? 'Procesando el pago...' : 'Confirmando tu pedido...' : `Pagar ${totalFinal.toFixed(2)}\u00a0€`}
             </button>
@@ -816,31 +965,177 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         </>
       )}
 
-      {mostrarModalTarjeta && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: '1rem' }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="titulo-tarjeta" style={{ background: '#fff', borderRadius: '12px', padding: '2rem', width: '100%', maxWidth: '400px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
-            <button disabled={guardandoTarjeta} aria-label="Cerrar tarjeta" onClick={() => setMostrarModalTarjeta(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>❌</button>
-            <h3 id="titulo-tarjeta" style={{ margin: '0 0 12px 0', color: '#333', fontSize: '1.3rem' }}>Añadir una tarjeta</h3>
-            <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>Guardaremos esta tarjeta en tu cuenta para tus próximos pedidos.</p>
-            <label htmlFor="titular-tarjeta" style={{ fontSize: '13px', color: '#555', fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Nombre en la tarjeta</label>
-            <input id="titular-tarjeta" disabled={guardandoTarjeta} type="text" value={nuevoTitular} onChange={e => setNuevoTitular(e.target.value)} placeholder="Ej. Juan Pérez" style={{ width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box', outline: 'none' }} />
-            <label style={{ fontSize: '13px', color: '#555', fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Información de la tarjeta</label>
-            <div style={{ padding: '14px 12px', border: '1px solid #ccc', borderRadius: '6px', marginBottom: '25px', backgroundColor: '#fff' }}><CardElement options={{ style: { base: { fontSize: '16px', color: '#333', '::placeholder': { color: '#aab7c4' } } } }} /></div>
-            <button onClick={handleGuardarTarjeta} disabled={guardandoTarjeta || !stripe || !elements} style={{ width: '100%', background: '#333', color: '#fff', padding: '15px', borderRadius: '8px', fontWeight: 'bold', border: 'none', fontSize: '1rem', cursor: guardandoTarjeta ? 'not-allowed' : 'pointer', opacity: guardandoTarjeta ? 0.7 : 1 }}>{guardandoTarjeta ? 'Guardando...' : 'Guardar y continuar'}</button>
+      {/* MODAL DE INTERCEPCIÓN DE ERRORES/PAUSAS EN EL CARRITO */}
+      {modalIntercepcion === 'PLATOS_PAUSADOS' && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000, padding: '1rem', backdropFilter: 'blur(3px)' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '450px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', textAlign: 'center' }}>
+            <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#fff0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', color: '#dc3545' }}>
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </div>
+            
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '1.4rem', color: '#1a1a1a' }}>Hay productos no disponibles</h3>
+            <p style={{ color: '#666', fontSize: '15px', marginBottom: '20px' }}>Algunos productos de tu carrito están agotados temporalmente y no pueden ser cobrados ahora mismo.</p>
+
+            <ul style={{ textAlign: 'left', background: '#f9f9f9', padding: '15px 15px 15px 35px', borderRadius: '10px', color: '#333', fontSize: '14px', marginBottom: '25px', border: '1px solid #eee' }}>
+              {platosIndefinidos.map(p => {
+                const subs = obtenerNombresSubPausados(p, true);
+                const desc = subs.length > 0 ? ` (Menú contiene: ${subs.join(', ')})` : ' (Agotado)';
+                return <li key={p.id_plato} style={{ marginBottom: '8px' }}><b>{p.nombre}</b> {desc}</li>;
+              })}
+              {platosTemporales.map(p => {
+                const subs = obtenerNombresSubPausados(p, false);
+                const cascadaDate = obtenerMaxTiempoCascada(p);
+                const maxFechaObj = cascadaDate || parsearFechaSegura(p.tiempo_disponible);
+                
+                let textoAviso = 'pronto';
+                if (maxFechaObj) {
+                  const esHoy = maxFechaObj.getDate() === new Date().getDate();
+                  const hora = maxFechaObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                  textoAviso = esHoy ? `hoy a las ${hora}` : `el ${maxFechaObj.toLocaleDateString()} a las ${hora}`;
+                }
+                const desc = subs.length > 0 ? ` (contiene: ${subs.join(', ')})` : '';
+                return (
+                  <li key={p.id_plato} style={{ marginBottom: '8px' }}>
+                    <b>{p.nombre}</b> {desc} <br/><span style={{ color: '#d63031' }}>(Pausado hasta {textoAviso})</span>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button 
+                onClick={() => {
+                  const idsAgotados = [...platosIndefinidos, ...platosTemporales].map(p => p.id_plato);
+                  setCarrito(carrito.filter(p => !idsAgotados.includes(p.id_plato)));
+                  setModalIntercepcion(null);
+                }} 
+                style={{ width: '100%', padding: '14px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'background 0.2s' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
+              >
+                Eliminar agotados y continuar el pago
+              </button>
+
+              {platosIndefinidos.length === 0 && platosTemporales.length > 0 && (
+                <button 
+                  onClick={() => {
+                    setModalIntercepcion(null);
+                    const dia = diaConfirmado || diasDisponibles[0];
+                    setDiaProgramado(dia?.valor || '');
+                    setHoraSeleccionadaTemp(opcionProgramada?.valor || dia?.horas[0]?.valor || '');
+                    setMostrarModalProgramar(true);
+                  }} 
+                  style={{ width: '100%', padding: '14px', background: '#f5f5f5', color: '#333', border: '1px solid #ccc', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'background 0.2s' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#eaeaea'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                >
+                  Reservar el carrito para más tarde
+                </button>
+              )}
+              
+              <button 
+                onClick={() => setModalIntercepcion(null)} 
+                style={{ width: '100%', padding: '10px', background: 'none', color: '#666', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Cancelar y volver al carrito
+              </button>
+            </div>
           </div>
         </div>
       )}
 
+      {modalIntercepcion === 'RESTAURANTE_CERRADO' && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000, padding: '1rem', backdropFilter: 'blur(3px)' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '420px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', textAlign: 'center' }}>
+            <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#fff5f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', color: '#ff4500' }}>
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '1.4rem', color: '#1a1a1a' }}>El local está cerrado en este momento</h3>
+            <p style={{ color: '#666', fontSize: '15px', marginBottom: '25px', lineHeight: '1.5' }}>
+              El restaurante vuelve a abrir {restaurante.tiempo_reactivacion ? (() => {
+                  const fechaObj = parsearFechaSegura(restaurante.tiempo_reactivacion);
+                  if (!fechaObj) return 'más tarde';
+                  const esHoy = fechaObj.getDate() === new Date().getDate();
+                  const hora = fechaObj.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                  return esHoy ? `hoy a las ${hora}` : `el ${fechaObj.toLocaleDateString()} a las ${hora}`;
+                })() : 'más tarde'}. <br/><br/>No puedes realizar un pedido para ahora mismo, pero puedes <b>programar una reserva</b> para cuando abran.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button 
+                onClick={() => {
+                  setModalIntercepcion(null);
+                  const dia = diaConfirmado || diasDisponibles[0];
+                  setDiaProgramado(dia?.valor || '');
+                  setHoraSeleccionadaTemp(opcionProgramada?.valor || dia?.horas[0]?.valor || '');
+                  setMostrarModalProgramar(true);
+                }} 
+                style={{ width: '100%', padding: '14px', background: '#000', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(0,0,0,0.15)' }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                Programar una reserva
+              </button>
+              
+              <button 
+                onClick={() => setModalIntercepcion(null)} 
+                style={{ width: '100%', padding: '14px', background: 'none', color: '#666', border: 'none', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE TARJETA EXISTENTE */}
+      {mostrarModalTarjeta && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: '1rem', backdropFilter: 'blur(3px)' }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="titulo-tarjeta" style={{ background: '#fff', borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '400px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
+            <button disabled={guardandoTarjeta} aria-label="Cerrar tarjeta" onClick={() => setMostrarModalTarjeta(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', cursor: 'pointer', color: '#999' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            
+            <h3 id="titulo-tarjeta" style={{ margin: '0 0 12px 0', color: '#1a1a1a', fontSize: '1.4rem' }}>Añadir una tarjeta</h3>
+            <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>Guardaremos esta tarjeta de forma segura para tus próximos pedidos.</p>
+            
+            <label htmlFor="titular-tarjeta" style={{ fontSize: '13px', color: '#555', fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Nombre en la tarjeta</label>
+            <input id="titular-tarjeta" disabled={guardandoTarjeta} type="text" value={nuevoTitular} onChange={e => setNuevoTitular(e.target.value)} placeholder="Ej. Juan Pérez" style={{ width: '100%', padding: '14px', marginBottom: '20px', borderRadius: '10px', border: '1px solid #ddd', boxSizing: 'border-box', outline: 'none', fontSize: '15px' }} />
+            
+            <label style={{ fontSize: '13px', color: '#555', fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Información de la tarjeta</label>
+            <div style={{ padding: '16px 14px', border: '1px solid #ddd', borderRadius: '10px', marginBottom: '25px', backgroundColor: '#fafafa' }}>
+              <CardElement options={{ style: { base: { fontSize: '16px', color: '#333', '::placeholder': { color: '#aab7c4' } } } }} />
+            </div>
+            
+            <button onClick={handleGuardarTarjeta} disabled={guardandoTarjeta || !stripe || !elements} style={{ width: '100%', background: '#ff4500', color: '#fff', padding: '16px', borderRadius: '10px', fontWeight: 'bold', border: 'none', fontSize: '15px', cursor: guardandoTarjeta ? 'not-allowed' : 'pointer', opacity: guardandoTarjeta ? 0.7 : 1, transition: 'background 0.2s' }}>
+              {guardandoTarjeta ? 'Guardando...' : 'Guardar y continuar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE PROGRAMAR HORARIO */}
       {mostrarModalProgramar && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5000, padding: '1rem' }}>
-          <div style={{ background: '#fff', borderRadius: '12px', padding: '2rem', width: '100%', maxWidth: '400px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5000, padding: '1rem', backdropFilter: 'blur(3px)' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '420px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
             
-            <button onClick={() => setMostrarModalProgramar(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#666' }}>×</button>
+            <button onClick={() => setMostrarModalProgramar(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', cursor: 'pointer', color: '#999' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
             
-            <h3 style={{ margin: '0 0 20px 0', fontSize: '1.3rem', color: '#333' }}>Programar la recogida</h3>
-            <p style={{ fontSize: '13px', color: '#666' }}>Horas disponibles del local, en hora peninsular. Cada franja de recogida dura 30 minutos.</p>
-            {recogidaAhoraDisponible && <button type="button" onClick={() => { setModoRecogida('AHORA'); setHoraProgramada(''); setMostrarModalProgramar(false); }}
-              style={{ marginBottom: '15px', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer' }}>Recoger lo antes posible</button>}
+            <h3 style={{ margin: '0 0 15px 0', fontSize: '1.4rem', color: '#1a1a1a' }}>Programar el pedido</h3>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '20px' }}>Elige cuándo quieres que tu pedido esté listo. Las franjas son de 30 minutos.</p>
+            
+            {recogidaAhoraDisponible && (
+              <button type="button" onClick={() => { setModoRecogida('AHORA'); setHoraProgramada(''); setMostrarModalProgramar(false); }}
+                style={{ width: '100%', marginBottom: '20px', padding: '14px', borderRadius: '10px', border: '2px solid #eaeaea', background: '#fff', cursor: 'pointer', fontWeight: 'bold', color: '#333', transition: 'border-color 0.2s' }}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#ff4500'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = '#eaeaea'}
+              >
+                Lo antes posible
+              </button>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
@@ -854,7 +1149,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                     const nuevasHoras = diasDisponibles.find(dia => dia.valor === nuevoDia)?.horas || [];
                     setHoraSeleccionadaTemp(nuevasHoras[0]?.valor || '');
                   }}
-                  style={{ padding: '14px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '15px', outline: 'none', cursor: 'pointer', backgroundColor: '#fff', appearance: 'auto' }}
+                  style={{ padding: '14px', borderRadius: '10px', border: '1px solid #ccc', fontSize: '15px', outline: 'none', cursor: 'pointer', backgroundColor: '#fafafa', appearance: 'auto' }}
                 >
                   {diasDisponibles.length === 0 && <option value="">Sin fechas disponibles</option>}
                   {diasDisponibles.map(dia => (
@@ -868,7 +1163,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                 <select 
                   value={horaSeleccionadaTemp} 
                   onChange={(e) => setHoraSeleccionadaTemp(e.target.value)}
-                  style={{ padding: '14px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '15px', outline: 'none', cursor: 'pointer', backgroundColor: '#fff', appearance: 'auto' }}
+                  style={{ padding: '14px', borderRadius: '10px', border: '1px solid #ccc', fontSize: '15px', outline: 'none', cursor: 'pointer', backgroundColor: '#fafafa', appearance: 'auto' }}
                 >
                   {horasDisponiblesList.map(hora => (
                     <option key={hora.valor} value={hora.valor}>{hora.etiqueta}</option>
@@ -890,9 +1185,9 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
                 setMostrarModalProgramar(false);
               }}
               disabled={!horasDisponiblesList.some(hora => hora.valor === horaSeleccionadaTemp)}
-              style={{ marginTop: '25px', width: '100%', padding: '15px', background: '#000', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 'bold', fontSize: '1.1rem', cursor: horasDisponiblesList.length === 0 ? 'not-allowed' : 'pointer', opacity: horasDisponiblesList.length === 0 ? 0.6 : 1, transition: 'background 0.2s' }}
+              style={{ marginTop: '25px', width: '100%', padding: '16px', background: '#000', color: '#fff', borderRadius: '10px', border: 'none', fontWeight: 'bold', fontSize: '15px', cursor: horasDisponiblesList.length === 0 ? 'not-allowed' : 'pointer', opacity: horasDisponiblesList.length === 0 ? 0.6 : 1, transition: 'background 0.2s' }}
             >
-              Programar
+              Confirmar horario
             </button>
 
           </div>

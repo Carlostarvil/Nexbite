@@ -398,8 +398,8 @@ function App() {
                 )}
 
                 {!categoriaFiltroInicio && (restaurantesRecomendados.length > 0 || platosRecomendados.length > 0) && (
-                  <section className="elegido-para-ti" aria-label="Elegido para ti">
-                    <TituloSeccion titulo="Elegido para ti" descripcion="Recomendaciones personalizadas según tu actividad." />
+                  <section className="elegido-para-ti" aria-label="Para ti">
+                    <TituloSeccion titulo="Para ti" descripcion="Recomendaciones personalizadas según tu actividad." />
                     <SelectorRecomendaciones seleccionada={pestañaElegidoParaTi} onSeleccionar={setPestañaElegidoParaTi} />
 
                     {/* VISTA DE LOCALES RECOMENDADOS */}
@@ -466,7 +466,7 @@ function App() {
 
                 {!categoriaFiltroInicio && (
                   <div style={{ marginTop: '2rem' }}>
-                    <CarruselPlatos titulo="Platos Top" descripcion="Descubre los platos destacados de tu zona." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(data?.obtenerPlatosDestacados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
+                    <CarruselPlatos titulo="Top Ventas" descripcion="Descubre los platos destacados de tu zona." cabeceraInicio mostrarIcono={false} platos={asignarEstadoRestaurante(data?.obtenerPlatosDestacados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
                   </div>
                 )}
 
@@ -477,6 +477,9 @@ function App() {
                     <div ref={repetimosRef} className="ocultar-scrollbar" style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px', scrollBehavior: 'smooth' }}>
                       {data.obtenerUltimosPedidos.map(pedido => {
                         const puedeRecomprar = pedido.restaurante_abierto && pedido.plato_disponible;
+                        // NUEVA COMPROBACIÓN DE OFERTAS
+                        const esOferta = platosEnOferta.some(p => String(p.id_plato) === String(pedido.id_plato));
+
                         return (
                           <div 
                             key={`reciente-${pedido.id_pedido}`} 
@@ -492,7 +495,16 @@ function App() {
                                 <div style={{ width: '50px', height: '50px', borderRadius: '8px', backgroundColor: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>🏪</div>
                               )}
                               <div>
-                                <h4 style={{ margin: '0 0 5px 0', color: '#333', fontSize: '15px' }}>{pedido.nombre_plato || 'Plato retirado'}</h4>
+                                <h4 style={{ margin: '0 0 5px 0', color: '#333', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                  {pedido.nombre_plato || 'Plato retirado'}
+                                  {/* ETIQUETA DE OFERTA EN REPETIMOS */}
+                                  {esOferta && (
+                                    <span style={{ background: '#c62828', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '2px', textTransform: 'uppercase' }}>
+                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                                      Oferta
+                                    </span>
+                                  )}
+                                </h4>
                                 <p style={{ margin: 0, color: '#666', fontSize: '12px' }}>{pedido.nombre_restaurante || 'Restaurante cerrado'}</p>
                               </div>
                             </div>
@@ -689,7 +701,6 @@ function App() {
         
         {confirmacionPedido && <ConfirmacionPedido pedido={confirmacionPedido} onCerrar={() => setConfirmacionPedido(null)} onVerPedidos={() => { setConfirmacionPedido(null); handleInicio(); setMostrarPerfil(true); window.scrollTo(0, 0); }} />}
         
-        {/* COMPONENTES GLOBALES */}
         <AvisoCookies />
         {userRol !== 'VENDEDOR' && <ChatSoporteIA />}
         

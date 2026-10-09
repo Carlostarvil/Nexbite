@@ -119,6 +119,13 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
   
   const platosDisponibles = menuData?.obtenerMenuRestaurante || [];
 
+  // NUEVO: Filtramos para evitar "Menús Matrioska" (Un menú dentro de otro)
+  const platosElegiblesParaMenu = platosDisponibles.filter(p => {
+    const tags = extraerTags(p.descripcion, p.categoria).tagsTotales;
+    // Solo permitimos el plato si NO es un menú (o si ya estaba marcado por un bug antiguo para que lo puedan desmarcar)
+    return !tags.includes('MENU') || platosSeleccionados.includes(p.id_plato);
+  });
+
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -321,7 +328,8 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
               <p style={{ fontSize: '12px', color: '#666', marginTop: 0 }}>*Selecciona productos de tu carta. La descripción y el precio (con 15% de descuento) se autocompletarán.</p>
               
               <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-                {platosDisponibles.length === 0 ? <p style={{ fontSize: '13px', color: '#666' }}>No hay platos en la carta.</p> : platosDisponibles.map(p => (
+                {/* AÑADIDO: Ahora itera sobre los platos elegibles, no sobre todos */}
+                {platosElegiblesParaMenu.length === 0 ? <p style={{ fontSize: '13px', color: '#666' }}>No hay platos individuales en la carta para añadir.</p> : platosElegiblesParaMenu.map(p => (
                   <label key={p.id_plato} style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '5px', background: platosSeleccionados.includes(p.id_plato) ? '#e6f2ff' : 'transparent', borderRadius: '4px' }}>
                     <input type="checkbox" aria-label={p.nombre} checked={platosSeleccionados.includes(p.id_plato)} onChange={() => agregarPlatoExistente(p.id_plato)} />
                     <ImagenPlato plato={p} style={{ width: '40px', height: '40px', borderRadius: '6px' }} />

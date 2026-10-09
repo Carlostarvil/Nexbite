@@ -32,12 +32,13 @@ export default function ChatSoporteIA() {
     }
   }, [mensajes, escribiendo, abierto]);
 
+  // AÑADIDO: Preguntas sobre reservas añadidas a los accesos rápidos
   const preguntasFrecuentes = [
     '¿Dónde está mi pedido?',
+    '¿Cómo funcionan las reservas?',
+    '¿Por qué no me deja pagar?',
     'Quiero cancelar mi pedido',
-    '¿Cómo pido un reembolso?',
-    'Tiempos de entrega',
-    'Hablar con un agente'
+    '¿Cómo pido un reembolso?'
   ];
 
   const enviarMensaje = async (textoAEnviar) => {

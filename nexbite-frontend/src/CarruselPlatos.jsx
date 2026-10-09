@@ -4,12 +4,34 @@ import TituloSeccion from './TituloSeccion';
 import EstadoDisponibilidad from './EstadoDisponibilidad';
 import ImagenPlato from './ImagenPlato';
 
-// NUEVO: Función para extraer el precio antiguo de la descripción
+// Función para extraer el precio antiguo de la descripción
 const extraerPrecioAnterior = (descripcion) => {
   if (!descripcion) return null;
   const match = descripcion.match(/\|ANTES:\s*([\d.,]+)/i);
   return match ? parseFloat(match[1].replace(',', '.')) : null;
 };
+
+// NUEVA FUNCION: Detecta si el plato tiene el TAG de oferta
+const esPlatoEnOferta = (plato) => {
+  if (!plato || (!plato.categoria && !plato.descripcion)) return false;
+  
+  try {
+    let catArray = [];
+    if (typeof plato.categoria === 'string') {
+      catArray = plato.categoria.replace(/[{}"[\]\\]/g, '').split(',').map(s => s.trim().toUpperCase());
+    } else if (Array.isArray(plato.categoria)) {
+      catArray = plato.categoria.flatMap(c => typeof c === 'string' ? c.replace(/[{}"[\]\\]/g, '').split(',').map(s => s.trim().toUpperCase()) : String(c).toUpperCase());
+    }
+    if (catArray.includes('OFERTA')) return true;
+
+    if (plato.descripcion && plato.descripcion.toUpperCase().includes('TAGS:')) {
+      const match = plato.descripcion.toUpperCase().match(/TAGS:(.*)/);
+      if (match && match[1].includes('OFERTA')) return true;
+    }
+  } catch(e) { return false; }
+  return false;
+};
+
 
 export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgregarAlCarrito, mostrarIcono = true, cabeceraInicio = false, descripcion, restaurantePausado = false, tiempoReactivacionRestaurante = null }) {
   const scrollRef = useRef(null);
@@ -121,6 +143,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
         {platos.map(plato => {
           const estaNoDisponible = restaurantePausado || plato.disponible === false || plato.restaurante_abierto === false;
           const precioAnterior = extraerPrecioAnterior(plato.descripcion);
+          const tieneOferta = esPlatoEnOferta(plato);
           
           const localCerrado = restaurantePausado || plato.restaurante_abierto === false;
 
@@ -136,7 +159,17 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 15px rgba(0,0,0,0.05)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.02)'; }}
           >
-            <ImagenPlato plato={plato} style={{ height: '140px', opacity: estaNoDisponible ? 0.65 : 1 }} />
+            <div style={{ position: 'relative' }}>
+                <ImagenPlato plato={plato} style={{ height: '140px', opacity: estaNoDisponible ? 0.65 : 1 }} />
+                
+                {/* AÑADIDO: Etiqueta Visual de Oferta */}
+                {tieneOferta && (
+                  <div style={{ position: 'absolute', top: '10px', left: '10px', background: '#c62828', color: '#fff', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                    Oferta
+                  </div>
+                )}
+            </div>
             
             <div style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
               <h4 style={{ margin: '0 0 5px 0', color: '#000', fontSize: '15px', fontWeight: 700 }}>{plato.nombre}</h4>

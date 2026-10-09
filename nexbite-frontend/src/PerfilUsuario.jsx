@@ -132,7 +132,7 @@ export default function PerfilUsuario({ onVolver, onAgregarAlCarrito, onSelectPl
             </div>
             <div>
               <h1 style={{ margin: '0 0 5px 0', color: '#1a1a1a', fontSize: '1.8rem', letterSpacing: '-0.5px' }}>{perfil.nombre}</h1>
-              <span style={{ color: '#888', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }}>Mi Cuenta</span>
+              <span style={{ color: '#888', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }}></span>
             </div>
           </div>
 

@@ -5,8 +5,17 @@ const CONOCIMIENTO_SOPORTE = [
   },
   {
     claves: ['contacto', 'humano', 'agente', 'persona', 'telefono', 'teléfono'],
-    // CAMBIO REALIZADO: Se ha añadido el número de teléfono (+34 900 123 456) explícitamente en la respuesta
     respuesta: 'Puedes comunicarte con el equipo de soporte humano escribiendo a soporte@nexbite.com o llamando al +34 900 123 456 todos los días en horario de 12:00 a 00:00.'
+  },
+  // NUEVO: Conocimiento sobre cómo funcionan las reservas
+  {
+    claves: ['reserva', 'reservar', 'programar', 'mas tarde', 'más tarde', 'despues'],
+    respuesta: '¡Las reservas programadas son muy útiles! Si un restaurante está cerrado o un plato está pausado temporalmente, no tienes que vaciar tu carrito. Puedes seleccionar "Reservar el carrito para más tarde". El sistema calculará automáticamente a qué hora vuelve a estar todo disponible y te dejará programar el pedido para cuando abran.'
+  },
+  // NUEVO: Conocimiento sobre bloqueos en la pasarela de pago
+  {
+    claves: ['pagar', 'pago', 'agotado', 'pausado', 'cerrado', 'no me deja', 'error', 'bloqueado', 'comprar'],
+    respuesta: 'Si el sistema intercepta tu compra y no te deja pagar directamente, es porque el local ha cerrado o porque un producto (o un extra dentro de un menú) está pausado. Cuando esto pasa, te damos dos opciones: puedes "Eliminar agotados" y pagar el resto del pedido ahora mismo, o puedes "Reservar el carrito para más tarde" y programarlo para la hora a la que vuelva a estar disponible.'
   }
 ];
 
@@ -43,7 +52,7 @@ export async function procesarMensaje(mensaje, contexto, pool) {
         if (quiereReembolso) {
           if (estado === 'CANCELADO' || estado === 'RECHAZADO') {
             return `El pedido #${idPedido} ya está ${estado}. Tu reembolso ya está en trámite automático y tardará de 3 a 5 días hábiles en llegar a tu tarjeta.`;
-          } else if (estado === 'PENDIENTE') {
+          } else if (estado === 'PENDIENTE' || estado === 'PROGRAMADO') {
             await pool.query(
               "UPDATE Pedidos SET estado = 'CANCELADO' WHERE id_pedido = $1 AND id_usuario = $2",
               [idPedido, contexto.usuario.id_usuario]
@@ -62,7 +71,7 @@ export async function procesarMensaje(mensaje, contexto, pool) {
 
         // --- GESTIÓN DE CANCELACIONES ---
         if (quiereCancelar) {
-          if (estado === 'PENDIENTE') {
+          if (estado === 'PENDIENTE' || estado === 'PROGRAMADO') {
             await pool.query(
               "UPDATE Pedidos SET estado = 'CANCELADO' WHERE id_pedido = $1 AND id_usuario = $2",
               [idPedido, contexto.usuario.id_usuario]
@@ -76,6 +85,7 @@ export async function procesarMensaje(mensaje, contexto, pool) {
         }
         
         // --- LECTURA DE ESTADO NORMAL ---
+        if (estado === 'PROGRAMADO') return `Tu pedido #${idPedido} está PROGRAMADO. 📅 El local lo recibirá cuando abra o cuando llegue la hora que elegiste. Si deseas cancelarlo, escribe "Cancelar ${idPedido}".`;
         if (estado === 'PENDIENTE') return `Tu pedido #${idPedido} está PENDIENTE de ser aceptado por el restaurante. ⏳ Si deseas cancelarlo, escribe "Cancelar ${idPedido}".`;
         if (estado === 'EN COCINA' || estado === 'PREPARANDO') return `¡Buenas noticias! Tu pedido #${idPedido} ya se está preparando en la cocina. 🍳`;
         if (estado === 'EN CAMINO' || estado === 'ENVIADO') return `¡Tu pedido #${idPedido} ya va en camino hacia tu dirección! 🛵 Prepárate para recibirlo.`;
