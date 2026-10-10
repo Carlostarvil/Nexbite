@@ -59,6 +59,7 @@ const ELIMINAR_TARJETA_GUARDADA = gql`
 const OBTENER_ESTADO_RESTAURANTE = gql`
   query ObtenerEstadoRestaurante($id: ID!) {
     obtenerRestaurantePorId(id_restaurante: $id) { 
+      id_restaurante   # <--- ESTA ES LA LÍNEA QUE FALTABA
       nombre
       tipo
       aceptando_pedidos
