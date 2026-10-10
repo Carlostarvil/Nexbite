@@ -1,46 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import './ImagenPortada.css';
 
-function FotoPortada({ src, alt, tipo = 'plato', loading = 'lazy', compacto = false, className = '', encuadre = 'auto', ambiente = true }) {
+function FotoPortada({ src, alt, tipo = 'plato', loading = 'lazy', compacto = false, className = '', encuadre = 'cubrir' }) {
   const [estado, setEstado] = useState(src ? 'cargando' : 'vacia');
-  const [foto, setFoto] = useState(null);
-  const [marco, setMarco] = useState({ ancho: 0, alto: 0 });
-  const contenedor = useRef(null);
   const esLocal = tipo === 'local';
   const mensaje = estado === 'error' ? 'Imagen no disponible' : esLocal ? 'Local sin foto' : 'Producto sin foto';
 
-  useEffect(() => {
-    const elemento = contenedor.current;
-    const medir = () => {
-      const { width, height } = elemento.getBoundingClientRect();
-      setMarco(actual => actual.ancho === width && actual.alto === height ? actual : { ancho: width, alto: height });
-    };
-    if (typeof ResizeObserver !== 'undefined') {
-      const observador = new ResizeObserver(medir);
-      observador.observe(elemento);
-      return () => observador.disconnect();
-    }
-    const primeraMedida = requestAnimationFrame(medir);
-    window.addEventListener('resize', medir);
-    return () => { cancelAnimationFrame(primeraMedida); window.removeEventListener('resize', medir); };
-  }, []);
-
-  let ajuste = encuadre === 'completo' ? 'completo' : 'cubrir';
-  if ((encuadre === 'auto' || encuadre === 'panoramico') && foto && marco.ancho && marco.alto) {
-    const proporcionFoto = foto.ancho / foto.alto;
-    const proporcionMarco = marco.ancho / marco.alto;
-    const parteVisible = Math.min(proporcionFoto / proporcionMarco, proporcionMarco / proporcionFoto);
-    const ampliacion = Math.max(marco.ancho / foto.ancho, marco.alto / foto.alto);
-    const esPanoramica = encuadre === 'panoramico';
-    // El banner aprovecha las fotos horizontales; las cuadradas, verticales y pequeñas se ven completas.
-    if (parteVisible < (esPanoramica ? .45 : .7) || ampliacion > 1.5 || (esPanoramica && proporcionFoto < 1.25)) ajuste = 'completo';
-  }
-
-  return <div ref={contenedor} className={'imagen-portada imagen-portada-' + tipo + (compacto ? ' imagen-portada-compacta' : '') + ' ' + className} data-estado={estado} data-encuadre={ajuste}>
-    {estado === 'cargada' && ajuste === 'completo' && ambiente && <span className="imagen-portada-ambiente" aria-hidden="true" style={{ backgroundImage: 'url(' + JSON.stringify(src) + ')' }} />}
+  return <div className={'imagen-portada imagen-portada-' + tipo + (compacto ? ' imagen-portada-compacta' : '') + ' ' + className} data-estado={estado} data-encuadre={encuadre === 'completo' ? 'completo' : 'cubrir'}>
     {src && estado !== 'error' && <img className="imagen-portada-foto" src={src} alt={alt} loading={loading} decoding="async"
       fetchPriority={loading === 'eager' ? 'high' : 'auto'}
-      onLoad={evento => { setFoto({ ancho: evento.currentTarget.naturalWidth, alto: evento.currentTarget.naturalHeight }); setEstado('cargada'); }} onError={() => setEstado('error')} />}
+      onLoad={() => setEstado('cargada')} onError={() => setEstado('error')} />}
     {(estado === 'vacia' || estado === 'error') && <div className="imagen-portada-fondo" role="img" aria-label={mensaje + (alt ? ': ' + alt : '')}>
       <svg viewBox="0 0 96 96" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         {esLocal ? <>

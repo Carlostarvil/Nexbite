@@ -487,7 +487,7 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
 
       <div className="restaurante-cabecera">
         <div className="restaurante-portada">
-           <ImagenPortada src={restaurante?.imagen_url} alt={restaurante?.nombre} tipo="local" loading="eager" encuadre="panoramico" />
+           <ImagenPortada src={restaurante?.imagen_url} alt={restaurante?.nombre} tipo="local" loading="eager" />
            
            <button type="button" className="restaurante-volver" aria-label="Volver a los restaurantes" title="Volver a los restaurantes" onClick={onVolver} style={{ zIndex: 2 }}>
               <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 12H4m7-7-7 7 7 7" /></svg>

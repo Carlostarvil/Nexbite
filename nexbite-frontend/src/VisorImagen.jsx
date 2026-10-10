@@ -30,7 +30,7 @@ export default function VisorImagen({ src, nombre, onCerrar }) {
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg>
         </button>
       </div>
-      <div className="visor-imagen-foto"><ImagenPortada src={src} alt={nombre} tipo="local" loading="eager" encuadre="completo" ambiente={false} /></div>
+      <div className="visor-imagen-foto"><ImagenPortada src={src} alt={nombre} tipo="local" loading="eager" encuadre="completo" /></div>
     </div>
   </dialog>;
 }
