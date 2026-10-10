@@ -643,7 +643,7 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
                           
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', marginTop: '1rem', gap: '10px' }}>
                             
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                            <div className="plato-precios" style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '8px' }}>
                               <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#000' }}>{plato.precio.toFixed(2)}&nbsp;€</span>
                               {precioAnterior && precioAnterior > plato.precio && (
                                 <span style={{ fontSize: '1rem', fontWeight: '600', color: '#999', textDecoration: 'line-through' }}>

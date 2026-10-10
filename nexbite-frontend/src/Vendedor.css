@@ -13,7 +13,7 @@
 }
 .vendedor-shell *, .vendedor-dialogo * { box-sizing: border-box; }
 .vendedor-shell { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 34px; align-items: start; }
-.vendedor-shell h1, .vendedor-shell h2, .vendedor-shell h3, .vendedor-shell h4, .vendedor-dialogo h2 { color: var(--v-ink); font-family: 'Questrial', system-ui, sans-serif; font-synthesis: weight; line-height: 1.25; overflow-wrap: anywhere; }
+.vendedor-shell h1, .vendedor-shell h2, .vendedor-shell h3, .vendedor-shell h4, .vendedor-dialogo h2 { color: var(--v-ink); font-family: var(--fuente-titulos); line-height: 1.25; overflow-wrap: anywhere; }
 .vendedor-shell button, .vendedor-shell input, .vendedor-shell select, .vendedor-shell textarea, .vendedor-dialogo button, .vendedor-dialogo input, .vendedor-dialogo select, .vendedor-dialogo textarea { font: inherit; }
 .vendedor-shell button, .vendedor-dialogo button { cursor: pointer; }
 .vendedor-shell button:disabled, .vendedor-dialogo button:disabled { cursor: wait; opacity: .55; }

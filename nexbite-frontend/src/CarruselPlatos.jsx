@@ -65,7 +65,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
   if (!platos || platos.length === 0) return null;
 
   const BotonesScroll = () => (
-    <div style={{ display: 'flex', gap: '8px' }}>
+    <div className="carrusel-platos-controles" style={{ display: 'flex', gap: '8px' }}>
       <button 
         type="button"
         aria-label={'Ver anteriores en ' + (titulo || 'Elegido para ti')}
@@ -128,7 +128,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
       ) : cabeceraInicio ? (
         <TituloSeccion titulo={titulo} descripcion={descripcion} acciones={<BotonesScroll />} />
       ) : (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eaeaea', paddingBottom: '10px', marginBottom: '1.5rem' }}>
+      <div className="carrusel-platos-cabecera" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eaeaea', paddingBottom: '10px', marginBottom: '1.5rem' }}>
         <h2 className="titulo-menu-seccion" style={{ color: '#000', margin: 0, fontWeight: 800 }}>
           {mostrarIcono && '⭐ '}{titulo}
         </h2>
@@ -185,7 +185,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
               <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
                 
                 {/* LÓGICA DEL PRECIO EN EL CARRUSEL */}
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <div className="plato-precios" style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '8px' }}>
                   <span style={{ fontWeight: '800', color: '#000', fontSize: '1.2rem' }}>{plato.precio?.toFixed(2)}&nbsp;€</span>
                   {precioAnterior && precioAnterior > plato.precio && (
                     <span style={{ fontWeight: '600', color: '#999', fontSize: '0.95rem', textDecoration: 'line-through' }}>
