@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import ImagenPortada from './ImagenPortada';
 import './ImagenPlato.css';
 
-export default function ImagenPlato({ plato, style, className = '', loading = 'lazy' }) {
+export default function ImagenPlato({ plato, style, className = '', loading = 'lazy', encuadre = 'auto', ambiente = true }) {
   const fotos = (plato.items_menu || []).filter(item => item.imagen_url).map(item => ({ nombre: item.nombre, url: item.imagen_url }));
   if (plato.imagen_url && !fotos.some(foto => foto.url === plato.imagen_url)) fotos.unshift({ nombre: plato.nombre, url: plato.imagen_url });
   // La portada elegida por el vendedor representa el menú en las tarjetas.
@@ -12,7 +12,7 @@ export default function ImagenPlato({ plato, style, className = '', loading = 'l
   const compacta = parseFloat(style?.height) <= 60;
 
   return <div className={'imagen-plato imagen-plato-' + visibles.length + (esMenu ? ' imagen-plato-menu' : '') + (compacta ? ' imagen-plato-compacta' : '') + ' ' + className} style={style}>
-    {visibles.length ? visibles.map((foto, i) => <ImagenPortada key={i} src={foto.url} alt={foto.nombre} loading={loading} compacto={compacta} />) :
+    {visibles.length ? visibles.map((foto, i) => <ImagenPortada key={i} src={foto.url} alt={foto.nombre} loading={loading} compacto={compacta} encuadre={encuadre} ambiente={ambiente} />) :
       <ImagenPortada alt={plato.nombre} compacto={compacta} />}
     {esMenu && !compacta && <span className="imagen-plato-menu-etiqueta"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></svg>MENÚ</span>}
     {esMenu && fotos.length > 1 && !compacta && <span className="imagen-plato-mas" aria-label={fotos.length + ' fotos del menú y sus platos'}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5-9 11" /></svg>{fotos.length} fotos</span>}
@@ -47,7 +47,7 @@ export function GaleriaMenu({ plato }) {
 
   return <section className="galeria-menu galeria-menu-interactiva" aria-label="Fotos del menú y de sus platos">
     <div className="galeria-menu-principal">
-      <ImagenPlato plato={{ nombre: actual.nombre, imagen_url: actual.url }} loading="eager" style={{ height: '100%' }} />
+      <ImagenPlato plato={{ nombre: actual.nombre, imagen_url: actual.url }} loading="eager" encuadre="completo" style={{ height: '100%' }} />
       <div className="galeria-menu-pie" aria-live="polite"><span className="galeria-menu-nombre">{actual.nombre}</span><span className="galeria-menu-posicion">{indice + 1} / {fotos.length}</span></div>
       {fotos.length > 1 && <>
         <button type="button" className="galeria-menu-flecha galeria-menu-anterior" aria-label="Foto anterior del menú" onClick={() => elegir(indice - 1)}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg></button>

@@ -1,0 +1,14 @@
+.visor-imagen { width: min(1120px, calc(100vw - 40px)); max-width: none; max-height: calc(100dvh - 40px); margin: auto; padding: 0; border: 0; border-radius: 22px; background: #171717; color: #fff; box-shadow: 0 24px 80px rgb(0 0 0 / 35%); overflow: hidden; }
+.visor-imagen::backdrop { background: rgb(0 0 0 / 82%); backdrop-filter: blur(8px); }
+.visor-imagen, .visor-imagen * { box-sizing: border-box; }
+.visor-imagen-contenido { display: flex; flex-direction: column; max-height: calc(100dvh - 40px); }
+.visor-imagen-cabecera { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 20px; }
+.visor-imagen-cabecera h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-width: 0; margin: 0; overflow: hidden; color: #fff; font-size: 18px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.visor-imagen-cerrar { display: grid; place-items: center; flex-shrink: 0; width: 42px; height: 42px; padding: 0; border: 1px solid rgb(255 255 255 / 25%); border-radius: 50%; background: #292929; color: #fff; cursor: pointer; transition: background .15s ease; }
+.visor-imagen-cerrar:hover { background: #434343; }
+.visor-imagen-cerrar:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.visor-imagen-foto { flex: 1 1 auto; min-height: 0; height: min(72dvh, 720px); }
+.visor-imagen-foto .imagen-portada { --portada-fondo: #171717; }
+.visor-imagen-foto .imagen-portada[data-encuadre='completo'] > img { max-width: calc(100% - 32px); max-height: calc(100% - 32px); border-radius: 10px; box-shadow: none; }
+@media (max-width: 650px) { .visor-imagen { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); border-radius: 16px; } .visor-imagen-contenido { max-height: calc(100dvh - 20px); } .visor-imagen-cabecera { padding: 14px; gap: 12px; } .visor-imagen-cabecera h2 { font-size: 16px; } .visor-imagen-foto { height: 65dvh; } .visor-imagen-foto .imagen-portada[data-encuadre='completo'] > img { max-width: calc(100% - 20px); max-height: calc(100% - 20px); } }
+@media (prefers-reduced-motion: reduce) { .visor-imagen-cerrar { transition: none; } }

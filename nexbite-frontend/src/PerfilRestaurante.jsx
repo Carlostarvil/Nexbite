@@ -12,6 +12,7 @@ import EtiquetasInfoLocal from './EtiquetasInfoLocal';
 import EstadoDisponibilidad from './EstadoDisponibilidad';
 import ImagenPlato from './ImagenPlato';
 import ImagenPortada from './ImagenPortada';
+import VisorImagen from './VisorImagen';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 import './InfoRestauranteModal.css';
 import './PerfilRestaurante.css';
@@ -301,6 +302,7 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
   const [busquedaPlato, setBusquedaPlato] = useState('');
   const [favoritosLocales, setFavoritosLocales] = useState([]);
   const [mostrarInfoModal, setMostrarInfoModal] = useState(false); 
+  const [mostrarFoto, setMostrarFoto] = useState(false);
   const [categoriaActiva, setCategoriaActiva] = useState(null);
   
   const restaurante = data?.obtenerRestaurantePorId;
@@ -485,7 +487,7 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
 
       <div className="restaurante-cabecera">
         <div className="restaurante-portada">
-           <ImagenPortada src={restaurante?.imagen_url} alt={restaurante?.nombre} tipo="local" loading="eager" />
+           <ImagenPortada src={restaurante?.imagen_url} alt={restaurante?.nombre} tipo="local" loading="eager" encuadre="panoramico" />
            
            <button type="button" className="restaurante-volver" aria-label="Volver a los restaurantes" title="Volver a los restaurantes" onClick={onVolver} style={{ zIndex: 2 }}>
               <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 12H4m7-7-7 7 7 7" /></svg>
@@ -493,6 +495,10 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
            <div className="restaurante-favorito" style={{ zIndex: 2 }}>
               <BotonFavorito idRestaurante={idRestaurante} idUsuario={idUsuarioActual} esFavoritoInicial={esFavoritoInicial} nombreRestaurante={restaurante?.nombre} />
            </div>
+           {restaurante?.imagen_url && <button type="button" className="restaurante-portada-abrir" aria-label={'Ver foto de ' + restaurante.nombre} aria-haspopup="dialog" aria-expanded={mostrarFoto} onClick={() => setMostrarFoto(true)}>
+             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
+             Ver foto
+           </button>}
         </div>
 
         <div className="restaurante-presentacion">
@@ -668,6 +674,7 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
       )}
 
       {mostrarInfoModal && <InfoRestauranteModal restaurante={restaurante} onClose={() => setMostrarInfoModal(false)} />}
+      {mostrarFoto && <VisorImagen src={restaurante?.imagen_url} nombre={restaurante?.nombre} onCerrar={() => setMostrarFoto(false)} />}
     </div>
   );
 }
