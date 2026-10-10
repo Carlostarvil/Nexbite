@@ -127,7 +127,7 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
         </button>
         
         <div style={{ overflowY: 'auto', flex: 1 }}>
-          {plato.items_menu?.length ? <GaleriaMenu key={plato.id_plato} plato={plato} /> : <ImagenPlato plato={plato} loading="eager" style={{ height: '350px' }} />}
+          {plato.items_menu?.length ? <GaleriaMenu key={plato.id_plato} plato={plato} /> : <ImagenPlato plato={plato} loading="eager" className="detalle-plato-portada" />}
           
           {/* Padding aumentado para que respire más el diseño */}
           <div className="detalle-plato-contenido" style={{ padding: 'clamp(16px, 5vw, 40px)' }}>

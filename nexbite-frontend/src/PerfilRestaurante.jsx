@@ -11,6 +11,7 @@ import IconoInfoRestaurante from './IconoInfoRestaurante';
 import EtiquetasInfoLocal from './EtiquetasInfoLocal';
 import EstadoDisponibilidad from './EstadoDisponibilidad';
 import ImagenPlato from './ImagenPlato';
+import ImagenPortada from './ImagenPortada';
 import { coordenadasValidas } from '../../shared/zonaEntrega.js';
 import './InfoRestauranteModal.css';
 import './PerfilRestaurante.css';
@@ -483,20 +484,8 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
     <div ref={perfil} className="perfil-restaurante">
 
       <div className="restaurante-cabecera">
-        <div className="restaurante-portada" style={{ position: 'relative', overflow: 'hidden', backgroundColor: '#e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '350px' }}>
-           {restaurante?.imagen_url ? (
-              <img 
-                src={restaurante.imagen_url} 
-                alt={restaurante.nombre} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', imageRendering: '-webkit-optimize-contrast' }} 
-              />
-           ) : (
-              <div className="restaurante-portada-alternativa" aria-hidden="true" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg viewBox="0 0 80 80" width="80" height="80" fill="none" stroke="#9e8f80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M15 33v32h50V33M12 33l6-17h44l6 17M12 33a7 7 0 0 0 14 0 7 7 0 0 0 14 0 7 7 0 0 0 14 0 7 7 0 0 0 14 0M29 16l-3 17M51 16l3 17M40 16v17M23 65V45h17v20M48 44h10v10H48z" />
-                </svg>
-              </div>
-           )}
+        <div className="restaurante-portada">
+           <ImagenPortada src={restaurante?.imagen_url} alt={restaurante?.nombre} tipo="local" loading="eager" />
            
            <button type="button" className="restaurante-volver" aria-label="Volver a los restaurantes" title="Volver a los restaurantes" onClick={onVolver} style={{ zIndex: 2 }}>
               <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 12H4m7-7-7 7 7 7" /></svg>
@@ -622,7 +611,7 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
                         <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 2 }}>
                           <BotonCorazon activo={esPlatoFavorito} disabled={guardandoFavorito} onClick={evento => handleCorazonClick(plato.id_plato, evento)} nombre={plato.nombre} />
                         </div>
-                        <ImagenPlato plato={plato} style={{ height: '200px', opacity: estaNoDisponible ? 0.65 : 1 }} />
+                        <ImagenPlato plato={plato} className="imagen-plato-portada" style={{ opacity: estaNoDisponible ? 0.65 : 1 }} />
 
                         <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'space-between' }}>
                           <div>

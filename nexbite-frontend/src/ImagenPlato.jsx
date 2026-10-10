@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import ImagenPortada from './ImagenPortada';
 import './ImagenPlato.css';
 
 export default function ImagenPlato({ plato, style, className = '', loading = 'lazy' }) {
@@ -11,10 +12,10 @@ export default function ImagenPlato({ plato, style, className = '', loading = 'l
   const compacta = parseFloat(style?.height) <= 60;
 
   return <div className={'imagen-plato imagen-plato-' + visibles.length + (esMenu ? ' imagen-plato-menu' : '') + (compacta ? ' imagen-plato-compacta' : '') + ' ' + className} style={style}>
-    {visibles.length ? visibles.map((foto, i) => <img key={i} src={foto.url} alt={foto.nombre} loading={loading} />) :
-      <span className="imagen-plato-vacia" aria-label={'Sin foto de ' + plato.nombre}><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 2v7a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3v7" /></svg></span>}
+    {visibles.length ? visibles.map((foto, i) => <ImagenPortada key={i} src={foto.url} alt={foto.nombre} loading={loading} compacto={compacta} />) :
+      <ImagenPortada alt={plato.nombre} compacto={compacta} />}
     {esMenu && !compacta && <span className="imagen-plato-menu-etiqueta"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></svg>MENÚ</span>}
-    {!plato.imagen_url && fotos.length > visibles.length && !compacta && <span className="imagen-plato-mas" aria-label={(fotos.length - visibles.length) + ' fotos más en el detalle del menú'}>+{fotos.length - visibles.length}</span>}
+    {esMenu && fotos.length > 1 && !compacta && <span className="imagen-plato-mas" aria-label={fotos.length + ' fotos del menú y sus platos'}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5-9 11" /></svg>{fotos.length} fotos</span>}
   </div>;
 }
 

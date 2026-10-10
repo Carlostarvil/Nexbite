@@ -82,10 +82,9 @@
 .vendedor-grid-locales { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
 .vendedor-local-card { background: #fff; border: 1px solid var(--v-line); border-radius: 18px; overflow: hidden; box-shadow: 0 4px 12px rgb(33 54 39 / 3%); display: flex; flex-direction: column; transition: box-shadow .2s, border-color .2s; }
 .vendedor-local-card:hover { border-color: #c9d7cc; box-shadow: 0 8px 22px rgb(33 54 39 / 7%); }
-.vendedor-local-portada { position: relative; height: 195px; background: #e8eee8; }
-.vendedor-local-portada > img { width: 100%; height: 100%; object-fit: cover; }
+.vendedor-local-portada { position: relative; height: auto; aspect-ratio: 16 / 10; overflow: hidden; background: #e8eee8; }
+.vendedor-local-portada > .imagen-portada { position: absolute; inset: 0; }
 .vendedor-local-portada > .vendedor-badge { position: absolute; right: 14px; top: 14px; border: 1px solid rgb(255 255 255 / 80%); box-shadow: 0 2px 12px rgb(0 0 0 / 10%); }
-.vendedor-local-sin-foto { display: grid; place-items: center; width: 100%; height: 100%; color: #8fa191; background: linear-gradient(120deg, #eff3eb, #dce8de); }
 .vendedor-local-body { padding: 22px; display: flex; flex-direction: column; flex: 1; }
 .vendedor-local-body h2 { margin: 12px 0 14px; font-size: 23px; font-weight: 750; letter-spacing: -.4px; }
 .vendedor-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -147,7 +146,6 @@
 .vendedor-carga-imagen input::file-selector-button { padding: 10px 12px; border: 1px solid #dce4dd; border-radius: 9px; margin-right: 10px; background: #fff; color: #365a3e; font: inherit; font-weight: 650; cursor: pointer; }
 .vendedor-preview { position: sticky; top: 98px; }
 .vendedor-preview-titulo { display: flex; gap: 7px; align-items: center; font-size: 11px; font-weight: 700; color: var(--v-muted); margin: 0 0 14px; }
-.vendedor-preview .vendedor-local-portada { height: 160px; }
 .vendedor-preview .vendedor-local-body { padding: 18px; }
 .vendedor-preview .vendedor-local-body h2 { font-size: 22px; margin-top: 10px; }
 .vendedor-preview-nota { padding: 14px 6px; font-size: 11px; color: var(--v-muted); }
@@ -315,7 +313,6 @@
   .vendedor-metrica { padding: 14px 10px; border-radius: 13px; }
   .vendedor-metrica-icono { width: 34px; height: 34px; border-radius: 10px; }
   .vendedor-metrica-icono svg { width: 19px; height: 19px; }
-  .vendedor-local-portada { height: 190px; }
   .vendedor-toolbar > .vendedor-filtros { width: 100%; }
   .vendedor-filtros button { flex: 1; padding-inline: 7px; font-size: 10px !important; }
   .vendedor-panel { padding: 20px 16px; border-radius: 15px; }

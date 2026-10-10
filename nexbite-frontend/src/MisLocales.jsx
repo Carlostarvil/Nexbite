@@ -2,6 +2,7 @@ import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 import { useState } from 'react';
 import RegistroRestaurante from './RegistroRestaurante';
+import ImagenPortada from './ImagenPortada';
 import MensajeAccion from './MensajeAccion';
 import { IconoVendedor, TituloVendedor, MetricasVendedor, VacioVendedor, CargandoVendedor, ErrorVendedor } from './VendedorUI';
 import { categoriasLocal, textoCategoriaLocal, fechaVendedor } from './vendedorUtils';
@@ -46,7 +47,7 @@ export default function MisLocales({ onCrearNuevo, onGestionarMenu, onGestionarP
         </div>
         {visibles.length === 0 ? <VacioVendedor icono="buscar" titulo="No encontramos ese local" descripcion="Prueba con otro nombre o cambia el filtro." accion={<button type="button" className="vendedor-btn vendedor-btn-secundario" onClick={() => { setBusqueda(''); setFiltro('TODOS'); }}>Ver todos los locales</button>} /> : <div className="vendedor-grid-locales">
           {visibles.map(local => <article className="vendedor-local-card" key={local.id_restaurante} aria-label={local.nombre}>
-            <div className="vendedor-local-portada">{local.imagen_url ? <img src={local.imagen_url} alt={local.nombre} loading="lazy" /> : <div className="vendedor-local-sin-foto"><IconoVendedor nombre="local" tamano={48} /></div>}<span className={'vendedor-badge' + (local.aceptando_pedidos === false ? ' vendedor-badge-cerrado' : '')}>{local.aceptando_pedidos === false ? 'En pausa' : 'Abierto'}</span></div>
+            <div className="vendedor-local-portada"><ImagenPortada src={local.imagen_url} alt={local.nombre} tipo="local" /><span className={'vendedor-badge' + (local.aceptando_pedidos === false ? ' vendedor-badge-cerrado' : '')}>{local.aceptando_pedidos === false ? 'En pausa' : 'Abierto'}</span></div>
             <div className="vendedor-local-body">
               <div className="vendedor-tags">{categoriasLocal(local.tipo).map(tipo => <span className="vendedor-tag" key={tipo}>{textoCategoriaLocal(tipo)}</span>)}</div><h2>{local.nombre}</h2>
               <div className="vendedor-local-info"><p><IconoVendedor nombre="mapa" /><span>{local.direccion || 'Dirección sin completar'}</span></p><p><IconoVendedor nombre="telefono" /><span>{local.telefono || 'Teléfono sin completar'}</span></p><p><IconoVendedor nombre="radio" /><span>Reparto hasta {local.radio_cobertura_km ?? 10} km</span></p>{local.aceptando_pedidos === false && <p><IconoVendedor nombre="reloj" /><span>{local.tiempo_reactivacion ? 'Reabre: ' + fechaVendedor(local.tiempo_reactivacion) : 'Reanúdalo cuando estés listo'}</span></p>}</div>

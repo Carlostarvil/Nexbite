@@ -156,6 +156,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
           return (
           <div 
             key={plato.id_plato} 
+            className="carrusel-plato"
             onClick={() => onSelectPlato(plato)}
             style={{ 
               position: 'relative', minWidth: '220px', maxWidth: '220px', backgroundColor: '#fff', border: '1px solid #eaeaea', 
@@ -166,7 +167,7 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.02)'; }}
           >
             <div style={{ position: 'relative' }}>
-                <ImagenPlato plato={plato} style={{ height: '140px', opacity: estaNoDisponible ? 0.65 : 1 }} />
+                <ImagenPlato plato={plato} className="imagen-plato-portada" style={{ opacity: estaNoDisponible ? 0.65 : 1 }} />
                 
                 {/* AÑADIDO: Etiqueta Visual de Oferta */}
                 {tieneOferta && (

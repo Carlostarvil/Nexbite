@@ -1,0 +1,18 @@
+.imagen-portada { --portada-fondo: #f4ece1; --portada-color: #a6754e; position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--portada-fondo); }
+.imagen-portada-local { --portada-fondo: #edf2e9; --portada-color: #77917a; }
+.imagen-portada > img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; opacity: 0; transition: opacity .25s ease, transform .5s ease; }
+.imagen-portada[data-estado='cargada'] > img { opacity: 1; }
+.imagen-portada[data-estado='cargando']::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 55%) 50%, transparent 80%); transform: translateX(-100%); animation: portada-cargando 1.6s ease-in-out infinite; pointer-events: none; }
+.imagen-portada-fondo { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 10px; box-sizing: border-box; color: var(--portada-color); background: radial-gradient(ellipse at 50% 40%, rgb(255 255 255 / 80%), transparent 70%); text-align: center; }
+.imagen-portada-fondo svg { width: clamp(28px, 28%, 86px); flex-shrink: 0; }
+.imagen-portada-fondo span { max-width: 100%; color: #53604f; font-size: 11px; line-height: 1.35; font-weight: 650; overflow-wrap: anywhere; }
+.imagen-plato-compacta .imagen-portada-fondo span, .vendedor-menu-seleccion .imagen-portada-fondo span { display: none; }
+@keyframes portada-cargando { to { transform: translateX(100%); } }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .tarjeta-inicio:hover .imagen-portada[data-estado='cargada'] > img,
+  .tarjeta-plato:hover .imagen-portada[data-estado='cargada'] > img,
+  .carrusel-plato:hover .imagen-portada[data-estado='cargada'] > img,
+  .vendedor-local-card:hover .imagen-portada[data-estado='cargada'] > img,
+  .vendedor-producto:hover .imagen-portada[data-estado='cargada'] > img { transform: scale(1.045); }
+}
+@media (prefers-reduced-motion: reduce) { .imagen-portada > img { transition: none; } .imagen-portada[data-estado='cargando']::after { animation: none; transform: none; } }

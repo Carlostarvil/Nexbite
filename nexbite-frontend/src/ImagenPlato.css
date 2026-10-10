@@ -1,20 +1,16 @@
 .imagen-plato { position: relative; display: grid; grid-template-columns: 1fr; grid-template-rows: 1fr; gap: 3px; width: 100%; min-width: 0; height: 140px; flex-shrink: 0; overflow: hidden; box-sizing: border-box; background: #f4f2ef; }
-.imagen-plato > img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: cover; object-position: center; }
+.imagen-plato-portada { height: auto; aspect-ratio: 4 / 3; }
+.detalle-plato-portada { height: clamp(240px, 55vw, 390px); }
 .imagen-plato-2 { grid-template-columns: 1.2fr 1fr; }
 .imagen-plato-3 { grid-template-columns: 1.55fr 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
-.imagen-plato-3 > img:first-child { grid-row: span 2; }
-.imagen-plato-menu { gap: 5px; padding: 6px; background: #fff4ed; }
-.imagen-plato-menu > img { border-radius: 9px; transition: filter .2s; }
-.imagen-plato-menu:hover > img { filter: saturate(1.12); }
-.imagen-plato-menu-etiqueta { position: absolute; display: inline-flex; align-items: center; gap: 5px; left: 14px; bottom: 14px; padding: 6px 9px; border: 1px solid rgb(255 255 255 / 35%); border-radius: 8px; background: rgb(26 26 26 / 82%); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .65px; box-shadow: 0 2px 8px rgb(0 0 0 / 12%); }
+.imagen-plato-3 > .imagen-portada:first-child { grid-row: span 2; }
+.imagen-plato-menu { gap: 3px; padding: 0; }
+.imagen-plato-menu-etiqueta { position: absolute; display: inline-flex; align-items: center; gap: 5px; left: 12px; bottom: 12px; padding: 7px 10px; border: 1px solid rgb(255 255 255 / 30%); border-radius: 20px; background: rgb(26 26 26 / 85%); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .65px; box-shadow: 0 2px 8px rgb(0 0 0 / 12%); pointer-events: none; }
 .imagen-plato-compacta { gap: 2px; padding: 0; }
-.imagen-plato-compacta > img { border-radius: 0; }
-.imagen-plato-vacia { display: flex; align-items: center; justify-content: center; min-width: 0; color: #aaa; }
-.imagen-plato-mas { position: absolute; bottom: 14px; right: 14px; border: 1px solid #fff; border-radius: 9px; padding: 5px 9px; background: rgb(255 255 255 / 95%); color: #292524; box-shadow: 0 2px 8px rgb(0 0 0 / 12%); font-size: 12px; font-weight: 800; line-height: 1.4; }
+.imagen-plato-mas { position: absolute; display: inline-flex; align-items: center; gap: 5px; bottom: 12px; right: 12px; border: 1px solid rgb(255 255 255 / 80%); border-radius: 20px; padding: 6px 9px; background: rgb(255 255 255 / 96%); color: #292524; box-shadow: 0 2px 8px rgb(0 0 0 / 12%); font-size: 10px; font-weight: 750; line-height: 1.4; pointer-events: none; }
 .galeria-menu { min-width: 0; }
 .galeria-menu-principal { position: relative; height: clamp(240px, 55vw, 340px); overflow: hidden; background: #f4f2ef; }
-.galeria-menu-principal .imagen-plato-vacia { padding-bottom: 60px; box-sizing: border-box; }
-.galeria-menu-principal .imagen-plato-vacia svg { width: 72px; height: 72px; }
+.galeria-menu-principal .imagen-portada-fondo { padding-bottom: 60px; }
 .galeria-menu-pie { position: absolute; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; left: 0; right: 0; bottom: 0; padding: 40px 24px 20px; background: linear-gradient(transparent, rgb(0 0 0 / 72%)); color: #fff; pointer-events: none; }
 .galeria-menu-nombre { font-size: clamp(17px, 3vw, 22px); font-weight: 750; line-height: 1.3; overflow-wrap: anywhere; }
 .galeria-menu-posicion { flex-shrink: 0; padding: 5px 9px; border: 1px solid rgb(255 255 255 / 35%); border-radius: 20px; background: rgb(255 255 255 / 16%); font-size: 12px; font-weight: 700; }
@@ -32,4 +28,4 @@
 .galeria-menu-miniatura[aria-pressed="true"] { border-color: #ef5b13; background: #fff7ed; color: #9a3412; box-shadow: 0 2px 8px rgb(239 91 19 / 10%); }
 .galeria-menu-flecha:focus-visible, .galeria-menu-miniatura:focus-visible { outline: 3px solid #0066cc; outline-offset: 2px; }
 @media (max-width: 480px) { .galeria-menu-pie { padding: 36px 16px 16px; } .galeria-menu-incluidos { padding: 16px 16px 10px; } .galeria-menu-miniatura { flex-basis: 110px; } }
-@media (prefers-reduced-motion: reduce) { .imagen-plato-menu > img, .galeria-menu-flecha, .galeria-menu-miniatura { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .galeria-menu-flecha, .galeria-menu-miniatura { transition: none; } }
