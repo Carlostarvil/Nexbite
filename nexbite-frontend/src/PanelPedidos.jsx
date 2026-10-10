@@ -39,12 +39,25 @@ export default function PanelPedidos({ idRestaurante, nombreRestaurante, onVolve
   const [actualizarPedido] = useMutation(ACTUALIZAR_PEDIDO);
   const [cambiarEstadoRestaurante, { loading: cargandoPausa }] = useMutation(CAMBIAR_ESTADO_REST);
   
-  // MODIFICACIÓN: Estados separados para el tipo de pausa y la fecha exacta del calendario
   const [tipoPausa, setTipoPausa] = useState('1 hora');
   const [fechaExacta, setFechaExacta] = useState('');
+  
+  // NUEVO: Estado para el filtro de tipo de entrega
+  const [filtroEntrega, setFiltroEntrega] = useState('TODOS');
 
   const restaurante = data?.obtenerRestaurantePorId;
   const pedidos = data?.obtenerPedidosVendedor || [];
+
+  // NUEVO: Lógica de filtrado y recuento
+  const pedidosDomicilio = pedidos.filter(p => !p.direccion_envio?.toLowerCase().includes('recogida'));
+  const pedidosRecogida = pedidos.filter(p => p.direccion_envio?.toLowerCase().includes('recogida'));
+
+  const pedidosFiltrados = pedidos.filter(pedido => {
+    const esRecogida = pedido.direccion_envio?.toLowerCase().includes('recogida');
+    if (filtroEntrega === 'DOMICILIO') return !esRecogida;
+    if (filtroEntrega === 'RECOGIDA') return esRecogida;
+    return true; // TODOS
+  });
 
   const handleEstado = async (id_pedido, estadoActual, accionEspecial = null) => {
     let nuevoEstado = '';
@@ -71,13 +84,12 @@ export default function PanelPedidos({ idRestaurante, nombreRestaurante, onVolve
   const ejecutarPausa = async (aceptando) => {
     let tiempoFinal = null;
     
-    // Si estamos pausando el restaurante (aceptando = false)
     if (!aceptando) {
       if (tipoPausa === 'Exacta') {
         if (!fechaExacta) return alert('⚠️ Por favor, selecciona una fecha y hora en el calendario.');
-        tiempoFinal = fechaExacta; // Enviamos la fecha del calendario (ej: "2026-10-15T19:30")
+        tiempoFinal = fechaExacta; 
       } else {
-        tiempoFinal = tipoPausa; // Enviamos el texto normal (ej: "1 hora")
+        tiempoFinal = tipoPausa; 
       }
     }
 
@@ -89,7 +101,6 @@ export default function PanelPedidos({ idRestaurante, nombreRestaurante, onVolve
     }
   };
 
-  // Obtenemos la hora actual para evitar que el usuario elija horas en el pasado en el calendario
   const fechaMinimaCalendario = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
   return (
@@ -121,7 +132,6 @@ export default function PanelPedidos({ idRestaurante, nombreRestaurante, onVolve
                   <option value="Indefinido">Pausar Indefinidamente</option>
                 </select>
 
-                {/* MODIFICACIÓN: Mostrar el calendario solo si elige "Exacta" */}
                 {tipoPausa === 'Exacta' && (
                   <input 
                     type="datetime-local" 
@@ -155,62 +165,92 @@ export default function PanelPedidos({ idRestaurante, nombreRestaurante, onVolve
       )}
 
       {loading ? <p>Cargando comandas...</p> : (
-        <div style={{ display: 'grid', gap: '1rem' }}>
-          {pedidos.length === 0 && <p style={{ color: '#666', fontStyle: 'italic' }}>Aún no hay pedidos para este local.</p>}
-          
-          {pedidos.map(pedido => {
-            const estadoVisual = pedido.estado.toUpperCase();
-            
-            let colorBorde = '#eee';
-            if (estadoVisual === 'PENDIENTE') colorBorde = '#dc3545';
-            else if (estadoVisual === 'EN COCINA') colorBorde = '#ffc107';
-            else if (estadoVisual === 'EN CAMINO') colorBorde = '#17a2b8';
-            else if (estadoVisual === 'ENTREGADO') colorBorde = '#28a745';
-            else if (estadoVisual === 'RECHAZADO') colorBorde = '#6c757d';
+        <>
+          {/* NUEVO: Filtros interactivos para distinguir el tipo de entrega */}
+          {pedidos.length > 0 && (
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', borderBottom: '1px solid #eee', paddingBottom: '1rem', flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => setFiltroEntrega('TODOS')}
+                style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', backgroundColor: filtroEntrega === 'TODOS' ? '#333' : '#f5f5f5', color: filtroEntrega === 'TODOS' ? '#fff' : '#666', transition: 'all 0.2s' }}
+              >
+                Todos ({pedidos.length})
+              </button>
+              <button 
+                onClick={() => setFiltroEntrega('DOMICILIO')}
+                style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', backgroundColor: filtroEntrega === 'DOMICILIO' ? '#0066cc' : '#f5f5f5', color: filtroEntrega === 'DOMICILIO' ? '#fff' : '#666', transition: 'all 0.2s' }}
+              >
+                🛵 A domicilio ({pedidosDomicilio.length})
+              </button>
+              <button 
+                onClick={() => setFiltroEntrega('RECOGIDA')}
+                style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontWeight: 'bold', backgroundColor: filtroEntrega === 'RECOGIDA' ? '#16864a' : '#f5f5f5', color: filtroEntrega === 'RECOGIDA' ? '#fff' : '#666', transition: 'all 0.2s' }}
+              >
+                🏃 Recogida en local ({pedidosRecogida.length})
+              </button>
+            </div>
+          )}
 
-            return (
-              <div key={pedido.id_pedido} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', border: '1px solid #eee', borderRadius: '8px', borderLeft: `5px solid ${colorBorde}`, backgroundColor: estadoVisual === 'RECHAZADO' ? '#f8f9fa' : '#fff' }}>
-                <div>
-                  <h3 style={{ margin: '0 0 5px 0', textDecoration: estadoVisual === 'RECHAZADO' ? 'line-through' : 'none', color: estadoVisual === 'RECHAZADO' ? '#666' : '#000' }}>
-                    {pedido.nombre_plato}
-                  </h3>
-                  <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>📍 {pedido.direccion_envio} | 💳 Pago: {pedido.metodo_pago}</p>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#888' }}>ID Pedido: #{pedido.id_pedido}</span>
-                </div>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <b style={{ color: estadoVisual === 'RECHAZADO' ? '#dc3545' : '#555' }}>
-                    {estadoVisual === 'RECHAZADO' ? '❌ RECHAZADO' : `Estado: ${estadoVisual}`}
-                  </b>
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            {pedidos.length === 0 && <p style={{ color: '#666', fontStyle: 'italic' }}>Aún no hay pedidos para este local.</p>}
+            {pedidos.length > 0 && pedidosFiltrados.length === 0 && <p style={{ color: '#666', fontStyle: 'italic' }}>No hay pedidos en esta categoría.</p>}
+            
+            {pedidosFiltrados.map(pedido => {
+              const estadoVisual = pedido.estado.toUpperCase();
+              const esRecogida = pedido.direccion_envio?.toLowerCase().includes('recogida');
+              
+              let colorBorde = '#eee';
+              if (estadoVisual === 'PENDIENTE') colorBorde = '#dc3545';
+              else if (estadoVisual === 'EN COCINA') colorBorde = '#ffc107';
+              else if (estadoVisual === 'EN CAMINO' || estadoVisual === 'LISTO PARA RECOGER') colorBorde = '#17a2b8';
+              else if (estadoVisual === 'ENTREGADO') colorBorde = '#28a745';
+              else if (estadoVisual === 'RECHAZADO') colorBorde = '#6c757d';
+
+              return (
+                <div key={pedido.id_pedido} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', border: '1px solid #eee', borderRadius: '8px', borderLeft: `5px solid ${colorBorde}`, backgroundColor: estadoVisual === 'RECHAZADO' ? '#f8f9fa' : '#fff' }}>
+                  <div>
+                    <h3 style={{ margin: '0 0 5px 0', textDecoration: estadoVisual === 'RECHAZADO' ? 'line-through' : 'none', color: estadoVisual === 'RECHAZADO' ? '#666' : '#000' }}>
+                      {pedido.nombre_plato}
+                    </h3>
+                    <p style={{ margin: '0', color: '#666', fontSize: '14px', fontWeight: esRecogida ? 'bold' : 'normal' }}>
+                      {esRecogida ? '🏃' : '🛵'} {pedido.direccion_envio} | 💳 Pago: {pedido.metodo_pago}
+                    </p>
+                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#888' }}>ID Pedido: #{pedido.id_pedido}</span>
+                  </div>
                   
-                  {estadoVisual !== 'ENTREGADO' && estadoVisual !== 'RECHAZADO' && (
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      {estadoVisual === 'PENDIENTE' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <b style={{ color: estadoVisual === 'RECHAZADO' ? '#dc3545' : '#555' }}>
+                      {estadoVisual === 'RECHAZADO' ? '❌ RECHAZADO' : `Estado: ${estadoVisual}`}
+                    </b>
+                    
+                    {estadoVisual !== 'ENTREGADO' && estadoVisual !== 'RECHAZADO' && (
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        {estadoVisual === 'PENDIENTE' && (
+                          <button 
+                            onClick={() => {
+                              if(window.confirm("¿Seguro que quieres rechazar este pedido? El cliente será notificado.")) {
+                                handleEstado(pedido.id_pedido, pedido.estado, 'RECHAZAR');
+                              }
+                            }} 
+                            style={{ padding: '0.8rem 1rem', background: '#fff', color: '#dc3545', border: '1px solid #dc3545', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            Denegar
+                          </button>
+                        )}
+                        
                         <button 
-                          onClick={() => {
-                            if(window.confirm("¿Seguro que quieres rechazar este pedido? El cliente será notificado.")) {
-                              handleEstado(pedido.id_pedido, pedido.estado, 'RECHAZAR');
-                            }
-                          }} 
-                          style={{ padding: '0.8rem 1rem', background: '#fff', color: '#dc3545', border: '1px solid #dc3545', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                          onClick={() => handleEstado(pedido.id_pedido, pedido.estado)} 
+                          style={{ padding: '0.8rem 1.5rem', background: '#0066cc', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
                         >
-                          Denegar
+                          {estadoVisual === 'PENDIENTE' ? '🍳 Empezar a cocinar' : estadoVisual === 'EN COCINA' ? (esRecogida ? '🛍️ Listo para recoger' : '🛵 Enviar pedido') : '✅ Marcar Entregado'}
                         </button>
-                      )}
-                      
-                      <button 
-                        onClick={() => handleEstado(pedido.id_pedido, pedido.estado)} 
-                        style={{ padding: '0.8rem 1.5rem', background: '#0066cc', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                      >
-                        {estadoVisual === 'PENDIENTE' ? '🍳 Empezar a cocinar' : estadoVisual === 'EN COCINA' ? '🛵 Enviar pedido' : '✅ Marcar Entregado'}
-                      </button>
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
