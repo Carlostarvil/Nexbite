@@ -3,6 +3,7 @@ import { centimos, costeEnvio } from '../shared/preciosCompra.js';
 import { recogidaDisponible, validarFechaRecogida } from '../shared/horariosRecogida.js';
 import { validarZonaEntrega } from '../shared/zonaEntrega.js';
 import { exigirUsuario, exigirLocalPropio } from './permisos.js';
+import { detalleErrorCompra, registrarErrorCompra } from '../shared/erroresCompra.js';
 
 const errorCompra = (mensaje, code = 'COMPRA_NO_VALIDA') => new GraphQLError(mensaje, { extensions: { code } });
 const fechaISO = fecha => fecha ? new Date(fecha).toISOString() : null;
@@ -427,12 +428,24 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     return conBloqueo(pedido?.id_compra || 'pedido-' + idPedido, cx => accion(cx));
   };
 
+  async function ejecutarOperacion(etapa, clave, accion) {
+    try {
+      return await accion();
+    } catch (error) {
+      if (error instanceof GraphQLError) throw error;
+      registrarErrorCompra('servidor', etapa, clave, error);
+      throw new GraphQLError('El servidor no ha podido completar esta operación de compra. Comprueba el estado del mismo pedido antes de volver a pagar.', {
+        extensions: { code: 'COMPRA_SERVIDOR_NO_DISPONIBLE', codigo_incidente: detalleErrorCompra(error).codigo },
+      });
+    }
+  }
+
   return {
     preparar, confirmar, consultar, cancelarPedido, validarCambioPedido, procesarPendientes, conPedidoBloqueado,
-    Query: { consultarCompra: (_, { id_compra }, ctx) => consultar(id_compra, ctx) },
+    Query: { consultarCompra: (_, { id_compra }, ctx) => ejecutarOperacion('consultar', id_compra, () => consultar(id_compra, ctx)) },
     Mutation: {
-      prepararCompra: (_, { input }, ctx) => preparar(input, ctx),
-      confirmarCompra: (_, { id_compra }, ctx) => confirmar(id_compra, ctx),
+      prepararCompra: (_, { input }, ctx) => ejecutarOperacion('preparar', input?.clave, () => preparar(input, ctx)),
+      confirmarCompra: (_, { id_compra }, ctx) => ejecutarOperacion('confirmar', id_compra, () => confirmar(id_compra, ctx)),
     },
   };
 }

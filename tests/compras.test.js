@@ -170,6 +170,33 @@ test('una autorización confirmada con respuesta perdida se recupera aunque el n
   assert.equal((await filas(input.clave)).length, 3);
 });
 
+test('el resolver identifica un fallo de conexión sin exponer datos privados y permite recuperar la misma compra', async t => {
+  const registros = t.mock.method(console, 'error', () => {});
+  const input = solicitud(); await servicio.preparar(input, cliente); autorizar(input.clave);
+  const recuperar = stripe.paymentIntents.retrieve;
+  stripe.paymentIntents.retrieve = async () => { throw Object.assign(Error('Credencial privada sk_test_secreto'), { code: 'ECONNRESET' }); };
+  for (const ejecutar of [
+    () => servicio.Mutation.confirmarCompra(null, { id_compra: input.clave }, cliente),
+    () => servicio.Query.consultarCompra(null, { id_compra: input.clave }, cliente),
+  ]) await assert.rejects(ejecutar(), error => {
+    assert.equal(error.extensions.code, 'COMPRA_SERVIDOR_NO_DISPONIBLE');
+    assert.equal(error.extensions.codigo_incidente, 'ECONNRESET');
+    assert.doesNotMatch(error.message, /sk_test|secreto/);
+    return true;
+  });
+  assert.deepEqual(registros.mock.calls.map(llamada => llamada.arguments[1].etapa), ['confirmar', 'consultar']);
+  assert.equal(registros.mock.calls[0].arguments[1].id_compra, input.clave);
+  assert.doesNotMatch(JSON.stringify(registros.mock.calls), /sk_test|secreto/);
+  stripe.paymentIntents.retrieve = recuperar;
+  const recuperada = await servicio.Query.consultarCompra(null, { id_compra: input.clave }, cliente);
+  assert.equal(recuperada.estado, 'CONFIRMADA');
+  assert.equal(intenciones.size, 1); assert.equal(capturas, 1); assert.equal((await filas(input.clave)).length, 3);
+});
+
+test('el resolver mantiene los errores de sesión para que el carrito los distinga de una conexión perdida', async () => {
+  await assert.rejects(servicio.Query.consultarCompra(null, { id_compra: 'compra-prueba-000001' }, {}), error => error.extensions.code === 'UNAUTHENTICATED');
+});
+
 test('las reservas conservan su fecha, esperan disponibilidad y se cobran al activarse', async () => {
   const fecha = new Date(reloj.getTime() + 5 * 3600_000).toISOString();
   const input = solicitud(undefined, { fecha_programada: fecha, items: [{ id_plato: '103', cantidad: 1 }] });

@@ -8,6 +8,7 @@ import DireccionLocal from './DireccionLocal';
 import IconoInfoRestaurante from './IconoInfoRestaurante';
 import ImagenPlato from './ImagenPlato';
 import { centimos, configuracionEnvio, costeEnvio } from '../../shared/preciosCompra.js';
+import { mensajeCompraPendiente, registrarErrorCompra } from '../../shared/erroresCompra.js';
 import './Carrito.css';
 
 import { loadStripe } from '@stripe/stripe-js';
@@ -485,6 +486,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     const almacenamiento = 'nexbite_compra_pendiente_' + idUsuario + '_' + idCartActivo;
     let intento = intentosPago.current.get(huellaCompra);
     let hayOperacionPendiente = false;
+    let etapa = 'preparar';
     const guardarIntento = valor => {
       intentosPago.current.set(huellaCompra, valor);
       try { localStorage.setItem(almacenamiento, JSON.stringify({ huella: huellaCompra, ...valor })); } catch { /* El servidor conserva la compra aunque no haya almacenamiento. */ }
@@ -520,6 +522,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     try {
       if (compraPorComprobar) {
         hayOperacionPendiente = true;
+        etapa = 'consultar';
         intento = { clave: compraPorComprobar.clave };
         const compra = await consultar(intento.clave);
         if (terminar(compra)) return;
@@ -549,9 +552,11 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
       }
       if (metodoPago === 'TARJETA') {
         hayOperacionPendiente = true;
+        etapa = 'autorizar';
         const resultado = await stripe.confirmCardPayment(compra.client_secret, { payment_method: tarjetaSeleccionada });
-        if (resultado.error) throw new Error(resultado.error.message);
+        if (resultado.error) throw Object.assign(new Error(resultado.error.message), { code: resultado.error.code, type: resultado.error.type });
         if (resultado.paymentIntent?.status !== 'requires_capture') {
+          etapa = 'consultar';
           const actual = await consultar(intento.clave);
           if (terminar(actual)) return;
           setCompraPorComprobar({ clave: intento.clave, idRestaurante: idCartActivo });
@@ -559,17 +564,26 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         }
       }
       hayOperacionPendiente = true;
+      etapa = 'confirmar';
       compra = (await confirmarCompra({ variables: { id: intento.clave } })).data.confirmarCompra;
       terminar(compra);
     } catch (error) {
+      registrarErrorCompra('carrito', etapa, intento?.clave, error);
       if (intento && hayOperacionPendiente) {
-        try {
-          const actual = await consultar(intento.clave);
-          if (terminar(actual)) return;
-          if (actual.estado === 'BORRADOR') return mostrarMensajePago('No se ha confirmado el pedido', error.message);
-        } catch { /* Una respuesta perdida se recupera usando la misma compra. */ }
+        let errorEstado = error;
+        if (etapa !== 'consultar') {
+          try {
+            const actual = await consultar(intento.clave);
+            if (terminar(actual)) return;
+            if (actual.estado === 'BORRADOR') return mostrarMensajePago('No se ha confirmado el pedido', error.message);
+          } catch (errorConsulta) {
+            errorEstado = errorConsulta;
+            registrarErrorCompra('carrito', 'consultar', intento.clave, errorConsulta);
+          }
+        }
         setCompraPorComprobar({ clave: intento.clave, idRestaurante: idCartActivo });
-        mostrarMensajePago('Comprueba el estado de tu compra', 'No hemos podido recuperar la respuesta. Pulsa Comprobar compra; se reutilizará el mismo pedido y no se duplicará el cobro.', 'aviso');
+        const aviso = mensajeCompraPendiente(errorEstado);
+        mostrarMensajePago(aviso.titulo, aviso.descripcion + ' Referencia de compra: ' + intento.clave + '.', 'aviso');
       } else mostrarMensajePago('Revisa tu carrito', error.message.replace('GraphQL error: ', ''));
     } finally {
       pagoEnCurso.current = false;
