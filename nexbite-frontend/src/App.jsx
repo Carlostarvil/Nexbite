@@ -29,8 +29,6 @@ import { EstadoCarritoContext } from './estadoCarrito';
 import SelectorUbicacion from './SelectorUbicacion';
 import { leerUbicacionEntrega, guardarUbicacionEntrega } from './ubicacionEntrega';
 import './Tipografia.css';
-
-// Importaciones de los nuevos componentes en el frontend
 import AvisoCookies from './AvisoCookies'; 
 import ChatSoporteIA from './ChatSoporteIA';
 
