@@ -5,8 +5,7 @@ import { SQL_COMPRAS } from '../graphql/migracionCompras.js';
 dotenv.config();
 const { Pool } = pg;
 
-// Propósito: Centralizar la conexión a PostgreSQL.
-// Por qué el cambio: Si en el futuro necesitas conectarte a la base de datos desde otro archivo (por ejemplo, una tarea programada para limpiar registros), solo importas este archivo en lugar de reescribir las credenciales.
+// Pool compartido por los resolvers y servicios; las credenciales vienen del entorno.
 const pool = new Pool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -42,7 +41,6 @@ export const menusListos = pool.query(`
 
 export const comprasListas = pool.query(SQL_COMPRAS);
 
-// Esto fuerza a Node a crear la tabla en la base de datos correcta si no existe
 pool.query(`
   CREATE TABLE IF NOT EXISTS Platos_Favoritos (
       id_usuario INT REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,

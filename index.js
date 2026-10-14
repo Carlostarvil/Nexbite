@@ -11,7 +11,6 @@ import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
-// Importamos nuestros propios módulos
 import { typeDefs } from './graphql/typeDefs.js';
 import { resolvers, procesarComprasPendientes } from './graphql/resolvers.js';
 import { inicializarChatbot } from './nlp/chatbot.js';
@@ -19,8 +18,7 @@ import pool, { horariosRecogidaListos, clientesPagoListos, menusListos, comprasL
 
 dotenv.config();
 
-// Propósito: Servir exclusivamente como el director de orquesta que ensambla las piezas. 
-// Por qué el cambio: Index.js ya no maneja SQL ni intenciones de IA. Solo enciende los motores (Express, HTTP, WebSockets) e inserta los middlewares (Rate Limit, Seguridad).
+// Inicializa la API HTTP/WebSocket y las tareas de revisión de compras.
 const app = express();
 
 const limitadorTrafico = rateLimit({ windowMs: 1 * 60 * 1000, max: 100 });
@@ -60,7 +58,6 @@ const server = new ApolloServer({
   ],
 });
 
-// Iniciamos todo de forma coordinada
 await Promise.all([horariosRecogidaListos, clientesPagoListos, menusListos, comprasListas]);
 await inicializarChatbot();
 await server.start();

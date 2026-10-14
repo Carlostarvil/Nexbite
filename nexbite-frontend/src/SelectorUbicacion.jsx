@@ -24,18 +24,16 @@ export default function SelectorUbicacion({ ubicacion, onConfirmar, onCancelar }
   const contenedor = useRef(null);
   const entrada = useRef(null);
 
-  // Efecto para hacer focus y BLOQUEAR EL SCROLL DE LA PÁGINA
+  // Enfoca el diálogo y bloquea el scroll del fondo; restaura el estilo al cerrar.
   useEffect(() => {
     const focoAnterior = document.activeElement;
     entrada.current?.focus();
     
-    // Bloquear scroll de la web mientras está abierto
     document.body.style.overflow = 'hidden';
     
     return () => {
       solicitud.current += 1;
       if (focoAnterior?.isConnected) focoAnterior.focus();
-      // Restaurar scroll al cerrar
       document.body.style.overflow = 'auto';
     };
   }, []);
@@ -98,7 +96,6 @@ export default function SelectorUbicacion({ ubicacion, onConfirmar, onCancelar }
   };
 
   return (
-    // 1. Overlay (Fondo oscuro fijo que cubre toda la pantalla)
     <div style={{
       position: 'fixed',
       top: 0, left: 0, right: 0, bottom: 0,
@@ -108,10 +105,9 @@ export default function SelectorUbicacion({ ubicacion, onConfirmar, onCancelar }
       justifyContent: 'center',
       zIndex: 9999,
       padding: '20px',
-      backdropFilter: 'blur(4px)' // Efecto premium de desenfoque de fondo
+      backdropFilter: 'blur(4px)'
     }}>
       
-      {/* 2. Tarjeta Modal ampliada */}
       <section 
         ref={contenedor} 
         onKeyDown={controlarTeclado} 
@@ -119,14 +115,14 @@ export default function SelectorUbicacion({ ubicacion, onConfirmar, onCancelar }
         style={{
           background: '#fff',
           borderRadius: '24px',
-          padding: '3rem', /* Más margen interno */
-          maxWidth: '650px', /* Más ancha */
+          padding: '3rem',
+          maxWidth: '650px',
           width: '100%',
           boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
           fontFamily: 'system-ui',
           position: 'relative',
           maxHeight: '90vh',
-          overflowY: 'auto' // Por si la pantalla es muy pequeña
+          overflowY: 'auto'
         }}
       >
         {onCancelar && (
@@ -248,7 +244,6 @@ export default function SelectorUbicacion({ ubicacion, onConfirmar, onCancelar }
         {candidato && (
           <div style={{ margin: '25px 0', padding: '18px', backgroundColor: '#f0fdf4', border: '2px solid #bbf7d0', borderRadius: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-              {/* SVG de check en lugar del emoji */}
               <div style={{ color: '#166534', flexShrink: 0, marginTop: '2px' }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>

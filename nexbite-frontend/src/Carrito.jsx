@@ -80,7 +80,7 @@ const OBTENER_INFO_BASICA_REST = gql`
   }
 `;
 
-// Función segura para procesar cualquier formato de fecha sin que dé "Invalid date"
+// Admite fechas y marcas de tiempo; los valores inválidos o indefinidos devuelven null.
 const parsearFechaSegura = (fechaStr) => {
   if (!fechaStr || String(fechaStr).includes('Indefinido')) return null;
   const timestamp = !isNaN(fechaStr) && String(fechaStr).trim() !== '' ? Number(fechaStr) : fechaStr;
@@ -286,7 +286,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const { data: dataRest, loading: cargandoRestaurante, error: errorRestaurante } = useQuery(OBTENER_ESTADO_RESTAURANTE, { variables: { id: idRestauranteCarrito }, skip: !idRestauranteCarrito });
   const restaurante = dataRest?.obtenerRestaurantePorId;
   
-  // FUNCIONES DE INSPECCIÓN EN CASCADA (PARA MENÚS PROFUNDOS)
+  // La disponibilidad del menú depende tanto de su producto como de sus componentes.
   const subPropiedades = ['platos', 'opciones', 'sub_platos', 'seleccion', 'componentes', 'items', 'elecciones', 'platos_menu', 'items_menu'];
 
   const esIndefinido = (plato) => {
@@ -353,15 +353,13 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     return subMax > 0 ? new Date(subMax) : null;
   };
 
-  // Categorizar platos pausados con el validador en cascada restaurado
   const platosIndefinidos = carritoEnUso.filter(esIndefinido);
   const platosTemporales = carritoEnUso.filter(p => !esIndefinido(p) && esTemporal(p));
 
-  // Algoritmo para calcular el "Tiempo Efectivo" de disponibilidad (recursivo para menús)
+  // El límite temporal de la reserva toma la reapertura más tardía de productos y local.
   const maxTiempoEfectivo = (() => {
     let maxTime = ahora.getTime();
     
-    // 1. Revisar si hay platos pausados y coger el que más tarde (incluyendo sub-componentes)
     platosTemporales.forEach(p => {
       const dateObj = parsearFechaSegura(p.tiempo_disponible);
       if (dateObj && dateObj.getTime() > maxTime) {
@@ -373,7 +371,6 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
       }
     });
 
-    // 2. Si el restaurante está cerrado, también se respeta su tiempo de apertura
     if (restaurante && !restaurante.aceptando_pedidos && restaurante.tiempo_reactivacion) {
       const dateObj = parsearFechaSegura(restaurante.tiempo_reactivacion);
       if (dateObj && dateObj.getTime() > maxTime) {
@@ -394,14 +391,14 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
   const destinoLocal = tieneCoordenadasLocal ? latitudLocal + ',' + longitudLocal : direccionGuardadaLocal;
   const urlUbicacionLocal = destinoLocal ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(destinoLocal) : null;
   
-  // Le pasamos 'maxTiempoEfectivo' al generador en lugar de 'ahora'
+  // Genera las franjas de recogida a partir del límite de disponibilidad.
   const opcionesRecogida = restaurante ? generarOpcionesRecogida(restaurante.horarios_recogida, new Date(maxTiempoEfectivo)) : [];
   const diasDisponibles = opcionesRecogida;
   const horasDisponiblesList = diasDisponibles.find(dia => dia.valor === diaProgramado)?.horas || [];
   const opcionProgramada = diasDisponibles.flatMap(dia => dia.horas).find(hora => hora.valor === horaProgramada);
   const diaConfirmado = diasDisponibles.find(dia => dia.horas.some(hora => hora.valor === horaProgramada));
   
-  // La recogida "AHORA" se desactiva matemáticamente si hay algo pausado
+  // La recogida inmediata exige que el local y todos los productos estén disponibles.
   const restauranteCerrado = restaurante ? !restaurante.aceptando_pedidos : false;
   const recogidaAhoraDisponible = restaurante && !restauranteCerrado && platosTemporales.length === 0 && platosIndefinidos.length === 0 && recogidaDisponible(restaurante.horarios_recogida, ahora, 15);
 
@@ -423,7 +420,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     return () => controlador.abort();
   }, [direccionGuardadaLocal, tieneCoordenadasLocal, latitudLocal, longitudLocal]);
 
-  // LÓGICA DE PRECIOS, DISTANCIA Y ENVÍO
+  // El cliente envía productos y cantidades; el servidor calcula el importe final.
   const direccionFinal = tipoEntrega === 'RECOGIDA' ? 'RECOGIDA EN LOCAL' : (detallesDireccion.trim() ? direccion + '\nDetalles: ' + detallesDireccion : direccion);
   const solicitud = {
     id_restaurante: String(idCartActivo), items: carritoEnUso.map(p => ({ id_plato: String(p.id_plato), cantidad: p.cantidad || 1 })),
@@ -451,30 +448,26 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
 
     const tieneReserva = modoRecogida === 'PROGRAMADO' && opcionProgramada;
 
-    // 1. Interceptar si hay platos agotados indefinidamente
+    // Comprueba las pausas y la programación antes de abrir el pago.
     if (platosIndefinidos.length > 0) {
       setModalIntercepcion('PLATOS_PAUSADOS');
       return;
     }
 
-    // 2. Interceptar si hay platos pausados temporalmente Y NO hay reserva programada
     if (platosTemporales.length > 0 && !tieneReserva) {
       setModalIntercepcion('PLATOS_PAUSADOS');
       return;
     }
     
-    // 3. Interceptar si el restaurante está cerrado y no hay reserva programada
     if (restauranteCerrado && !tieneReserva) {
       setModalIntercepcion('RESTAURANTE_CERRADO');
       return;
     }
 
-    // 4. Validar programación
     if (modoRecogida === 'PROGRAMADO' && !opcionProgramada) {
       return mostrarMensajePago('Horario inválido', 'Por favor, selecciona una hora válida para tu reserva.');
     }
 
-    // Si todo está OK, procesamos pago
     handlePagar();
   };
 
@@ -493,7 +486,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
     };
     const olvidar = () => {
       intentosPago.current.delete(huellaCompra);
-      try { localStorage.removeItem(almacenamiento); } catch { /* Sin almacenamiento. */ }
+      try { localStorage.removeItem(almacenamiento); } catch {}
       setCompraPorComprobar(null);
     };
     const consultar = clave => clienteApollo.query({ query: CONSULTAR_COMPRA, variables: { id: clave }, fetchPolicy: 'network-only' }).then(r => r.data.consultarCompra);
@@ -535,7 +528,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         try {
           const anterior = JSON.parse(localStorage.getItem(almacenamiento));
           if (anterior?.huella === huellaCompra) intento = { clave: anterior.clave };
-        } catch { /* Sin intento anterior. */ }
+        } catch {}
       }
       if (!intento) intento = { clave: crypto.randomUUID() };
       guardarIntento(intento);
@@ -906,7 +899,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         </>
       )}
 
-      {/* MODAL DE INTERCEPCIÓN DE ERRORES/PAUSAS EN EL CARRITO */}
+      {/* Disponibilidad y alternativas de reserva. */}
       {modalIntercepcion === 'PLATOS_PAUSADOS' && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6000, padding: '1rem', backdropFilter: 'blur(3px)' }}>
           <div style={{ background: '#fff', borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '450px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', textAlign: 'center' }}>
@@ -1030,7 +1023,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         </div>
       )}
 
-      {/* MODAL DE TARJETA EXISTENTE */}
+      {/* Tarjeta guardada. */}
       {mostrarModalTarjeta && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: '1rem', backdropFilter: 'blur(3px)' }}>
           <div role="dialog" aria-modal="true" aria-labelledby="titulo-tarjeta" style={{ background: '#fff', borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '400px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
@@ -1056,7 +1049,7 @@ function CarritoInterno({ carrito, setCarrito, onVolver, vaciarCarrito, idUsuari
         </div>
       )}
 
-      {/* MODAL DE PROGRAMAR HORARIO */}
+      {/* Programación de fecha y hora del pedido. */}
       {mostrarModalProgramar && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5000, padding: '1rem', backdropFilter: 'blur(3px)' }}>
           <div style={{ background: '#fff', borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '420px', position: 'relative', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>

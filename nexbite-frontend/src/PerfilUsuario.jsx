@@ -220,7 +220,6 @@ export default function PerfilUsuario({ irAPedidos = false, onVolver, onAgregarA
                     onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.borderColor = '#ff4500'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.02)'; e.currentTarget.style.borderColor = '#eaeaea'; }}
                   >
-                    {/* ETIQUETA CON EL ID DEL PEDIDO */}
                     <span style={{ position: 'absolute', top: '15px', right: '15px', fontSize: '11px', color: '#666', fontWeight: 'bold', background: '#f5f5f5', padding: '4px 10px', borderRadius: '8px' }}>
                       Pedido #{pedido.id_pedido}
                     </span>

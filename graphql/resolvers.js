@@ -193,9 +193,7 @@ const resolversBase = {
     }
   },
 
-  // =========================================================================
-  // NUEVO: FIELD RESOLVERS PARA CALCULAR LA NOTA MEDIA DE LOS RESTAURANTES
-  // =========================================================================
+  // Los resolvers de campos calculan valores derivados, como la media de reseñas del local.
   Restaurante: {
     calificacion: async (parent) => {
       try {

@@ -1,7 +1,6 @@
 import { NlpManager } from 'node-nlp';
 
-// Propósito: Aislar por completo la lógica de Inteligencia Artificial y el entrenamiento.
-// Por qué el cambio: Las frases de entrenamiento pueden llegar a ser miles. Tenerlas en tu archivo principal satura visualmente el servidor. Aquí encapsulamos el cerebro y solo exportamos el motor ya listo para procesar.
+// Entrenamiento y procesamiento de mensajes del modelo node-nlp.
 const nlpManager = new NlpManager({ languages: ['es'], forceNER: true });
 
 export const inicializarChatbot = async () => {

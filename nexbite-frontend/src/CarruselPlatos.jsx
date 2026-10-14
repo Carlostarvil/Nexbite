@@ -5,14 +5,14 @@ import EstadoDisponibilidad from './EstadoDisponibilidad';
 import ImagenPlato from './ImagenPlato';
 import TarjetaProductoInicio from './TarjetaProductoInicio';
 
-// Función para extraer el precio antiguo de la descripción
+// El precio anterior está codificado en la descripción con |ANTES:.
 const extraerPrecioAnterior = (descripcion) => {
   if (!descripcion) return null;
   const match = descripcion.match(/\|ANTES:\s*([\d.,]+)/i);
   return match ? parseFloat(match[1].replace(',', '.')) : null;
 };
 
-// NUEVA FUNCION: Detecta si el plato tiene el TAG de oferta
+// Categorías y tags de descripción pueden marcar un producto como OFERTA.
 const esPlatoEnOferta = (plato) => {
   if (!plato || (!plato.categoria && !plato.descripcion)) return false;
   
@@ -169,7 +169,6 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
             <div style={{ position: 'relative' }}>
                 <ImagenPlato plato={plato} className="imagen-plato-portada" style={{ opacity: estaNoDisponible ? 0.65 : 1 }} />
                 
-                {/* AÑADIDO: Etiqueta Visual de Oferta */}
                 {tieneOferta && (
                   <div style={{ position: 'absolute', top: '10px', left: '10px', background: '#c62828', color: '#fff', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
@@ -185,7 +184,6 @@ export default function CarruselPlatos({ titulo, platos, onSelectPlato, onAgrega
               
               <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
                 
-                {/* LÓGICA DEL PRECIO EN EL CARRUSEL */}
                 <div className="plato-precios" style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '8px' }}>
                   <span style={{ fontWeight: '800', color: '#000', fontSize: '1.2rem' }}>{plato.precio?.toFixed(2)}&nbsp;€</span>
                   {precioAnterior && precioAnterior > plato.precio && (

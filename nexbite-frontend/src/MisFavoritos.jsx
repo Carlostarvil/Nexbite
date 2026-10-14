@@ -56,7 +56,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
   const [quitarFavoritoPlato] = useMutation(ALTERNAR_FAVORITO_PLATO);
 
   const handleEliminarRestaurante = async (id_restaurante, e) => {
-    e.stopPropagation(); // Evitar que haga clic en la tarjeta
+    e.stopPropagation(); // Evita que una acción del botón active también la tarjeta.
     await quitarFavoritoRestaurante({ variables: { id_restaurante } });
     refetch(); 
   };
@@ -85,7 +85,6 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
   return (
     <div style={{ padding: '1rem 0', maxWidth: '900px', margin: '0 auto' }}>
       
-      {/* BOTÓN VOLVER Y TÍTULO */}
       <div style={{ marginBottom: '2rem' }}>
         <button 
           onClick={onVolver} 
@@ -99,7 +98,6 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
         
         <h2 style={{ fontSize: '2rem', color: '#1a1a1a', margin: '0 0 1.5rem 0', letterSpacing: '-0.5px' }}></h2>
         
-        {/* PESTAÑAS (TABS) MODERNAS */}
         <div style={{ display: 'flex', gap: '20px', borderBottom: '2px solid #eaeaea', paddingBottom: '0' }}>
           <button 
             onClick={() => setPestañaActiva('RESTAURANTES')} 
@@ -124,7 +122,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
         </div>
       </div>
 
-      {/* CONTENIDO PESTAÑA RESTAURANTES */}
+      {/* Locales favoritos. */}
       {pestañaActiva === 'RESTAURANTES' && (
         <>
           {restaurantes.length === 0 ? (
@@ -173,7 +171,6 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
                       Ir al menú
                     </button>
                     
-                    {/* PAPELERA SVG MODERNA */}
                     <button 
                       onClick={(e) => handleEliminarRestaurante(restaurante.id_restaurante, e)}
                       style={{ width: '42px', height: '42px', background: '#fff0f0', color: '#dc3545', border: '1px solid #ffcdd2', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease', padding: 0 }}
@@ -197,7 +194,7 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
         </>
       )}
 
-      {/* CONTENIDO PESTAÑA PLATOS */}
+      {/* Productos favoritos. */}
       {pestañaActiva === 'PLATOS' && (
         <>
           {platos.length === 0 ? (
@@ -237,7 +234,6 @@ export default function MisFavoritos({ idUsuario, onSelectRestaurante, onVolver,
                       {plato.disponible === false && <EstadoDisponibilidad fecha={plato.tiempo_disponible} />}
                       <BotonAgregarCarrito onAgregar={() => handleAgregarAlCarrito(plato)} idPlato={plato.id_plato} nombrePlato={plato.nombre} variante={plato.disponible === false ? 'reserva' : undefined} />
                       
-                      {/* BOTÓN VER LOCAL SVG */}
                       <button 
                         onClick={(e) => { e.stopPropagation(); onSelectRestaurante(plato.id_restaurante); }}
                         style={{ padding: '12px', background: '#fff', color: '#555', border: '1px solid #ddd', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', fontSize: '14px' }}

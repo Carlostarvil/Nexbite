@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useLazyQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
 
-// Consulta GraphQL integrada con el backend de NexBite
 const CHATEAR_CON_BOT = gql`
   query ChatearConBot($mensaje: String!) {
     chatearConBot(mensaje: $mensaje)
@@ -11,7 +10,7 @@ const CHATEAR_CON_BOT = gql`
 
 export default function ChatSoporteIA() {
   const [abierto, setAbierto] = useState(false);
-  const [oculto, setOculto] = useState(false); // NUEVO ESTADO PARA ESCONDER EL WIDGET
+  const [oculto, setOculto] = useState(false);
   const [mensajes, setMensajes] = useState([
     {
       remitente: 'bot',
@@ -32,7 +31,6 @@ export default function ChatSoporteIA() {
     }
   }, [mensajes, escribiendo, abierto]);
 
-  // AÑADIDO: Preguntas sobre reservas añadidas a los accesos rápidos
   const preguntasFrecuentes = [
     '¿Dónde está mi pedido?',
     '¿Cómo funcionan las reservas?',
@@ -87,7 +85,7 @@ export default function ChatSoporteIA() {
 
   return (
     <>
-      {/* 1. MODO OCULTO: Pestaña diminuta en el borde derecho */}
+      {/* Widget oculto: pestaña para volver a mostrar el chat. */}
       {oculto && (
         <button
           onClick={() => setOculto(false)}
@@ -120,10 +118,9 @@ export default function ChatSoporteIA() {
         </button>
       )}
 
-      {/* 2. MODO VISIBLE: Burbuja flotante y Chat */}
+      {/* Widget visible: botón flotante y ventana de conversación. */}
       {!oculto && (
         <>
-          {/* Contenedor del Botón Flotante */}
           <div style={{
             position: 'fixed',
             bottom: '20px',
@@ -134,7 +131,6 @@ export default function ChatSoporteIA() {
             alignItems: 'center',
             gap: '6px'
           }}>
-            {/* Pequeña "x" para ocultar la burbuja sin tener que abrir el chat */}
             {!abierto && (
               <button
                 onClick={() => setOculto(true)}
@@ -187,7 +183,6 @@ export default function ChatSoporteIA() {
             </button>
           </div>
 
-          {/* Ventana emergente del chat interactivo */}
           {abierto && (
             <div
               style={{
@@ -220,7 +215,6 @@ export default function ChatSoporteIA() {
                 `}
               </style>
 
-              {/* Cabecera del bot con NUEVOS CONTROLES */}
               <div
                 style={{
                   backgroundColor: '#ff4500',
@@ -239,7 +233,6 @@ export default function ChatSoporteIA() {
                   </div>
                 </div>
                 
-                {/* Botones de Minimizar y Cerrar */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <button
                     onClick={() => setAbierto(false)}
@@ -258,7 +251,6 @@ export default function ChatSoporteIA() {
                 </div>
               </div>
 
-              {/* Área de mensajes con scroll independiente */}
               <div
                 style={{
                   flex: 1,
@@ -322,7 +314,6 @@ export default function ChatSoporteIA() {
                 <div ref={finMensajesRef} />
               </div>
 
-              {/* Accesos rápidos sugeridos */}
               <div
                 style={{
                   padding: '10px',
@@ -360,7 +351,6 @@ export default function ChatSoporteIA() {
                 ))}
               </div>
 
-              {/* Barra de entrada y envío */}
               <div
                 style={{
                   padding: '10px',

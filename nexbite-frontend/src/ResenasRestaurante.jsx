@@ -26,7 +26,6 @@ const CREAR_RESENA = gql`
   }
 `;
 
-// COMPONENTE ESTRELLA SVG REUTILIZABLE
 const EstrellaSVG = ({ llena, interactiva, onMouseEnter, onMouseLeave, onClick, tamano = 20 }) => (
   <svg 
     width={tamano} height={tamano} viewBox="0 0 24 24" 
@@ -92,7 +91,7 @@ export default function ResenasRestaurante({ idRestaurante, idUsuario }) {
   const totalResenas = resenas.length;
   const promedio = totalResenas ? (resenas.reduce((acc, r) => acc + r.puntuacion, 0) / totalResenas).toFixed(1) : "0.0";
 
-  // CÁLCULO PARA LAS BARRAS DE DISTRIBUCIÓN
+  // La distribución cuenta cuántas reseñas hay de cada puntuación.
   const distribucion = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
   resenas.forEach(r => { if (distribucion[r.puntuacion] !== undefined) distribucion[r.puntuacion]++; });
 
@@ -101,7 +100,7 @@ export default function ResenasRestaurante({ idRestaurante, idUsuario }) {
       
       <h2 style={{ margin: '0 0 2rem 0', fontSize: '1.8rem', color: '#1a1a1a', letterSpacing: '-0.5px' }}>Opiniones de clientes</h2>
 
-      {/* PANEL DE RESUMEN DE PUNTUACIONES */}
+      {/* Resumen de puntuaciones. */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3rem', alignItems: 'center', backgroundColor: '#fafafa', padding: '2.5rem', borderRadius: '20px', marginBottom: '2.5rem' }}>
         
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px' }}>
@@ -130,7 +129,7 @@ export default function ResenasRestaurante({ idRestaurante, idUsuario }) {
         </div>
       </div>
 
-      {/* FORMULARIO DE RESEÑA */}
+      {/* Publicar una reseña. */}
       <div style={{ border: '1px solid #eaeaea', borderRadius: '16px', padding: '2rem', marginBottom: '3rem', backgroundColor: '#fff', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
         <h3 style={{ margin: '0 0 1rem 0', color: '#333', fontSize: '1.2rem' }}>Deja tu valoración</h3>
         
@@ -184,7 +183,7 @@ export default function ResenasRestaurante({ idRestaurante, idUsuario }) {
       {loading && <p style={{ color: '#666' }}>Cargando opiniones...</p>}
       {error && <p style={{ color: '#d63031' }}>Error al cargar las reseñas.</p>}
 
-      {/* LISTADO DE RESEÑAS */}
+      {/* Reseñas publicadas. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         
         {!loading && resenas.length === 0 ? (
@@ -198,7 +197,6 @@ export default function ResenasRestaurante({ idRestaurante, idUsuario }) {
               
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                  {/* AVATAR DE USUARIO GENERADO */}
                   <div style={{ width: '45px', height: '45px', borderRadius: '50%', backgroundColor: '#ff4500', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', flexShrink: 0 }}>
                     {resena.nombre_usuario.charAt(0).toUpperCase()}
                   </div>

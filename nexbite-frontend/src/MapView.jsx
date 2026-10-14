@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
-// Añadimos useMap a la importación
 import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -29,8 +28,7 @@ const OBTENER_CERCANOS = gql`
   }
 `;
 
-// NUEVO COMPONENTE: Este componente "invisible" se mete dentro del mapa
-// y fuerza a Leaflet a activar o desactivar la rueda del ratón en tiempo real.
+// Activa o desactiva el zoom con rueda según el modo de exploración.
 function ControladorZoomMapa({ zoomActivo }) {
   const map = useMap();
   
@@ -80,7 +78,6 @@ export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega
               opacity: 0.8, transition: 'opacity 0.3s ease',
               border: 'none', cursor: 'pointer', fontFamily: 'inherit'
             }}>
-              {/* MODIFICADO: Texto actualizado a lo que pediste */}
               👆 Presiona para explorar
             </button>
           </div>
@@ -91,10 +88,9 @@ export default function MapView({ onSelectRestaurante, ubicacion, soloConEntrega
             center={[ubicacion.lat, ubicacion.lng]} 
             zoom={13}
             zoomControl={false} 
-            scrollWheelZoom={false} // Inicialmente apagado
+            scrollWheelZoom={false}
             style={{ height: '400px', width: '100%' }}
           >
-            {/* NUEVO: Llamamos al controlador pasándole el estado actual */}
             <ControladorZoomMapa zoomActivo={zoomActivo} />
           
             <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />

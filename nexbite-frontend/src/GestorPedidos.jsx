@@ -37,7 +37,7 @@ const estadoPedido = estado => ESTADOS[estadoCanonico(estado)] || { texto: estad
 const fechaMinimaAhora = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 const MOTIVOS = ['Falta de ingredientes o stock', 'Zona de entrega fuera de cobertura', 'Cierre adelantado / Problemas técnicos', 'Exceso de pedidos en cocina'];
 
-// Lógica para detectar si es recogida
+// Los pedidos identifican la recogida mediante el texto de direccion_envio.
 const esRecogida = (pedido) => pedido.direccion_envio?.toLowerCase().includes('recogida');
 
 export default function GestorPedidos({ idRestaurante, nombreRestaurante, estadoPausa, onEstadoLocal }) {
@@ -50,7 +50,6 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState('TODOS');
   
-  // Filtro para Tipo de Entrega
   const [filtroEntrega, setFiltroEntrega] = useState('TODOS');
   
   const [mensaje, setMensaje] = useState(null);
@@ -67,20 +66,18 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
   const restaurante = data?.obtenerRestaurantePorId;
   const aceptando = restaurante ? restaurante.aceptando_pedidos !== false : estadoPausa !== false;
   
-  // Filtros de estado y búsqueda
   const activos = pedidos.filter(p => ['PENDIENTE', 'PREPARANDO', 'ENVIADO'].includes(estadoCanonico(p.estado)));
   const programados = pedidos.filter(p => p.estado === 'PROGRAMADO');
   const terminados = pedidos.filter(p => ['ENTREGADO', 'CANCELADO'].includes(estadoCanonico(p.estado)));
   
-  // Lista base después de aplicar ESTADO y BÚSQUEDA
+  // Estado y búsqueda delimitan el conjunto sobre el que se cuentan los modos de entrega.
   const pedidosBase = pedidos.filter(p => (filtro === 'TODOS' || (filtro === 'ACTIVOS' ? activos : filtro === 'PROGRAMADOS' ? programados : terminados).includes(p)) && coincidePedido(p, busqueda));
   
-  // Contadores para las pestañas de entrega basados en la lista filtrada
   const countTodos = pedidosBase.length;
   const countDomicilio = pedidosBase.filter(p => !esRecogida(p)).length;
   const countRecogida = pedidosBase.filter(p => esRecogida(p)).length;
 
-  // Lista final visible aplicando el filtro de ENTREGA
+  // Aplica el modo de entrega a la lista visible sin cambiar los contadores de las pestañas.
   const visibles = pedidosBase.filter(p => filtroEntrega === 'TODOS' ? true : filtroEntrega === 'DOMICILIO' ? !esRecogida(p) : esRecogida(p));
 
   const refrescar = () => refetch().catch(() => setMensaje({ tipo: 'aviso', titulo: 'Cambio guardado', descripcion: 'No hemos podido actualizar la lista. Pulsa «Actualizar» para ver los pedidos de nuevo.' }));
@@ -172,7 +169,6 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
                 </div>
               </div>
 
-              {/* Pestañas de A domicilio / Recogida */}
               <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
                 <button 
                   onClick={() => setFiltroEntrega('TODOS')}
@@ -200,7 +196,7 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
                     const estado = estadoPedido(pedido.estado);
                     const recogida = esRecogida(pedido);
                     
-                    // Modificar la acción si el pedido es para llevar y el restaurante está en cocina
+                    // En recogida, la acción indica que el pedido está listo para recoger en lugar de enviarlo.
                     let textoAccion = estado.accion;
                     if (estadoCanonico(pedido.estado) === 'PREPARANDO' && recogida) {
                       textoAccion = 'Marcar listo para recoger';

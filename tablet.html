@@ -30,8 +30,6 @@
         ws.onmessage = (evento) => {
             const respuesta = JSON.parse(evento.data);
             
-            // 1. Registro de Depuración
-            // Propósito: Imprimir en la consola (F12) exactamente qué está enviando el servidor. Esto nos permite diagnosticar si está enviando un error de sintaxis de GraphQL en lugar de los datos del pedido.
             console.log("Mensaje crudo del servidor:", respuesta);
             
             if (respuesta.type === 'connection_ack') {
@@ -48,20 +46,16 @@
             }
 
             if (respuesta.type === 'next') {
-                // 2. Interceptor de Errores de GraphQL
-                // Propósito: Verificar si el servidor devolvió un arreglo de "errors". Si es así, extraemos el mensaje de error y lo dibujamos en la pantalla en rojo intenso para saber exactamente qué está fallando en el backend, deteniendo la ejecución con 'return'.
+                // Los errores GraphQL llegan en payload.errors; no deben dibujarse como pedidos.
                 if (respuesta.payload && respuesta.payload.errors) {
                     const mensajeError = respuesta.payload.errors[0].message;
                     listaPedidos.innerHTML += `<div class="error-alerta">⚠️ Error GraphQL: ${mensajeError}</div>`;
                     return; 
                 }
 
-                // 3. Navegación Segura (Optional Chaining)
-                // Propósito: Los signos de interrogación (?.) aseguran que si 'data' o 'nuevoPedido' vienen vacíos por alguna otra razón, Javascript no colapse con un "TypeError", permitiendo que la tablet siga funcionando.
+                // El encadenamiento opcional permite ignorar eventos sin datos de pedido.
                 const pedido = respuesta.payload?.data?.nuevoPedido;
                 
-                // 4. Renderizado Condicional
-                // Propósito: Solo dibujar la tarjeta verde del pedido si estamos 100% seguros de que la variable 'pedido' contiene información real.
                 if (pedido) {
                     listaPedidos.innerHTML += `
                         <div class="pedido">

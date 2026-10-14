@@ -10,7 +10,7 @@ body { margin: 0; }
 .header-modos button[aria-pressed="true"] { background: #fff; color: #171717; }
 .header-modos button:hover { color: #171717; }
 
-/* El contenedor principal de la ubicación (necesario para el tooltip) */
+/* La posición relativa ancla el tooltip al control de ubicación. */
 .header-ubicacion-container { position: relative; display: inline-flex; align-items: center; }
 
 .header-ubicacion { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: #1b1b1b; }
@@ -32,7 +32,7 @@ body { margin: 0; }
 .header-espacio-vendedor { grid-area: espacio; display: flex; align-items: center; gap: 8px; font-size: 11px; color: #65766a; }
 .header-espacio-vendedor > span { width: 6px; height: 6px; border-radius: 50%; background: #83a989; }
 
-/* ===== MEDIA QUERIES ===== */
+/* Adaptación del header a pantallas pequeñas. */
 @media (max-width: 1040px) {
   .nexbite-header:not(.nexbite-header-vendedor) { grid-template-columns: auto 1fr auto; grid-template-areas: 'marca entrega acciones' 'buscador buscador buscador'; gap: 10px 16px; }
 }
@@ -59,7 +59,6 @@ body { margin: 0; }
   .header-ubicacion { width: 32px; }
 }
 
-/* ===== TOOLTIP DE DIRECCIÓN ===== */
 @media (max-width: 400px) {
   .nexbite-header-espacio-vendedor { grid-template-columns: auto 1fr; grid-template-areas: 'marca acciones'; }
   .header-espacio-vendedor { display: none; }

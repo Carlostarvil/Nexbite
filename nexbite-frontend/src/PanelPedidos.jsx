@@ -42,13 +42,11 @@ export default function PanelPedidos({ idRestaurante, nombreRestaurante, onVolve
   const [tipoPausa, setTipoPausa] = useState('1 hora');
   const [fechaExacta, setFechaExacta] = useState('');
   
-  // NUEVO: Estado para el filtro de tipo de entrega
   const [filtroEntrega, setFiltroEntrega] = useState('TODOS');
 
   const restaurante = data?.obtenerRestaurantePorId;
   const pedidos = data?.obtenerPedidosVendedor || [];
 
-  // NUEVO: Lógica de filtrado y recuento
   const pedidosDomicilio = pedidos.filter(p => !p.direccion_envio?.toLowerCase().includes('recogida'));
   const pedidosRecogida = pedidos.filter(p => p.direccion_envio?.toLowerCase().includes('recogida'));
 
@@ -56,7 +54,7 @@ export default function PanelPedidos({ idRestaurante, nombreRestaurante, onVolve
     const esRecogida = pedido.direccion_envio?.toLowerCase().includes('recogida');
     if (filtroEntrega === 'DOMICILIO') return !esRecogida;
     if (filtroEntrega === 'RECOGIDA') return esRecogida;
-    return true; // TODOS
+    return true;
   });
 
   const handleEstado = async (id_pedido, estadoActual, accionEspecial = null) => {
@@ -166,7 +164,6 @@ export default function PanelPedidos({ idRestaurante, nombreRestaurante, onVolve
 
       {loading ? <p>Cargando comandas...</p> : (
         <>
-          {/* NUEVO: Filtros interactivos para distinguir el tipo de entrega */}
           {pedidos.length > 0 && (
             <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', borderBottom: '1px solid #eee', paddingBottom: '1rem', flexWrap: 'wrap' }}>
               <button 

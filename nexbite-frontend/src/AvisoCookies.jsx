@@ -4,10 +4,8 @@ export default function AvisoCookies() {
   const [mostrar, setMostrar] = useState(false);
 
   useEffect(() => {
-    // Comprobamos si el usuario ya ha aceptado las cookies previamente
     const cookiesAceptadas = localStorage.getItem('nexbite_cookies_consent');
     if (!cookiesAceptadas) {
-      // Le damos un pequeño retraso de 1 segundo antes de aparecer para que sea más elegante
       const timer = setTimeout(() => setMostrar(true), 1000);
       return () => clearTimeout(timer);
     }

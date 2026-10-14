@@ -6,19 +6,18 @@ class ErrorBoundary extends React.Component {
     this.state = { tieneError: false, mensajeError: '' };
   }
 
-  // Si ocurre un error en cualquier componente hijo, React llama a esto automáticamente
+  // Un fallo al renderizar un descendiente activa la pantalla alternativa.
   static getDerivedStateFromError(error) {
     return { tieneError: true, mensajeError: error.toString() };
   }
 
-  // Aquí atrapamos la explosión para que no llegue al navegador
+  // Registra el error y la pila de componentes para poder investigarlo.
   componentDidCatch(error, errorInfo) {
     console.error("🛡️ Error interceptado por el Escudo de NexBite:", error, errorInfo);
   }
 
   render() {
     if (this.state.tieneError) {
-      // Esta es la pantalla amigable que verá el usuario en lugar de la pantalla en blanco
       return (
         <div style={{ padding: '4rem 2rem', textAlign: 'center', fontFamily: 'system-ui', backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
           <div style={{ maxWidth: '600px', margin: '0 auto', backgroundColor: 'white', padding: '3rem', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
@@ -34,7 +33,7 @@ class ErrorBoundary extends React.Component {
             
             <button 
               onClick={() => {
-                // Limpiamos memorias conflictivas por si el error vino de la caché y recargamos
+                // Recarga la aplicación desde la ruta de inicio.
                 window.location.href = '/';
               }}
               style={{ padding: '1rem 2rem', background: '#ff4500', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', transition: 'transform 0.2s' }}
@@ -46,7 +45,6 @@ class ErrorBoundary extends React.Component {
       );
     }
 
-    // Si no hay errores, dibujamos la aplicación normal
     return this.props.children; 
   }
 }

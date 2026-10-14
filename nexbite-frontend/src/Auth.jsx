@@ -188,7 +188,6 @@ export default function Auth({ onLogin }) {
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       
-      {/* Estilos globales para micro-interacciones dentro del auth */}
       <style>{`
         .auth-input:focus { border-color: #ff4500 !important; background-color: #fff !important; }
         .auth-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(255, 69, 0, 0.25); }
@@ -207,7 +206,6 @@ export default function Auth({ onLogin }) {
       }}>
         {confirmacion ? <ConfirmacionAcceso confirmacion={confirmacion} onIniciarSesion={() => cambiarModo('LOGIN')} onOtroIdentificador={() => cambiarModo('RECORDAR')} /> : <>
         
-        {/* Cabecera visual */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{ 
             width: '64px', height: '64px', margin: '0 auto 1rem', 
@@ -235,7 +233,7 @@ export default function Auth({ onLogin }) {
         
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
           
-          {/* SECCIÓN REGISTRO: Selección de Rol mucho más visual sin emojis */}
+          {/* Registro: selección del rol de la cuenta. */}
           {modo === 'REGISTRO' && (
             <>
               <div style={{ display: 'flex', gap: '10px', marginBottom: '5px' }}>
@@ -361,7 +359,7 @@ export default function Auth({ onLogin }) {
           </button>
         </form>
 
-        {/* PIE DEL FORMULARIO Y GOOGLE LOGIN */}
+        {/* Acceso con Google. */}
         <div style={{ textAlign: 'center', marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '15px' }}>
           
           {modo === 'LOGIN' && (

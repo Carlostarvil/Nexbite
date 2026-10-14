@@ -103,10 +103,8 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
   return (
     <div className="detalle-plato-modal" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '1rem', backdropFilter: 'blur(3px)' }} onClick={onVolver}>
       
-      {/* 1. VENTANA MODAL MÁS GRANDE (maxWidth: 650px) */}
       <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 15px 50px rgba(0,0,0,0.3)', width: '100%', maxWidth: '650px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
         
-        {/* 2. BOTÓN DE CIERRE (CRUZ) VISUAL Y CON ANIMACIÓN */}
         <button 
           onClick={onVolver} 
           title="Cerrar"
@@ -129,10 +127,8 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {plato.items_menu?.length ? <GaleriaMenu key={plato.id_plato} plato={plato} /> : <ImagenPlato plato={plato} loading="eager" className="detalle-plato-portada" />}
           
-          {/* Padding aumentado para que respire más el diseño */}
           <div className="detalle-plato-contenido" style={{ padding: 'clamp(16px, 5vw, 40px)' }}>
             
-            {/* ETIQUETA DEL RESTAURANTE (Sin emojis) */}
             {onIrARestaurante && plato.id_restaurante && (
               <button 
                 onClick={() => onIrARestaurante(plato.id_restaurante)} 
@@ -149,7 +145,6 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
               </button>
             )}
 
-            {/* NOMBRE DEL PLATO Y PRECIO */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '12px' }}>
               <h1 style={{ margin: 0, color: '#1a1a1a', fontSize: '1.8rem', flex: '1 1 200px', lineHeight: '1.2', letterSpacing: '-0.5px', overflowWrap: 'anywhere' }}>{plato.nombre}</h1>
               
@@ -163,7 +158,6 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
               </div>
             </div>
             
-            {/* ETIQUETAS */}
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '15px' }}>
               {tagsTotales.filter(tag => !OPCIONES_CATEGORIAS.includes(tag)).map(cat => (
                 <span key={cat} style={{ fontSize: '11px', background: '#f5f5f5', color: '#555', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -172,14 +166,12 @@ export default function DetallePlato({ plato, onVolver, onAgregarAlCarrito, onIr
               ))}
             </div>
             
-            {/* DESCRIPCIÓN DEL PLATO */}
             <p style={{ color: '#555', lineHeight: '1.6', marginBottom: '1.5rem', fontSize: '1.1rem' }}>
               {descLimpia || "Un plato delicioso preparado con los mejores ingredientes de la casa."}
             </p>
 
             {estaNoDisponible && <EstadoDisponibilidad cerrado={localCerrado} fecha={localCerrado ? fechaLocal : plato.tiempo_disponible} />}
 
-            {/* CARRUSEL DE RECOMENDADOS */}
             {platosRecomendados.length > 0 && (
               <div style={{ marginTop: '2.5rem', marginBottom: '2rem', borderTop: '1px solid #eaeaea', paddingTop: '1.5rem' }}>
                 

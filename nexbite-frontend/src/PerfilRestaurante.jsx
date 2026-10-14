@@ -19,14 +19,12 @@ import './PerfilRestaurante.css';
 
 import ResenasRestaurante from './ResenasRestaurante';
 
-// MODIFICADO: Añadimos 'Valoraciones' al diccionario de nombres del sidebar
 const NOMBRES_SIDEBAR = { 
   'Elegido para ti': 'Para ti', 
   'Lo más pedido aquí': 'Top ventas',
   'Valoraciones': 'Valoraciones'
 };
 
-// MODIFICADO: Añadimos el icono de estrella vectorial para el apartado Valoraciones
 const ICONOS_CATEGORIA_MENU = {
   'Elegido para ti': 'm12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z',
   'Lo más pedido aquí': 'm3 17 6-6 4 4 8-10M15 5h6v6',
@@ -433,7 +431,6 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
 
   const tieneOfertas = categoriasConPlatos.includes('OFERTA');
 
-  // MODIFICADO: Añadimos siempre Valoraciones al final del sidebar
   const seccionesSidebar = [];
   if (busquedaPlato === '') {
     if (recomendacionesParaTi.length > 0) seccionesSidebar.push('Elegido para ti');
@@ -543,7 +540,7 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
           <div style={{ textAlign: 'center', padding: '3rem', background: 'white', borderRadius: '12px' }}>
             <p style={{ color: '#666', fontSize: '1.2rem' }}>Aún no hay platos.</p>
           </div>
-          {/* Mostramos las reseñas incluso si no hay platos, usando su contenedor scrolleable */}
+          {/* Las valoraciones siguen visibles aunque el catálogo esté vacío. */}
           <div id={getSeccionId('Valoraciones')} className="seccion-scroll" data-categoria="Valoraciones">
             <ResenasRestaurante idRestaurante={idRestaurante} idUsuario={idUsuarioActual} />
           </div>
@@ -664,7 +661,7 @@ export default function PerfilRestaurante({ idRestaurante, idUsuario, onVolver, 
               );
             })}
 
-            {/* MODIFICADO: INTEGRAMOS LAS RESEÑAS DENTRO DE LA ZONA SCROLLEABLE */}
+            {/* Las reseñas comparten el contenedor desplazable de los productos. */}
             <div id={getSeccionId('Valoraciones')} className="seccion-scroll" data-categoria="Valoraciones" style={{ marginBottom: '4rem' }}>
               <ResenasRestaurante idRestaurante={idRestaurante} idUsuario={idUsuarioActual} />
             </div>

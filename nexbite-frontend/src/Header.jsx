@@ -3,7 +3,6 @@ import IconoCorazon from './IconoCorazon';
 import IconoCarrito from './IconoCarrito';
 import './Header.css';
 
-// NUEVO: Añadido el prop "isLoggedIn = true"
 export default function Header({ isLoggedIn = true, onInicio, onLogout, cantidadCarrito = 0, onAbrirCarrito, userRol, onAbrirFavoritos, onAbrirPerfil, onSelectRestaurante, onSelectPlato, vistaActiva, ubicacionEntrega, modoEntrega = 'DOMICILIO', onCambiarUbicacion, onCambiarModoEntrega }) {
   const esCliente = userRol !== 'VENDEDOR';
 
@@ -12,7 +11,6 @@ export default function Header({ isLoggedIn = true, onInicio, onLogout, cantidad
       <button type="button" className="header-marca" onClick={onInicio} aria-label="NexBite, inicio">NexBite</button>
       {isLoggedIn && !esCliente && <div className="header-espacio-vendedor"><span aria-hidden="true" />Espacio vendedor</div>}
 
-      {/* SOLO SE MUESTRA SI HA INICIADO SESIÓN Y ES CLIENTE */}
       {isLoggedIn && esCliente && <>
         <div className="header-entrega">
           <div className="header-modos" role="group" aria-label="Tipo de pedido">
@@ -45,7 +43,6 @@ export default function Header({ isLoggedIn = true, onInicio, onLogout, cantidad
         </div>
       </>}
 
-      {/* ICONOS DE ACCIÓN (SOLO SI HA INICIADO SESIÓN) */}
       {isLoggedIn && (
         <nav className="header-acciones" aria-label="Tu cuenta">
           {esCliente && <>

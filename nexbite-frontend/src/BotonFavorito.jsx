@@ -18,26 +18,25 @@ const OBTENER_FAVORITOS = gql`
 export default function BotonFavorito({ idRestaurante, idUsuario, esFavoritoInicial, nombreRestaurante }) {
   const [esFavorito, setEsFavorito] = useState(esFavoritoInicial || false);
 
-  // MODIFICACIÓN 3: ¡Clave! Obligamos al botón a actualizar su color si GraphQL detecta que los datos por detrás cambiaron
+  // Sincroniza el estado local cuando cambia el favorito recibido del componente padre.
   useEffect(() => {
     setEsFavorito(esFavoritoInicial);
   }, [esFavoritoInicial]);
 
   const [alternarFavorito, { loading }] = useMutation(ALTERNAR_FAVORITO, {
-    // Si tenemos un usuario válido, refrescamos la lista de favoritos en la base de datos
+    // Refresca la consulta de favoritos después de guardar el cambio.
     refetchQueries: idUsuario && idUsuario !== "0" ? [{ query: OBTENER_FAVORITOS, variables: { id_usuario: idUsuario } }] : []
   });
 
   const handleClick = async () => {
-    // 1. Cambiamos el estado visualmente de inmediato para que se vea rápido
+    // Actualización optimista: el corazón cambia antes de que responda el servidor.
     const nuevoEstado = !esFavorito;
     setEsFavorito(nuevoEstado);
 
     try {
-      // 2. Lo guardamos en la base de datos
       await alternarFavorito({ variables: { id_restaurante: idRestaurante } });
     } catch (error) {
-      // 3. Si falla, devolvemos el corazón a su estado original
+      // Si la mutación falla, recupera el estado visual anterior.
       setEsFavorito(!nuevoEstado);
       alert("Error al actualizar favoritos. Revisa tu conexión.");
     }

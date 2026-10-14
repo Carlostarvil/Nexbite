@@ -425,7 +425,6 @@ function App() {
                     <TituloSeccion titulo="Para ti" descripcion="Recomendaciones personalizadas según tu actividad." />
                     <SelectorRecomendaciones seleccionada={pestañaElegidoParaTi} onSeleccionar={setPestañaElegidoParaTi} />
 
-                    {/* VISTA DE LOCALES RECOMENDADOS */}
                     <div role="tabpanel" id="recomendaciones-panel-locales" aria-labelledby="recomendaciones-tab-locales" hidden={pestañaElegidoParaTi !== 'LOCALES'} tabIndex={0}>
                       {restaurantesRecomendados.length > 0 ? (
                       <div className="elegido-para-ti-locales tarjetas-inicio-grid">
@@ -439,7 +438,6 @@ function App() {
                       )}
                     </div>
 
-                    {/* VISTA DE PRODUCTOS RECOMENDADOS */}
                     <div role="tabpanel" id="recomendaciones-panel-productos" aria-labelledby="recomendaciones-tab-productos" hidden={pestañaElegidoParaTi !== 'PRODUCTOS'} tabIndex={0}>
                       {pestañaElegidoParaTi === 'PRODUCTOS' && (platosRecomendados.length > 0 ? (
                         <CarruselPlatos tarjetasInicio titulo="" descripcion="" cabeceraInicio={false} mostrarIcono={false} platos={asignarEstadoRestaurante(platosRecomendados)} onSelectPlato={setPlatoActivo} onAgregarAlCarrito={agregarAlCarrito} />
