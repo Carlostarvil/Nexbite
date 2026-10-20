@@ -448,21 +448,36 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     try {
       await cx.query('BEGIN');
       ////////////
-      const resumen = await cotizar(cx, compra.solicitud, 'confirmar');
-      
-      // Último escudo: Comprueba si entre que el usuario abrió el carrito y pagó, el restaurante cambió un precio.
-      if (resumen.total_centimos !== compra.total_centimos || resumen.items.some((item, i) => item.precio_centimos !== compra.resumen.items[i].precio_centimos) || JSON.stringify(resumen.composicion_menu) !== JSON.stringify(compra.resumen.composicion_menu)) throw errorCompra('Los precios o los productos del menú han cambiado. Revisa el carrito antes de confirmar otra compra.', 'PRECIO_ACTUALIZADO');
-      
-      const estadoPedido = compra.solicitud.fecha_programada ? 'PROGRAMADO' : 'PENDIENTE';
-      
-      // Inserción en bloque (Bulk Insert) de todos los productos del carrito a la base de datos usando generate_series para ahorrar recursos.
+      // BUCLE FOR...OF: Recorre cada producto distinto que hay dentro del carrito.
+      // En cada vuelta, 'item' representará un plato diferente.
       for (const item of compra.resumen.items) {
         await cx.query(`
           INSERT INTO Pedidos (id_usuario, id_restaurante, id_plato, metodo_pago, direccion_envio, fecha_programada, estado, id_compra, precio_centimos, nombre_producto)
+          
+          -- TRUCO SQL (generate_series): Si el cliente pidió 4 unidades de este plato, 
+          -- generate_series(1, 4) crea 4 filas idénticas de golpe, ahorrando recursos del servidor.
           SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 FROM generate_series(1, $11::int)
-        `, [compra.id_usuario, compra.id_restaurante, item.id_plato, compra.solicitud.metodo_pago, compra.solicitud.direccion_envio, compra.solicitud.fecha_programada, estadoPedido, compra.id_compra, item.precio_centimos, item.nombre, item.cantidad]);
+          
+        `, [
+          // ARRAY DE VARIABLES: Rellena los huecos del $1 al $11 en orden estricto.
+          compra.id_usuario,           // $1
+          compra.id_restaurante,       // $2
+          item.id_plato,               // $3
+          compra.solicitud.metodo_pago,// $4
+          compra.solicitud.direccion_envio, // $5
+          compra.solicitud.fecha_programada, // $6
+          estadoPedido,                // $7
+          compra.id_compra,            // $8
+          item.precio_centimos,        // $9
+          item.nombre,                 // $10
+          item.cantidad                // $11 (Indica a generate_series cuántos insertar)
+        ]);
       }
       
+      // DOBLE TERNARIO: Calcula el estado de la compra con dos preguntas en cadena.
+      // 1. ¿Es para una hora futura? -> 'RESERVADA'
+      // 2. Si no, ¿está pagado con tarjeta? -> 'AUTORIZADA'
+      // 3. Si no es futura y no es tarjeta (es inmediato en efectivo) -> 'CONFIRMADA'
       compra = await cambiar(cx, compra, compra.solicitud.fecha_programada ? 'RESERVADA' : intencion ? 'AUTORIZADA' : 'CONFIRMADA');
       // Fidelidad: Añade puntos al usuario por confirmar la compra.
       await cx.query('UPDATE Usuarios SET puntos_acumulados = puntos_acumulados + 10 WHERE id_usuario = $1', [compra.id_usuario]);
@@ -472,124 +487,157 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
       await cancelar(cx, await leer(cx, compra.id_compra), error.message);
       throw error;
     }
-    
-    if (compra.estado === 'AUTORIZADA') compra = await capturar(cx, compra, intencion);
-    await notificarUnaVez(cx, compra);
-    return compra;
-  }
-
-  // Prepara el carrito: lo guarda como BORRADOR y genera el intento de pago (Payment Intent) en Stripe.
-  async function preparar(input, contexto) {
-    const usuario = exigirUsuario(contexto);
-    const solicitud = normalizarSolicitud(input);
-    
-    return conBloqueo(solicitud.clave, async cx => {
-      let compra = await leer(cx, solicitud.clave);
-      if (compra) {
-        if (String(compra.id_usuario) !== usuario) throw errorCompra('Esta compra no pertenece a tu cuenta.', 'FORBIDDEN');
-        if (JSON.stringify(compra.solicitud) !== JSON.stringify(solicitud)) {
-          if (JSON.stringify(normalizarSolicitud(compra.solicitud)) !== JSON.stringify(solicitud)) throw errorCompra('Usa un nuevo identificador para un carrito diferente.');
-        }
-        if (compra.estado !== 'BORRADOR') return resultado(cx, compra);
-      }
-      if (!compra) {
-        await cx.query('BEGIN');
-        try {
-          const resumen = await cotizar(cx, solicitud);
-          compra = (await cx.query('INSERT INTO Compras (id_compra, id_usuario, id_restaurante, solicitud, resumen, total_centimos) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6) RETURNING *', [solicitud.clave, usuario, solicitud.id_restaurante, JSON.stringify(solicitud), JSON.stringify(resumen), resumen.total_centimos])).rows[0];
-          await cx.query('COMMIT');
-        } catch (error) { await cx.query('ROLLBACK'); throw error; }
-      }
-      
-      let intencion = null;
-      if (solicitud.metodo_pago === 'TARJETA') {
-        if (compra.payment_intent_id) intencion = await recuperarIntencion(compra);
-        else {
-          const cliente = (await cx.query('SELECT stripe_customer_id FROM Usuarios WHERE id_usuario = $1', [usuario])).rows[0]?.stripe_customer_id;
-          if (!cliente || !/^pm_[a-zA-Z0-9]+$/.test(solicitud.id_tarjeta || '')) throw errorCompra('Selecciona una tarjeta guardada.');
-          
-          const tarjeta = await stripe.paymentMethods.retrieve(solicitud.id_tarjeta);
-          if (tarjeta.type !== 'card' || idStripe(tarjeta.customer) !== cliente) throw errorCompra('La tarjeta no pertenece a tu cuenta.', 'FORBIDDEN');
-          
-          // Crea la intención de pago indicándole a Stripe que retenga el dinero (capture_method: 'manual') pero no lo cobre aún.
-          intencion = await stripe.paymentIntents.create({
-            amount: compra.total_centimos, currency: 'eur', customer: cliente,
-            payment_method: solicitud.id_tarjeta, payment_method_types: ['card'], capture_method: 'manual',
-            metadata: { id_compra: compra.id_compra, id_usuario: usuario },
-          }, { idempotencyKey: 'nexbite-compra-' + compra.id_compra });
-          
-          compra = (await cx.query('UPDATE Compras SET payment_intent_id = $2 WHERE id_compra = $1 RETURNING *', [compra.id_compra, intencion.id])).rows[0];
-        }
-      }
-      return resultado(cx, compra, intencion);
-    });
-  }
-
-  async function confirmar(clave, contexto) {
-    const usuario = exigirUsuario(contexto);
-    return conBloqueo(clave, async cx => {
-      let compra = await leer(cx, clave);
-      if (!compra || String(compra.id_usuario) !== usuario) throw errorCompra('Esta compra no pertenece a tu cuenta.', 'FORBIDDEN');
-      compra = await confirmarInterna(cx, compra);
-      if (compra.estado === 'AUTORIZADA') compra = await capturar(cx, compra, await recuperarIntencion(compra));
-      return resultado(cx, compra);
-    });
-  }
-
-  async function consultar(clave, contexto) {
-    const usuario = exigirUsuario(contexto);
-    return conBloqueo(clave, async cx => {
-      let compra = await leer(cx, clave);
-      if (!compra || String(compra.id_usuario) !== usuario) throw errorCompra('Esta compra no pertenece a tu cuenta.', 'FORBIDDEN');
-      compra = await conciliar(cx, compra);
-      return resultado(cx, compra, compra.estado === 'BORRADOR' && compra.payment_intent_id ? await recuperarIntencion(compra) : null);
-    });
-  }
-
-  // ============================================================================
-  // WORKER BACKGROUND (Procesamiento en segundo plano)
-  // ============================================================================
-  // Revisa el estado de la compra vs el estado en Stripe por si se perdió la conexión a la red.
-  // También evalúa si las compras "Programadas/Reservadas" ya deben ser activadas y enviadas al restaurante.
-  async function conciliar(cx, compra) {
-    if (['CANCELANDO', 'REEMBOLSO_PENDIENTE'].includes(compra.estado)) return finalizarCancelacion(cx, compra);
-    if (compra.estado === 'BORRADOR') {
-      const intencion = compra.payment_intent_id && await recuperarIntencion(compra);
-      if (intencion?.status === 'requires_capture') return confirmarInterna(cx, compra);
-      if (intencion?.status === 'canceled' || ahora().getTime() - new Date(compra.creada).getTime() > 30 * 60_000) return cancelar(cx, compra, 'La compra no se confirmó a tiempo. No se ha cobrado.');
+    ///////
+    // Si el cliente pagó con tarjeta y la retención se ha cobrado correctamente ('succeeded'), 
+      // actualiza el estado a CONFIRMADA, y luego actualiza todos los pedidos individuales.
+      if (compra.estado === 'AUTORIZADA') compra = await capturar(cx, compra, intencion);
+      await notificarUnaVez(cx, compra);
       return compra;
     }
-    if (compra.estado === 'AUTORIZADA') return capturar(cx, compra, await recuperarIntencion(compra));
-    if (compra.estado !== 'RESERVADA') return compra;
-    
-    const momento = ahora();
-    if (compra.autorizacion_hasta && momento >= new Date(new Date(compra.autorizacion_hasta).getTime() - 5 * 60_000)) return cancelar(cx, compra, 'La autorización ha caducado antes de poder preparar el pedido. No se ha cobrado.');
-    
-    const fecha = new Date(compra.solicitud.fecha_programada);
-    if (momento < fecha) return compra;
-    
-    // Si han pasado 30 minutos desde la hora pactada de la reserva y el local sigue inactivo, cancela para no perjudicar al usuario.
-    if (momento > new Date(fecha.getTime() + 30 * 60_000)) return cancelar(cx, compra, 'El pedido no estuvo disponible a tiempo. La reserva se ha cancelado sin cobrar.');
-    
-    await cx.query('BEGIN');
-    try {
-      const resumen = await cotizar(cx, compra.solicitud, 'activar');
-      if (JSON.stringify(resumen.composicion_menu) !== JSON.stringify(compra.resumen.composicion_menu)) throw errorCompra('Los productos incluidos en el menú han cambiado.');
-      if (compra.solicitud.metodo_pago === 'EFECTIVO') {
-        compra = await cambiar(cx, compra, 'CONFIRMADA');
-        await cx.query("UPDATE Pedidos SET estado = 'PENDIENTE' WHERE id_compra = $1 AND estado = 'PROGRAMADO'", [compra.id_compra]);
-      } else compra = await cambiar(cx, compra, 'AUTORIZADA');
-      await cx.query('COMMIT');
-    } catch (error) {
-      await cx.query('ROLLBACK');
-      if (error.extensions?.code === 'NO_DISPONIBLE') return compra;
-      return cancelar(cx, compra, 'La reserva ya no se puede servir: ' + error.message);
+  
+    // ============================================================================
+    // CREACIÓN DEL CARRITO (Borrador) Y PREPARACIÓN DEL PAGO
+    // ============================================================================
+    // Guarda el carrito como BORRADOR y genera el intento de pago (Payment Intent) en Stripe.
+    async function preparar(input, contexto) {
+      const usuario = exigirUsuario(contexto);
+      const solicitud = normalizarSolicitud(input);
+      
+      // FUNCIÓN DE ORDEN SUPERIOR (Callback): Le pasamos a 'conBloqueo' la clave 
+      // y la función (async cx => {...}) que debe ejecutar una vez consiga el candado.
+      return conBloqueo(solicitud.clave, async cx => {
+        let compra = await leer(cx, solicitud.clave);
+        
+        // CONDICIONAL DE EXISTENCIA: 'if (compra)' se evalúa como Verdadero si la BD encontró el carrito.
+        // Si no lo encontró, vale 'null' (Falso) y saltará al bloque de abajo.
+        if (compra) {
+          if (String(compra.id_usuario) !== usuario) throw errorCompra('Esta compra no pertenece a tu cuenta.', 'FORBIDDEN');
+          
+          // COMPROBACIÓN ESTRICTA (!==): Compara si el carrito que guardamos en la base de datos 
+          // antes, sigue siendo exactamente igual al que el usuario nos está mandando ahora.
+          if (JSON.stringify(compra.solicitud) !== JSON.stringify(solicitud)) {
+            if (JSON.stringify(normalizarSolicitud(compra.solicitud)) !== JSON.stringify(solicitud)) throw errorCompra('Usa un nuevo identificador para un carrito diferente.');
+          }
+          if (compra.estado !== 'BORRADOR') return resultado(cx, compra);
+        }
+        
+        if (!compra) {
+          await cx.query('BEGIN');
+          try {
+            const resumen = await cotizar(cx, solicitud);
+            
+            // INSERCIÓN Y EXTRACCIÓN INMEDIATA:
+            // Inserta los datos en la tabla, el 'RETURNING *' devuelve la fila recién creada, 
+            // y el '.rows[0]' la extrae para guardarla en la variable 'compra' y seguir trabajando con ella.
+            compra = (await cx.query('INSERT INTO Compras (id_compra, id_usuario, id_restaurante, solicitud, resumen, total_centimos) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6) RETURNING *', [solicitud.clave, usuario, solicitud.id_restaurante, JSON.stringify(solicitud), JSON.stringify(resumen), resumen.total_centimos])).rows[0];
+            await cx.query('COMMIT');
+          } catch (error) { 
+            // ROLLBACK DE SEGURIDAD: Si algo falló (ej: error calculando precios), 
+            // deshace los cambios a medias en la BD y escupe (throw) el error.
+            await cx.query('ROLLBACK'); throw error; 
+          }
+        }
+        
+        let intencion = null;
+        if (solicitud.metodo_pago === 'TARJETA') {
+          if (compra.payment_intent_id) intencion = await recuperarIntencion(compra);
+          else {
+            const cliente = (await cx.query('SELECT stripe_customer_id FROM Usuarios WHERE id_usuario = $1', [usuario])).rows[0]?.stripe_customer_id;
+            if (!cliente || !/^pm_[a-zA-Z0-9]+$/.test(solicitud.id_tarjeta || '')) throw errorCompra('Selecciona una tarjeta guardada.');
+            
+            const tarjeta = await stripe.paymentMethods.retrieve(solicitud.id_tarjeta);
+            if (tarjeta.type !== 'card' || idStripe(tarjeta.customer) !== cliente) throw errorCompra('La tarjeta no pertenece a tu cuenta.', 'FORBIDDEN');
+            
+            // Crea la intención de pago indicándole a Stripe que retenga el dinero (capture_method: 'manual') pero no lo cobre aún.
+            intencion = await stripe.paymentIntents.create({
+              amount: compra.total_centimos, currency: 'eur', customer: cliente,
+              payment_method: solicitud.id_tarjeta, payment_method_types: ['card'], capture_method: 'manual',
+              metadata: { id_compra: compra.id_compra, id_usuario: usuario },
+            }, { idempotencyKey: 'nexbite-compra-' + compra.id_compra });
+            
+            compra = (await cx.query('UPDATE Compras SET payment_intent_id = $2 WHERE id_compra = $1 RETURNING *', [compra.id_compra, intencion.id])).rows[0];
+          }
+        }
+        return resultado(cx, compra, intencion);
+      });
     }
-    if (compra.estado === 'AUTORIZADA') compra = await capturar(cx, compra, await recuperarIntencion(compra));
-    await notificarUnaVez(cx, compra);
-    return compra;
-  }
-
+  
+    async function confirmar(clave, contexto) {
+      const usuario = exigirUsuario(contexto);
+      return conBloqueo(clave, async cx => {
+        let compra = await leer(cx, clave);
+        if (!compra || String(compra.id_usuario) !== usuario) throw errorCompra('Esta compra no pertenece a tu cuenta.', 'FORBIDDEN');
+        compra = await confirmarInterna(cx, compra);
+        if (compra.estado === 'AUTORIZADA') compra = await capturar(cx, compra, await recuperarIntencion(compra));
+        return resultado(cx, compra);
+      });
+    }
+  
+    async function consultar(clave, contexto) {
+      const usuario = exigirUsuario(contexto);
+      return conBloqueo(clave, async cx => {
+        let compra = await leer(cx, clave);
+        if (!compra || String(compra.id_usuario) !== usuario) throw errorCompra('Esta compra no pertenece a tu cuenta.', 'FORBIDDEN');
+        compra = await conciliar(cx, compra);
+        
+        // CORTOCIRCUITO LÓGICO (&&): Si está en borrador AND tiene un ID de Stripe, 
+        // ejecuta la función recuperar. Si falla la primera, se detiene y devuelve 'null'.
+        return resultado(cx, compra, compra.estado === 'BORRADOR' && compra.payment_intent_id ? await recuperarIntencion(compra) : null);
+      });
+    }
+  
+    // ============================================================================
+    // WORKER BACKGROUND (Procesamiento y Mantenimiento en Segundo Plano)
+    // ============================================================================
+    // Revisa el estado de la compra vs el estado en Stripe por si se perdió la conexión a la red.
+    // También evalúa si las compras "Programadas/Reservadas" ya deben ser activadas.
+    async function conciliar(cx, compra) {
+      // ARRAY AL VUELO: Crea una lista [A, B] y verifica si incluye el estado actual.
+      if (['CANCELANDO', 'REEMBOLSO_PENDIENTE'].includes(compra.estado)) return finalizarCancelacion(cx, compra);
+      
+      if (compra.estado === 'BORRADOR') {
+        const intencion = compra.payment_intent_id && await recuperarIntencion(compra);
+        if (intencion?.status === 'requires_capture') return confirmarInterna(cx, compra);
+        if (intencion?.status === 'canceled' || ahora().getTime() - new Date(compra.creada).getTime() > 30 * 60_000) return cancelar(cx, compra, 'La compra no se confirmó a tiempo. No se ha cobrado.');
+        return compra;
+      }
+      
+      if (compra.estado === 'AUTORIZADA') return capturar(cx, compra, await recuperarIntencion(compra));
+      if (compra.estado !== 'RESERVADA') return compra;
+      
+      const momento = ahora();
+      if (compra.autorizacion_hasta && momento >= new Date(new Date(compra.autorizacion_hasta).getTime() - 5 * 60_000)) return cancelar(cx, compra, 'La autorización ha caducado antes de poder preparar el pedido. No se ha cobrado.');
+      
+      const fecha = new Date(compra.solicitud.fecha_programada);
+      if (momento < fecha) return compra;
+      
+      // Si han pasado 30 minutos desde la hora pactada de la reserva y el local sigue inactivo, cancela para no perjudicar al usuario.
+      if (momento > new Date(fecha.getTime() + 30 * 60_000)) return cancelar(cx, compra, 'El pedido no estuvo disponible a tiempo. La reserva se ha cancelado sin cobrar.');
+      
+      await cx.query('BEGIN');
+      try {
+        const resumen = await cotizar(cx, compra.solicitud, 'activar');
+        // EVALUACIÓN ESTRICTA (!==): Convierte a JSON el menú antiguo y el nuevo y verifica si el restaurante alteró los platos o precios.
+        if (JSON.stringify(resumen.composicion_menu) !== JSON.stringify(compra.resumen.composicion_menu)) throw errorCompra('Los productos incluidos en el menú han cambiado.');
+        
+        if (compra.solicitud.metodo_pago === 'EFECTIVO') {
+          compra = await cambiar(cx, compra, 'CONFIRMADA');
+          // PARAMETRIZACIÓN DE SEGURIDAD: Aunque sea 1 solo valor (compra.id_compra), 
+          // la librería exige ponerlo dentro de un Array [] para limpiar el dato y meterlo en el $1.
+          await cx.query("UPDATE Pedidos SET estado = 'PENDIENTE' WHERE id_compra = $1 AND estado = 'PROGRAMADO'", [compra.id_compra]);
+        } else compra = await cambiar(cx, compra, 'AUTORIZADA');
+        
+        await cx.query('COMMIT');
+      } catch (error) {
+        await cx.query('ROLLBACK');
+        if (error.extensions?.code === 'NO_DISPONIBLE') return compra;
+        return cancelar(cx, compra, 'La reserva ya no se puede servir: ' + error.message);
+      }
+      if (compra.estado === 'AUTORIZADA') compra = await capturar(cx, compra, await recuperarIntencion(compra));
+      await notificarUnaVez(cx, compra);
+      return compra;
+    }
+////////
   // ============================================================================
   // GESTIÓN DE ESTADOS DEL RESTAURANTE (Pedidos individuales)
   // ============================================================================
