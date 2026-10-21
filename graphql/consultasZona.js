@@ -1,5 +1,10 @@
 import { coordenadasValidas } from '../shared/zonaEntrega.js';
 
+// EXPLICACIÓN:
+// - acos, cos, sin, radians: Son funciones trigonométricas para calcular distancias en una esfera.
+// - LEAST y GREATEST: Evitan errores de decimales manteniendo el valor estrictamente entre -1 y 1.
+// - r: Es el alias de la tabla Restaurantes.
+// - ${latitud} y${longitud}: Inyectan las variables directamente en el texto SQL.
 function distanciaSQL(latitud, longitud) {
   return `(6371 * acos(LEAST(1.0, GREATEST(-1.0,
     cos(radians(${latitud})) * cos(radians(r.latitud)) * cos(radians(r.longitud) - radians(${longitud})) +
@@ -12,48 +17,78 @@ export function filtroZona(args, valores) {
   if (latitud == null && longitud == null && !solo_con_entrega) return { condicion: 'TRUE', distancia: null };
   if (!coordenadasValidas(latitud, longitud)) throw new Error('Selecciona una ubicación válida.');
   valores.push(Number(latitud), Number(longitud));
+
+  // EXPLICACIÓN DEL $$:
+  // El primer '$' es texto para SQL. El segundo '$' es de la variable ${valores.length}. 
+  // Juntos forman los marcadores seguros para la base de datos como "$1" o "$2".
   const distancia = distanciaSQL(`$${valores.length - 1}`, `$${valores.length}`);
+  
   let limite;
   if (solo_con_entrega) {
     limite = 'r.radio_cobertura_km';
   } else {
+    // EXPLICACIÓN DEL ??:
+    // Operador de Fusión Nula. Usa la variable radio_km, pero si viene vacía, usa 50 por defecto.
     const radio = radio_km ?? 50;
     if (!Number.isFinite(radio) || radio <= 0 || radio > 50000) throw new Error('El radio de búsqueda no es válido.');
     valores.push(radio);
     limite = `$${valores.length}`;
   }
+  
   return {
     distancia,
+    // EXPLICACIÓN DEL SÍMBOLO $:
+    // Los ${...} sirven para incrustar el valor de las variables de JavaScript (como 'distancia' o 'limite')
+    // directamente dentro de la cadena de texto que formará la consulta SQL.
     condicion: `r.latitud BETWEEN -90 AND 90 AND r.longitud BETWEEN -180 AND 180
       ${solo_con_entrega ? 'AND r.radio_cobertura_km > 0' : ''} AND ${distancia} <= ${limite} + 0.000001`,
   };
 }
 
+// EXPLICACIÓN DE POR QUÉ NO LLEVA ASYNC:
+// Porque es una "Función Fábrica". No consulta la BD directamente aquí, solo construye y 
+// devuelve las funciones reales (que sí llevan async) para que las use GraphQL.
 export function crearConsultasZona(pool) {
   const ejecutar = async (args, valores, consulta) => {
     const filtro = filtroZona(args, valores);
     return (await pool.query(consulta(filtro), valores)).rows;
   };
+  
   return {
+    // EXPLICACIÓN OBTENER RESTAURANTES CERCANOS:
+    // Inyecta la condición y la distancia calculada arriba en la consulta SELECT, y le dice a SQL 
+    // que ordene los resultados del más cercano al más lejano (ASC = Ascendente).
     obtenerRestaurantesCercanos: (_, args) => ejecutar({ ...args, radio_km: args.radio_km ?? 50 }, [], ({ condicion, distancia }) =>
       `SELECT r.*, ${distancia} AS distancia_km FROM Restaurantes r WHERE ${condicion} ORDER BY distancia_km ASC`),
+      
     obtenerMejoresRestaurantes: (_, args) => ejecutar(args, [], ({ condicion }) =>
       `SELECT r.*, COUNT(p.id_pedido) AS total_ventas FROM Restaurantes r LEFT JOIN Pedidos p ON r.id_restaurante = p.id_restaurante
        WHERE ${condicion} GROUP BY r.id_restaurante ORDER BY total_ventas DESC LIMIT 10`),
+       
     buscarRestaurantes: (_, args) => !args.termino?.trim() ? [] : ejecutar(args, [`%${args.termino.trim()}%`], ({ condicion }) =>
       `SELECT r.* FROM Restaurantes r WHERE (r.nombre ILIKE $1 OR r.tipo ILIKE $1) AND ${condicion} LIMIT 6`),
+      
     buscarPlatos: (_, args) => !args.termino?.trim() ? [] : ejecutar(args, [`%${args.termino.trim()}%`], ({ condicion }) =>
       `SELECT p.* FROM Platos p JOIN Restaurantes r ON r.id_restaurante = p.id_restaurante
        WHERE (p.nombre ILIKE $1 OR p.descripcion ILIKE $1) AND ${condicion} LIMIT 6`),
+       
     obtenerPlatosDestacados: (_, args) => ejecutar(args, [], ({ condicion }) =>
       `SELECT p.*, r.nombre AS nombre_restaurante FROM Platos p JOIN Restaurantes r ON r.id_restaurante = p.id_restaurante
        WHERE p.disponible = true AND ${condicion} ORDER BY RANDOM() LIMIT 8`),
+       
     obtenerFavoritos: (_, args) => ejecutar(args, [args.id_usuario], ({ condicion }) =>
       `SELECT r.* FROM Restaurantes r JOIN Favoritos f ON r.id_restaurante = f.id_restaurante WHERE f.id_usuario = $1 AND ${condicion}`),
+      
     obtenerPlatosFavoritos: (_, args) => ejecutar(args, [args.id_usuario], ({ condicion }) =>
       `SELECT p.* FROM Platos p JOIN Platos_Favoritos f ON p.id_plato = f.id_plato JOIN Restaurantes r ON r.id_restaurante = p.id_restaurante
        WHERE f.id_usuario = $1 AND ${condicion}`),
+       
     // El historial pertenece al cliente y no depende de su ubicación actual.
+    // EXPLICACIÓN DE OBTENER ULTIMOS PEDIDOS:
+    // Es una consulta gigante que cruza (LEFT JOIN) Pedidos, Platos y Restaurantes.
+    // Usa COALESCE y NULLIF como un sistema de respaldo para las imágenes:
+    // Si la foto del plato está en blanco (NULLIF), COALESCE salta a la subconsulta
+    // para ver si este plato es un Menú, y saca la foto de un ingrediente incluido.
     obtenerUltimosPedidos: async (_, { id_usuario }) => (await pool.query(
       `SELECT pe.id_pedido, pe.id_restaurante, pe.id_plato, pe.estado, pe.metodo_pago, pe.direccion_envio, pe.fecha_programada, pe.fecha_pedido,
          pl.nombre AS nombre_plato, pl.precio AS precio_plato, pl.disponible AS plato_disponible, pl.descripcion AS descripcion_plato,

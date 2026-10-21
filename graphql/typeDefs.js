@@ -1,8 +1,23 @@
+// ============================================================================
+// Definición del Esquema GraphQL (El contrato entre el Frontend y el Backend).
+// La etiqueta '#graphql' activa el resaltado de sintaxis en el editor de código.
+// ============================================================================
 export const typeDefs = `#graphql
+  
+  # ============================================================================
+  # DEFINICIÓN DE TIPOS DE SALIDA (Lo que el servidor devuelve al cliente)
+  # ============================================================================
+  # 'String' = Texto, 'Float' = Decimal, 'Int' = Entero, 'ID' = Identificador único.
+  # El '!' significa que el dato es OBLIGATORIO (Non-Nullable) y nunca devolverá un valor vacío.
   type DireccionUbicacion { direccion: String!, lat: Float!, lng: Float! }
   type Tag { id_tag: ID!, nombre: String!, categoria: String! }
   type UsuarioAuth { id_usuario: ID!, nombre: String!, email: String!, rol: String!, puntos_acumulados: Int!, token: String! }
   type FranjaRecogida { dia: Int!, inicio: String!, fin: String! }
+  
+  # ============================================================================
+  # DEFINICIÓN DE TIPOS DE ENTRADA (Lo que el cliente debe enviar al servidor)
+  # ============================================================================
+  # 'input' se usa exclusivamente para agrupar datos complejos que se envían en Mutaciones.
   input FranjaRecogidaInput { dia: Int!, inicio: String!, fin: String! }
   
   type Restaurante { 
@@ -125,10 +140,18 @@ export const typeDefs = `#graphql
     pedidos: [Pedido!]!
   }
 
+  # ============================================================================
+  # QUERIES: OPERACIONES DE LECTURA (GET)
+  # ============================================================================
+  # Funciones que solo buscan o descargan datos sin modificar la base de datos.
   type Query {
+    # Exige un 'id_compra' obligatorio (!). Devuelve un objeto 'Compra' obligatorio (!).
     consultarCompra(id_compra: ID!): Compra!
     obtenerMisTarjetas(id_usuario: ID!): [TarjetaGuardada!]!
     buscarDirecciones(termino: String!): [DireccionUbicacion!]!
+    
+    # Devuelve 'DireccionUbicacion' SIN '!' final. Significa que si las coordenadas caen 
+    # en medio del océano y no hay calle, es válido que la función devuelva 'null'.
     obtenerDireccionUbicacion(latitud: Float!, longitud: Float!): DireccionUbicacion
     obtenerTags: [Tag]
     obtenerRecomendaciones(id_usuario: ID!, limit: Int, offset: Int): [PlatoRecomendado]
@@ -161,12 +184,21 @@ export const typeDefs = `#graphql
     obtenerResenasRestaurante(id_restaurante: ID!): [Resena]
   }
 
+  # ============================================================================
+  # MUTATIONS: OPERACIONES DE ESCRITURA (POST / PUT / DELETE)
+  # ============================================================================
+  # Funciones que alteran la base de datos (crear, actualizar, borrar, pagar).
   type Mutation {
+    # Recibe un objeto agrupado 'CompraInput' obligatorio, y devuelve el carrito guardado 'Compra!'.
     prepararCompra(input: CompraInput!): Compra!
     confirmarCompra(id_compra: ID!): Compra!
     registrarUsuario(nombre: String!, email: String!, password: String!, rol: String): UsuarioAuth
     guardarPreferencias(id_usuario: ID!, tags: [ID!]!): String
     
+    # DIRECTIVA DE OBSOLESCENCIA (@deprecated):
+    # La función se mantiene viva para no romper versiones antiguas de la App móvil que 
+    # aún usan el sistema de pedidos individuales, pero el servidor avisa a los programadores 
+    # de que deben usar el nuevo sistema de carritos (prepararCompra) para código nuevo.
     crearPedido(
       id_usuario: ID!, 
       id_restaurante: ID!, 

@@ -641,6 +641,10 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
   // ============================================================================
   // GESTIÓN DE ESTADOS DEL RESTAURANTE (Pedidos individuales)
   // ============================================================================
+  // ============================================================================
+  // GESTIÓN DE ESTADOS DEL RESTAURANTE (Pedidos individuales)
+  // ============================================================================
+  
   async function validarCambioPedido(idPedido, estado, conexion = pool) {
     const permitidos = ['PENDIENTE', 'EN COCINA', 'PREPARANDO', 'EN CAMINO', 'ENVIADO', 'ENTREGADO', 'CANCELADO', 'RECHAZADO'];
     if (!permitidos.includes(estado)) throw errorCompra('El estado del pedido no es válido.');
@@ -650,8 +654,9 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     if (['ENTREGADO', 'CANCELADO', 'RECHAZADO'].includes(pedido.estado)) throw errorCompra('Este pedido ya ha finalizado.');
     if (!['CANCELADO', 'RECHAZADO'].includes(estado) && (pedido.fecha_programada && new Date(pedido.fecha_programada) > ahora() || pedido.estado === 'PROGRAMADO' || pedido.id_compra && pedido.estado_compra !== 'CONFIRMADA')) throw errorCompra('El pedido aún está reservado o pendiente de confirmar el pago.');
     
-    // Máquina de estados matemática: Asegura que un pedido no pueda retroceder 
-    // de 'EN CAMINO' (etapa 2) a 'EN COCINA' (etapa 1).
+    // MÁQUINA DE ESTADOS: Diccionario que asigna un valor numérico a cada estado.
+    // Esto impide matemáticamente que el restaurante mueva un pedido hacia atrás.
+    // Si intenta pasar de ENTREGADO (3) a PREPARANDO (1), la condición (1 < 3) se cumple y bloquea la acción.
     const etapas = { PENDIENTE: 0, PREPARANDO: 1, 'EN COCINA': 1, ENVIADO: 2, 'EN CAMINO': 2, ENTREGADO: 3 };
     if (etapas[estado] < etapas[pedido.estado]) throw errorCompra('Un pedido no puede volver a un estado anterior.');
     
@@ -666,13 +671,21 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     if (contexto.usuario.rol === 'VENDEDOR') await exigirLocalPropio(pool, contexto, idPedido, 'pedido');
     else if (String(pedido.id_usuario) !== usuario) throw errorCompra('Este pedido no pertenece a tu cuenta.', 'FORBIDDEN');
     
-    // Un pedido solo puede cancelarse si aún no ha entrado en la cocina ('PENDIENTE' o 'PROGRAMADO').
     if (pedido.id_compra) {
       return conBloqueo(pedido.id_compra, async cx => {
         const pedidos = (await cx.query('SELECT * FROM Pedidos WHERE id_compra = $1', [pedido.id_compra])).rows;
+        
+        // CONDICIONAL INVERSO (.some y !.includes): 
+        // Si ALGÚN plato del carrito NO ESTÁ en estado inicial (ej: la cocina ya lo marcó como "Preparando"), 
+        // bloquea la cancelación porque ya se están gastando ingredientes.
         if (pedidos.some(p => !['PENDIENTE', 'PROGRAMADO', 'CANCELADO', 'RECHAZADO'].includes(p.estado))) throw errorCompra('La preparación ya ha empezado. Contacta con el local para resolver la incidencia.');
+        
+        // DOBLE AWAIT: Primero espera a leer los datos frescos del carrito, y luego espera a que termine la cancelación.
         const compra = await cancelar(cx, await leer(cx, pedido.id_compra), motivo);
         pedido = (await cx.query('SELECT * FROM Pedidos WHERE id_pedido = $1', [idPedido])).rows[0];
+        
+        // SPREAD OPERATOR (...pedido): Devuelve todos los datos del pedido y le inyecta 
+        // el nuevo estado_pago y el mensaje amigable de Stripe generado por la función resultado().
         return { ...pedido, estado_pago: compra.estado, mensaje_pago: (await resultado(cx, compra)).mensaje };
       });
     }
@@ -683,9 +696,13 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     return { ...pedido, mensaje_pago: pedido.metodo_pago === 'TARJETA' ? 'Pedido antiguo cancelado. Consulta con el local para verificar la devolución de su pago.' : 'Pedido cancelado. No hay ningún cobro con tarjeta.' };
   }
 
+  // ============================================================================
+  // WORKER BACKGROUND (Procesos en Segundo Plano y Cron Jobs)
+  // ============================================================================
   async function procesarPendientes() {
-    // Este método está diseñado para ser llamado continuamente (ej: por un CRON job).
-    // Barre la base de datos buscando compras que necesiten reconciliación con Stripe o activación de reserva.
+    
+    // Consulta SQL que busca compras atascadas (ej: pendientes de reembolso o confirmación).
+    // [ahora()] inyecta la hora actual segura en la variable $1 de la base de datos.
     const pendientes = (await pool.query(`
       SELECT id_compra FROM Compras
       WHERE estado IN ('BORRADOR','AUTORIZADA','CANCELANDO','REEMBOLSO_PENDIENTE')
@@ -693,16 +710,21 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
       ORDER BY CASE WHEN estado = 'BORRADOR' THEN 1 ELSE 0 END, actualizada LIMIT 100
     `, [ahora()])).rows;
     
+    // BUCLE DE MANTENIMIENTO: Recorre los pedidos atascados y fuerza su conciliación.
     for (const { id_compra } of pendientes) {
       try { await conBloqueo(id_compra, async cx => {
         await cx.query('UPDATE Compras SET actualizada = NOW() WHERE id_compra = $1', [id_compra]);
         return conciliar(cx, await leer(cx, id_compra));
       }); }
-      catch (error) { if (error.extensions?.code !== 'COMPRA_EN_PROCESO') console.error('Compra pendiente de revisar:', id_compra, error.code || error.extensions?.code || 'CONEXION'); }
+      catch (error) { 
+        // Si no pudo conciliar porque otro proceso ya lo estaba bloqueando, lo ignora.
+        // Si fue un error grave de conexión, lo registra en consola sin detener el resto del bucle.
+        if (error.extensions?.code !== 'COMPRA_EN_PROCESO') console.error('Compra pendiente de revisar:', id_compra, error.code || error.extensions?.code || 'CONEXION'); 
+      }
     }
     
-    // COMPATIBILIDAD HACIA ATRÁS (Legacy support):
-    // Maneja los pedidos que se crearon con el sistema antiguo (antes de existir el carrito y la entidad 'Compras').
+    // COMPATIBILIDAD HACIA ATRÁS (Legacy Support)
+    // Busca pedidos "antiguos" que no usan el nuevo sistema de "Carritos" (Compras).
     const antiguos = (await pool.query(`
       SELECT pe.* FROM Pedidos pe JOIN Restaurantes r ON r.id_restaurante = pe.id_restaurante JOIN Platos p ON p.id_plato = pe.id_plato
       WHERE pe.id_compra IS NULL AND pe.estado = 'PROGRAMADO' AND NULLIF(pe.fecha_programada::text, '')::timestamptz <= $1::timestamptz
@@ -712,6 +734,7 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
       ORDER BY pe.id_pedido LIMIT 100
     `, [ahora()])).rows;
     
+    // Transforma los pedidos antiguos forzándolos a pasar por la tubería moderna de pagos y validaciones.
     for (const pedido of antiguos) {
       try {
         await conBloqueo('antiguo-' + pedido.id_pedido, async cx => {
@@ -726,19 +749,20 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     }
   }
 
+  // Wrapper que bloquea el pedido específico (o todo el carrito asociado a él)
+  // y le pasa el cable seguro de conexión (cx) a la acción.
   const conPedidoBloqueado = async (idPedido, accion) => {
     const pedido = (await pool.query('SELECT id_compra FROM Pedidos WHERE id_pedido = $1', [idPedido])).rows[0];
     return conBloqueo(pedido?.id_compra || 'pedido-' + idPedido, cx => accion(cx));
   };
 
-  // Envoltorio genérico para interceptar, registrar y estandarizar cualquier error de ejecución.
+  // Envoltorio genérico (Guardaespaldas). Atrapa cualquier error de servidor y lo
+  // transforma en un error limpio de GraphQL para que el Frontend no colapse.
   async function ejecutarOperacion(etapa, clave, accion) {
     try {
       return await accion();
     } catch (error) {
-      if (error instanceof GraphQLError) throw error; // Si ya es un error de negocio controlado, se lanza tal cual.
-      
-      // Si es un error desconocido (ej: se cae Stripe, se apaga la BD), se registra y se lanza genérico.
+      if (error instanceof GraphQLError) throw error;
       registrarErrorCompra('servidor', etapa, clave, error);
       throw new GraphQLError('El servidor no ha podido completar esta operación de compra. Comprueba el estado del mismo pedido antes de volver a pagar.', {
         extensions: { code: 'COMPRA_SERVIDOR_NO_DISPONIBLE', codigo_incidente: detalleErrorCompra(error).codigo },
@@ -747,16 +771,18 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
   }
 
   // ============================================================================
-  // RETORNO DEL MÓDULO
+  // MAPEO A GRAPHQL (API Pública)
   // ============================================================================
+  // Devuelve el objeto que finalmente exportará las funciones.
   return {
-    // Funciones internas expuestas para otros módulos del backend
     preparar, confirmar, consultar, cancelarPedido, validarCambioPedido, procesarPendientes, conPedidoBloqueado,
     
-    // Objeto listo para enchufar directamente en la configuración de GraphQL
+    // DEFINICIÓN GRAPHQL:
+    // Query: Funciones de Lectura (GET). Ej: consultar datos de compra.
     Query: { 
       consultarCompra: (_, { id_compra }, ctx) => ejecutarOperacion('consultar', id_compra, () => consultar(id_compra, ctx)) 
     },
+    // Mutation: Funciones de Escritura/Modificación (POST/PUT). Ej: Pagar o Confirmar.
     Mutation: {
       prepararCompra: (_, { input }, ctx) => ejecutarOperacion('preparar', input?.clave, () => preparar(input, ctx)),
       confirmarCompra: (_, { id_compra }, ctx) => ejecutarOperacion('confirmar', id_compra, () => confirmar(id_compra, ctx)),
