@@ -21,9 +21,17 @@ const fechaISO = fecha => fecha ? new Date(fecha).toISOString() : null;
 // Extrae el ID de Stripe, ya sea que venga como un simple texto ("card_123") o dentro de un objeto { id: "card_123" }.
 const idStripe = valor => typeof valor === 'string' ? valor : valor?.id;
 
-// Conjunto (Set) de estados finales. Es parecido a un Array (lista), pero hiper-optimizado 
-// para búsquedas rápidas por el procesador y no permite duplicados.
-// Una vez la compra entra aquí, ya no puede cambiar.
+// EXPLICACIÓN DE 'new Set(...)':
+// Un 'Set' (Conjunto) es una estructura de datos nativa de JavaScript.
+// Es similar a un Array (lista), pero con rendimiento optimizado. 
+// En lugar de usar [].includes() que obliga al servidor a leer la lista entera 
+// elemento por elemento, un Set permite usar .has(), que verifica de forma 
+// matemáticamente instantánea si un elemento existe en su interior.
+//
+// LÓGICA DE NEGOCIO ('finales'):
+// Agrupa los estados terminales de una transacción (callejones sin salida). 
+// Si una compra entra en alguno de estos 3 estados, el ciclo de vida del pedido 
+// se bloquea definitivamente y se rechaza cualquier intento futuro de modificarlo.
 const finales = new Set(['CANCELADA', 'REEMBOLSADA', 'REEMBOLSO_FALLIDO']);
 
 /**
@@ -114,9 +122,17 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     }
   }
 
-  // 'cx' es simplemente la abreviatura de 'conexion' (el cable privado).
+// EXPLICACIÓN DE LA FUNCIÓN 'leer':
+// Es un atajo para no repetir código. Recibe la conexión (cx) y un ID de compra (clave).
+// Envuelve la consulta a PostgreSQL entre paréntesis para poder encadenar '.rows[0]' 
+// al instante. Así, extrae la fila exacta con los datos de la compra ignorando 
+// todos los metadatos innecesarios que devuelve el servidor.
   const leer = async (cx, clave) => (await cx.query('SELECT * FROM Compras WHERE id_compra = $1', [clave])).rows[0];
   
+// 'motivo' es un parámetro opcional. Si cambiamos la compra a 'CONFIRMADA', 
+// no enviaremos ningún motivo, por lo que la función asignará automáticamente 'null'. 
+// Si la cambiamos a 'CANCELADA', le enviaremos un texto explicando por qué, 
+// y ese texto sobrescribirá el 'null'. Esto evita errores y hace el código más limpio.
   const cambiar = async (cx, compra, estado, motivo = null) => {
     // Lógica SQL pura (CASE WHEN...): Si el nuevo estado es 'RESERVADA', pone 'notificada' en FALSE
     // para obligar al sistema a enviarle un correo de aviso al usuario más adelante.
@@ -139,16 +155,63 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     
     // FOR SHARE: Bloquea las filas en modo lectura. Previene que el dueño del restaurante borre 
     // o edite el plato justo en el milisegundo en el que el cliente lo está comprando.
+    // Nunca se concatenan variables directamente en el texto SQL para evitar ataques 
+  // de "Inyección SQL". PostgreSQL utiliza '$1' como un "marcador de posición seguro". 
+  // La librería intercepta el array '[solicitud.id_restaurante]', lo limpia de cualquier 
+  // código malicioso, y lo inyecta de forma segura en el hueco '$1' antes de ejecutar la búsqueda.
+  //'solicitud' es la variable que contiene el carrito de la compra limpio del cliente (un Objeto).
+// En JavaScript, el punto (.) se usa para acceder a las propiedades internas de un objeto.
+// Al escribir 'solicitud.id_restaurante', el código extrae únicamente el ID del local 
+// (ej: el número 5) y lo mete en el array para que PostgreSQL busque ese restaurante exacto.
+// Cuando PostgreSQL responde a la consulta (await cx.query), devuelve un objeto 
+// gigante con metadatos técnicos de la conexión. 
+// - '.rows' aísla únicamente el Array (lista) con los datos reales encontrados.
+// - '[0]' extrae directamente el primer (y único) elemento de esa lista.
+// Esto permite guardar en la variable 'local' exclusivamente el objeto limpio del 
+// restaurante, ahorrando líneas de código intermedias.
     const local = (await cx.query('SELECT * FROM Restaurantes WHERE id_restaurante = $1 FOR SHARE', [solicitud.id_restaurante])).rows[0];
     if (!local) throw errorCompra('El local ya no está disponible.');
     
-    // Recorre el carrito y extrae una lista plana solo con los números de ID. Ej: [5, 8, 12]
+    //En JavaScript, una variable (const ids) es solo un contenedor.
+// Como el método .map() SIEMPRE devuelve un Array (lista) como resultado final de su trabajo,
+// al usar el signo '=', estamos guardando esa lista resultante directamente dentro de 
+// la variable 'ids'. A partir de aquí, 'ids' equivale a una lista plana (ej: [5, 8]).
+// La palabra 'item' es un alias temporal inventado por el programador. 
+// Representa el elemento individual que el bucle (.map) está leyendo en cada vuelta.
+// Como el array original se llama 'items' (plural), por convención de lectura humana 
+// se bautiza a la variable individual como 'item' (singular), pero podría llamarse de cualquier otra forma.
     const ids = solicitud.items.map(item => item.id_plato);
-    
-    // CTE (Common Table Expression) RECURSIVA:
-    // Magia negra de SQL. Si un usuario compra un Menú (que contiene varios platos dentro), esta consulta 
-    // 'unnest' convierte la lista de IDs en tabla, "desempaqueta" el menú y busca todos los componentes 
-    // internos de forma recursiva para asegurarse de que existen y pertenecen al mismo local.
+
+ /*   
+    1. WITH RECURSIVE componentes(id) AS (...)
+  Crea una "tabla temporal y virtual" llamada 'componentes' que existirá solo durante esta consulta. 
+  La palabra RECURSIVE le otorga el superpoder de ejecutarse en bucle a sí misma.
+
+  2. EL CASO BASE: SELECT unnest($1::int[])
+  Es el punto de partida. Coge el array de JavaScript con los IDs del carrito (ej: [5, 12]) 
+  que entra por el hueco $1, lo desempaqueta (unnest) y mete esos primeros números en 
+  la tabla temporal 'componentes'.
+
+  3. EL BUCLE: UNION SELECT mp.id_plato_incluido FROM Menu_Platos... JOIN componentes
+  Aquí ocurre la magia. La base de datos revisa los números que acaba de meter y se pregunta: 
+  "¿Alguno de estos platos es un Menú? Si lo es, entra en la tabla puente Menu_Platos, 
+  saca todos los IDs de los platos que lleva incluidos, y añádelos a nuestra tabla temporal".
+  Al ser recursivo, si un menú tuviera sub-menús dentro, seguiría escarbando hasta sacar todo.
+
+  4. LA SELECCIÓN FINAL: SELECT p.* FROM Platos p WHERE p.id_plato IN (SELECT id FROM componentes)
+  Ahora que la tabla temporal ya tiene la "lista maestra" con absolutamente todos los IDs 
+  (los platos sueltos + los ingredientes desempaquetados de los menús), va a la tabla real 
+  de Platos y extrae toda su información (nombre, precio, etc.).
+
+  5. PROTECCIÓN DE CONCURRENCIA: ORDER BY p.id_plato FOR SHARE
+  Ordena los resultados matemáticamente y les pone el "Candado de Lectura" (FOR SHARE). 
+  Esto prohíbe terminantemente al dueño del restaurante borrar o modificar cualquiera de 
+  esos ingredientes exactos hasta que se haya terminado de procesar el pago del cliente.
+  
+  6. EXTRACCIÓN JS: ], [ids])).rows;
+  Inyecta la variable 'ids' en el $1(.rows), y extrae limpiamente la lista de resultados (.rows).
+
+  */
     const productos = (await cx.query(`
       WITH RECURSIVE componentes(id) AS (
         SELECT unnest($1::int[])
@@ -158,19 +221,117 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
       ORDER BY p.id_plato FOR SHARE
     `, [ids])).rows;
     
-    // 1. DOBLE ESCUDO DE SEGURIDAD (Validación de base de datos vs carrito)
-    // Primera parte: productos.some(...) -> ¿Hay ALGÚN producto en la base de datos que pertenezca a OTRO restaurante distinto al que solicitó el cliente? (Evita que hackeen el carrito mezclando locales).
-    // Segunda parte: ids.some(...) -> ¿Hay ALGÚN ID en el carrito del cliente que NO (!) exista en la base de datos? (Detecta si un plato fue borrado de la carta mientras el usuario lo compraba).
-    if (productos.some(p => String(p.id_restaurante) !== solicitud.id_restaurante) || ids.some(id => !productos.some(p => String(p.id_plato) === id))) {
-      throw errorCompra('Selecciona productos existentes de este mismo local.');
-    }
+    // ============================================================================
+// DOBLE ESCUDO DE SEGURIDAD (Validación de Integridad del Carrito)
+// ============================================================================
+//EL MÉTODO .some():
+// Es una función de alto rendimiento para Arrays. Evalúa si "al menos un" 
+// elemento de la lista cumple una condición, devolviendo true o false. 
+// Es muy eficiente porque hace "cortocircuito": en cuanto encuentra el primer 
+// elemento que da 'true', se detiene y no sigue leyendo el resto de la lista.
+
+// 2. COMPARACIÓN ESTRICTA Y TIPADO ( !== ):
+// En JavaScript, '!==' comprueba que dos valores sean diferentes en valor Y en tipo 
+// (un número 5 no es lo mismo que el texto "5"). 
+// Aquí comparamos String(p.id_restaurante) con solicitud.id_restaurante. 
+// Esto es seguro porque la función 'normalizarSolicitud' (ejecutada previamente) 
+// ya forzó a que 'solicitud.id_restaurante' fuera un String. Así garantizamos que 
+// estamos comparando (Texto !== Texto) y evitamos falsos positivos.
+// El operador || (OR) separa dos validaciones críticas de seguridad.
+// Si ALGUNA de las dos falla, se lanza el error y se bloquea la transacción.
+if (
+  // ESCUDO 1 (Anti-mezcla): 
+  // Verifica si en la BD hay ALGÚN producto cuyo id_restaurante NO coincida con 
+  // el id_restaurante del carrito. Evita comprar en 2 locales con un solo pago.
+  productos.some(p => String(p.id_restaurante) !== solicitud.id_restaurante) 
+  
+  || 
+  
+  // ESCUDO 2 (Anti-fantasmas): 
+  // Recorre los IDs que pide el cliente y verifica si ALGUNO de ellos NO fue 
+  // encontrado en la BD. Evita cobrar productos que el dueño acaba de borrar del menú.
+  // ============================================================================
+// ANIDACIÓN DE MÉTODOS Y FUNCIONES FLECHA ( x => )
+// ============================================================================
+
+// 1. EL USO DE LA FLECHA (=>) EN .SOME():
+// El método .some() exige una función que dicte la "regla" de búsqueda. 
+// Usar la función flecha (ej: id => ...) es la forma moderna, anónima y 
+// compacta de escribir esa regla en una sola línea sin usar la palabra 'function'.
+
+// 2. EXPLICACIÓN DEL CÓDIGO ANIDADO (Inception):
+// ids.some(id => !productos.some(p => String(p.id_plato) === id))
+// 
+// Esta línea es un bucle dentro de otro bucle:
+// - Bucle interno (productos.some): Busca si el ID que pide el cliente coincide 
+//   con algún plato real de la base de datos.
+// - Operador NOT (!): Invierte el resultado. Si el plato NO se encuentra en 
+//   la base de datos, devuelve TRUE (Verdadero, ¡es un plato fantasma!).
+// - Bucle externo (ids.some): Recorre el carrito del cliente buscando si "ALGUNO" 
+//   de sus platos ha dado TRUE en la prueba anterior. Si encuentra un fantasma, 
+//   el escudo se activa y bloquea la compra completa.
+  ids.some(id => !productos.some(p => String(p.id_plato) === id))
+) {
+  // Si cualquiera de las trampas o errores se cumple, aborta la compra.
+  throw errorCompra('Selecciona productos existentes de este mismo local.');
+}
     
-    // 2. EXPLICACIÓN DE "ANY($1::int[])"
-    // 'ANY' es una función de PostgreSQL. Le pasamos una lista de IDs de platos ($1) 
-    // y le decimos: "Tráeme los datos donde el id_menu coincida con CUALQUIERA de esta lista".
+    //Esta línea hace 3 cosas en un solo movimiento:
+// 1. Extrae los IDs de los productos validados: productos.map(...)
+// 2. Consulta a la BD qué ingredientes componen esos menús usando 'ANY($1::int[])', 
+//    que es la forma óptima en PostgreSQL de buscar múltiples IDs de golpe. 
+//    Aplica 'FOR SHARE' para bloquear la edición de los menús durante el pago.
+// 3. Transforma la respuesta: .rows.map(v => [v.id_menu, v.id_plato_incluido])
+//    Convierte la lista de objetos que devuelve SQL en una matriz limpia 
+//    (un Array de Arrays, ej: [[menu, plato], [menu, plato]]), lo cual 
+//    facilita enormemente los cálculos matemáticos posteriores en JavaScript.
+// ============================================================================
+// PASO DE ARRAYS A SQL: ANY($1::int[])
+// ============================================================================
+
+// Cuando necesitamos buscar múltiples IDs de golpe en la base de datos, 
+// no podemos usar la sintaxis clásica 'IN ($1)' si enviamos un Array desde Node.js, 
+// porque PostgreSQL no sabrá desempaquetarlo y dará un error de sintaxis.
+//
+// La solución profesional es usar ANY():
+// 1. $1: Recibe el array de JavaScript (ej: [5, 8, 12]).
+// 2. ::int[] : Fuerza a PostgreSQL a interpretar esos datos estrictamente 
+//    como un Array de Números Enteros (Integer Array), evitando fallos de lectura.
+// 3. ANY() : Comprueba si el 'id_menu' de la base de datos coincide con 
+//    al menos uno de los números contenidos dentro de ese Array.
+// ============================================================================
+// DIFERENCIA CLAVE: IN (...) vs ANY (...)
+// ============================================================================
+
+// ¿Por qué no usamos el clásico 'IN' con variables dinámicas?
+// 
+// - El comando 'IN' espera una lista de valores escalares sueltos y separados 
+//   por comas en el texto SQL (ej: IN (1, 2, 3)). 
+// - Si inyectamos un array de JavaScript a través de un parámetro ($1), 
+//   PostgreSQL lo recibe como un único objeto complejo (un tipo de dato Array), 
+//   no como elementos sueltos. Al hacer 'IN ($1)', el motor compara el ID contra 
+//   el array entero, provocando un error de tipos.
+// 
+// La solución es el operador 'ANY()'. Este comando está programado para abrir 
+// internamente el objeto Array que recibe por el parámetro '$1' y evaluar la 
+// condición contra cada uno de sus elementos individuales.
     const composicion_menu = (await cx.query('SELECT id_menu, id_plato_incluido FROM Menu_Platos WHERE id_menu = ANY($1::int[]) ORDER BY id_menu, id_plato_incluido FOR SHARE', [productos.map(p => p.id_plato)])).rows.map(v => [v.id_menu, v.id_plato_incluido]);
     
     const programada = solicitud.fecha_programada ? new Date(solicitud.fecha_programada) : null;
+
+// ============================================================================
+// ANÁLISIS DE STRINGS: EL MÉTODO .startsWith()
+// ============================================================================
+
+// El método .startsWith() evalúa si una cadena de texto comienza exactamente 
+// con los caracteres indicados entre paréntesis. 
+// Devuelve un valor Booleano (true o false).
+// 
+// En este caso, se utiliza para categorizar acciones de forma dinámica. 
+// Si la variable 'fase' contiene textos como "activar_usuario" o "activar_menu", 
+// la constante 'activando' será 'true'. Si contiene "desactivar_x" o cualquier 
+// otra palabra, será 'false'. Esto permite bifurcar la lógica del programa 
+// (encender vs apagar) de forma muy limpia.
     const activando = fase.startsWith('activar');
     
     if (programada && !activando) {
@@ -185,6 +346,22 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     // Si no (los dos puntos ':'), el objetivo es el "momento" actual (ahora mismo).
     const objetivo = programada && !activando ? programada : momento;
     
+    
+// DIFERENCIA ENTRE CONST Y LA FLECHA (=>)
+// ============================================================================
+
+// La palabra 'const' NO sustituye a 'function'. 'const' simplemente declara 
+// una variable inmutable (una constante) en la memoria, que puede almacenar 
+// números, textos o funciones.
+// 
+// El elemento que realmente sustituye a la antigua palabra reservada 'function' 
+// es el Operador Flecha ( => ).
+// 
+// Al combinar ambos (const miFuncion = () => {}), dividimos el trabajo:
+// 1. La flecha (=>) crea la lógica y el comportamiento de la función.
+// 2. El 'const' guarda esa lógica en un contenedor bloqueado, evitando que 
+//    el motor de JavaScript o un error humano sobrescriba o destruya 
+//    la función accidentalmente en otra parte del código.
     // 4. FUNCIÓN INTERNA DE COMPROBACIÓN
     // Esta pequeña función se crea aquí para no repetir código. Comprueba pausas temporales.
     const comprobar = (disponible, reactivacion, nombre) => {
@@ -192,11 +369,47 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
       // usa 'return' para salir inmediatamente de esta función porque todo está bien.
       if (disponible !== false) return;
       
+      // ============================================================================
+// CLOSURES (CLAUSURAS) Y ÁMBITO LÉXICO
+// ============================================================================
+
+// ¿Cómo es posible que esta función utilice la variable 'objetivo' si no 
+// se la hemos pasado por los parámetros (disponible, reactivacion, nombre)?
+// 
+// Esto es posible gracias a una característica de JavaScript llamada "Closure".
+// Cuando defines una función dentro de otra función, la función interna tiene 
+// acceso automático a todas las variables de la función que la envuelve (su padre).
+// 
+// La variable 'objetivo' fue declarada unas líneas más arriba en el ámbito general 
+// de la función padre. Por lo tanto, nuestra función flecha 'comprobar' puede 
+// "mirar hacia afuera" y leer el valor de 'objetivo' sin necesidad de que se 
+// lo inyectemos explícitamente en sus parámetros. Esto mantiene el código más limpio.
       // Si llegamos aquí, es porque estaba inactivo (false).
       // Si no tiene fecha de reactivación (!reactivacion) OR la fecha en la que 
       // volverá a estar activo es MAYOR (posterior) a nuestro tiempo 'objetivo' de compra, lanza error.
       if (!reactivacion || new Date(reactivacion) > objetivo) {
-          throw errorCompra(`${nombre} no estará disponible a esa hora. Elige otra hora o retira el producto del carrito.`, 'NO_DISPONIBLE');
+        // ============================================================================
+// TEMPLATE LITERALS (INTERPOLACIÓN DE VARIABLES: ${...})
+// ============================================================================
+
+// La sintaxis ${variable} se utiliza para inyectar dinámicamente el valor de 
+// una variable de JavaScript directamente dentro de una cadena de texto.
+// 
+// Para que esto funcione, el texto completo debe ir envuelto obligatoriamente 
+// en comillas invertidas o acentos graves ( ` ` ) en lugar de comillas normales.
+// 
+// Sustituye a la antigua y propensa a errores concatenación clásica con el 
+// operador de suma (ejemplo antiguo: "El producto " + nombre + " no está").
+// Esto hace que el código sea mucho más limpio, fácil de leer y permite 
+// introducir saltos de línea reales dentro del texto sin romper el código.
+
+
+
+
+
+
+
+          throw errorCompra(`${nombre} no estará disponible a esa hour. Elige otra hour o retira el producto del carrito.`, 'NO_DISPONIBLE');
       }
     };
     
@@ -205,11 +418,31 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     comprobar(local.aceptando_pedidos, local.tiempo_reactivacion, 'El local');
     
     // Luego, usa un bucle FOR para enviar cada producto individualmente a la misma función.
+    //1. FORMA MODERNA (ES6+):
+// for (const producto of productos) { ... }
+// El operador 'of' extrae directamente el VALOR de cada elemento de la lista.
+// Es más limpio y evita tener que llevar la cuenta matemática de la posición.
+
+// 2. FORMA ANTIGUA (Bucle clásico por índice):
+// for (let i = 0; i < productos.length; i++) {
+//   const producto = productos[i];
     for (const producto of productos) {
         comprobar(producto.disponible, producto.tiempo_disponible, '«' + producto.nombre + '»');
     }
     
     // Evalúa si el texto es exactamente 'RECOGIDA' y guarda true o false.
+    //¿Cómo sabemos si la constante 'recogida' almacena true o false?
+// El resultado es dinámico y depende de los datos que el cliente (frontend) 
+// envíe dentro del objeto 'solicitud'.
+// 
+// El motor de JavaScript resuelve esta línea en dos pasos lógicos:
+// 1. Evaluación (===): Compara estrictamente el valor recibido contra la palabra.
+//    - Si solicitud.tipo_entrega vale exactamente "RECOGIDA" -> Devuelve true.
+//    - Si vale "DOMICILIO", "recogida" (minúsculas) o no existe -> Devuelve false.
+// 
+// 2. Asignación (=): El operador de asignación simple (=) toma el resultado 
+//    lógico de esa comparación (el true o el false) y lo almacena 
+//    definitivamente en la constante 'recogida' para usarlo en cálculos futuros.
     const recogida = solicitud.tipo_entrega === 'RECOGIDA';
     
     // 6. EXPLICACIÓN DE 'LET'
@@ -218,7 +451,44 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     let distancia = 0;
     
     // Validaciones logísticas: Distancias y Zonas de reparto
+    //Cuando una variable ya almacena un valor Booleano puro (true o false), 
+// no es necesario volver a compararla usando '=== true' o '=== false'.
+// 
+// - Práctica redundante (Novato): if (recogida === true)
+// - Práctica limpia (Profesional): if (recogida)
+// 
+// El condicional 'if' internamente solo necesita un 'true' o 'false' para actuar. 
+// Al pasarle la variable directamente, el motor lee su valor y lo sustituye, 
+// evaluándolo como 'if (true)' o 'if (false)' de forma automática y óptima.
+// 
+// Para evaluar el caso negativo (false), usamos el operador de negación (!):
+// if (!recogida) // Se lee como: "Si NO es recogida"
+// Escribir 'if (recogida)' es la forma abreviada y estándar de preguntar 
+// 'if (recogida === true)'. 
+// 
+// La estructura de control 'if' evalúa inherentemente la "veracidad" (truthiness) 
+// de lo que hay entre sus paréntesis. 
+// - Si la variable 'recogida' es false, el motor evalúa 'if (false)'. No se 
+//   produce ningún error; simplemente se ignora el bloque de código interno 
+//   y la ejecución continúa en la línea siguiente.
+// - Si es true, el motor evalúa 'if (true)' y ejecuta el bloque interno.
+// 
+// Omitir el '=== true' elimina redundancia lógica y hace el código más limpio.
     if (recogida) { // Si 'recogida' es verdadero (true)
+      // El operador de exclamación (!) invierte estrictamente un valor booleano:
+// !true  -> devuelve false
+// !false -> devuelve true
+// 
+// Además de invertir, actúa como un "coercionador" de tipos. Si se aplica sobre  
+// un valor que no es un booleano puro (como un número, objeto o texto), el motor 
+// de JavaScript primero evalúa si el valor original es "Truthy" o "Falsy", 
+// y luego devuelve el booleano exactamente opuesto.
+//
+// Ejemplos comunes de valores "Falsy" que al negarse (!) devuelven TRUE:
+// !0         // true (el número cero es falsy)
+// !""        // true (un string vacío es falsy)
+// !undefined // true (la ausencia de valor es falsy)
+// !null      // true (el valor nulo es falsy)
       if (programada && !activando) {
         // La confirmación conserva el margen validado al preparar la compra.
         // Math.min() elige la fecha más antigua entre el 'momento' actual y 15 minutos antes de la hora programada.
@@ -239,22 +509,98 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     // 7. EXPLICACIÓN DE MAP Y FIND
     // .map() transforma la lista de items del carrito creando una lista nueva.
     const items = solicitud.items.map(item => {
-      // .find() busca en la lista de la base de datos el producto exacto que coincide con el ID de este item.
-      const producto = productos.find(p => String(p.id_plato) === item.id_plato);
-      
-      // Llama a la función 'centimos' (importada de otro archivo) para calcular el precio sin decimales problemáticos.
-      const precio_centimos = centimos(producto.precio);
-      
-      // Retorna un nuevo objeto combinando los datos.
-      // '...item' desparrama los datos que ya tenía el item (ID, cantidad) y luego le añadimos 
-      // el nombre, los céntimos, y el precio en euros (/ 100).
-      return { ...item, nombre: producto.nombre, precio_centimos, precio: precio_centimos / 100 };
-    });
+  // 1. BÚSQUEDA Y SEGURIDAD DE TIPOS (DEFENSA CONTRA INTERNET)
+  // 'solicitud.items' contiene los datos no confiables que viajan desde el móvil del cliente.
+  // 'productos' es nuestra "fuente de la verdad" segura sacada de la base de datos.
+  // Usamos String(p.id_plato) para forzar el ID de la base de datos (que suele ser Número) 
+  // a Texto. Así garantizamos que el operador estricto (===) no falle al compararlo con 
+  // el ID que llega de internet (que suele ser Texto).
+  const producto = productos.find(p => String(p.id_plato) === item.id_plato);
+  
+  // 2. MATEMÁTICAS FINANCIERAS SEGURAS
+  // Ignoramos el precio que envía el cliente (evitando hackeos) y usamos el de nuestra BD.
+  // Convertimos el dinero a números enteros (céntimos) para evitar el fallo estructural 
+  // de JavaScript al sumar decimales (punto flotante, ej: 0.1 + 0.2 = 0.30000000000000004).
+  const precio_centimos = centimos(producto.precio);
+  
+  // 3. ENSAMBLAJE FINAL CON SPREAD OPERATOR (...)
+  // Devolvemos el objeto que conformará la nueva lista generada por .map().
+  // Los tres puntos (...item) "desparraman" automáticamente todos los datos originales 
+  // del cliente (cantidad, notas) para no perderlos ni tener que reescribirlos a mano.
+  // A eso le fusionamos nuestros datos 100% seguros: nombre oficial y precios calculados.
+  return { 
+    ...item, 
+    nombre: producto.nombre, 
+    precio_centimos, 
+    precio: precio_centimos / 100 
+  };
+});
     
     // 8. EXPLICACIÓN DE REDUCE
     // .reduce() coge la lista entera de items y los reduce a un solo número (el precio total).
     // Funciona como un acumulador. 'suma' empieza valiendo 0, y por cada 'item' en el carrito, 
     // le suma (precio_centimos * cantidad).
+    // El método .reduce() procesa listas ejecutando un bucle interno oculto y 
+// delegando la lógica matemática a una función inyectada como parámetro.
+//
+// Estructura real que procesa la máquina:
+// array.reduce( Parametro1_FuncionCallback , Parametro2_ValorInicial )
+//
+// 1. El Callback (suma, item) => { ... }:
+//    - 'suma' (Acumulador): Mantiene el estado continuo a lo largo del bucle.
+//    - 'item' (Elemento actual): El objeto que se evalúa en el ciclo presente.
+//    Es una Función de Primera Clase inyectada como "manual de instrucciones".
+//
+// 2. El Valor Inicial (0):
+//    Obligatorio al reducir objetos a números. Actúa como el segundo parámetro 
+//    aislado de .reduce(), definiendo el Tipo de Dato inicial para prevenir 
+//    errores de coerción de tipos (Type Coercion) en la primera iteración.
+// ¿Cómo sabe el motor de JavaScript que el 0 es el valor inicial?
+// La respuesta es la firma oficial del método (su diseño estructural). 
+// JavaScript lee los argumentos basándose estrictamente en su posición, 
+// separados por una coma (,).
+//
+// Firma oficial del lenguaje:
+// Array.prototype.reduce( callbackFn , initialValue )
+// 
+// 1. Primer argumento (callbackFn): Todo el bloque de código antes de la 
+//    última coma. Es la lógica de ejecución.
+// 
+// 2. Segundo argumento (initialValue): Todo lo que hay después de la 
+//    última coma. Es el estado de arranque.
+// 
+// Ejemplo visual simplificado:
+// items.reduce( FUNCION_GIGANTE , 0 );
+// 
+// El ordenador no adivina qué es el 0 por su forma de número, sino porque 
+// ocupa exactamente la segunda silla (después de la coma) en la función reduce.
+// La mayor fuente de confusión al usar .reduce() es que rompe el estándar 
+// de parámetros del resto de métodos de arrays en JavaScript.
+// 
+// - En métodos comunes (.map, .find, .forEach): 
+//   El parámetro 1 es SIEMPRE el elemento actual (item).
+//   Ej: array.map((item) => ...)
+//
+// - En el método .reduce():
+//   El parámetro 1 es el Acumulador (la memoria arrastrada).
+//   El parámetro 2 pasa a ser el Elemento actual (item).
+//   Ej: array.reduce((acumulador, item) => ..., 0)
+//
+// Regla mnemotécnica: .reduce() es el método de la "Memoria", por lo tanto, 
+// la memoria (acumulador) exige ocupar el primer lugar en la función.
+// Error común: Confundir la función callback entera con el acumulador.
+// (suma, item) => suma + item.precio // <-- ESTO NO ES EL ACUMULADOR
+// 
+// Definiciones estrictas:
+// 1. EL CALLBACK: Es TODA la función flecha. Es el "Manual de reglas".
+// 2. EL ACUMULADOR: Es ÚNICAMENTE el primer parámetro dentro de los 
+//    paréntesis de esa función (la variable 'suma'). Es la "memoria".
+// 3. LA ADICIÓN: Es la operación matemática (item.precio). Es "lo que se suma".
+// 4. EL VALOR INICIAL: Es el número 0 al final de reduce(). Es "el saldo inicial".
+//
+// El '0' no se suma a nada activamente, simplemente se inyecta dentro 
+// de la variable 'suma' durante la iteración número 1 para evitar que 
+// empiece siendo 'undefined'.
     const subtotal_centimos = items.reduce((suma, item) => suma + item.precio_centimos * item.cantidad, 0);
     
     const envio_centimos = costeEnvio(subtotal_centimos, local.tipo, distancia, recogida);
@@ -272,13 +618,66 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
   
   // 'async' obliga a esta función a devolver siempre una Promesa, incluso si 
   // devuelve 'null' en la primera línea, manteniendo el código consistente.
+  // La palabra clave 'async' delante de una función tiene dos efectos técnicos:
+// 1. Habilita el uso de la palabra 'await' en su interior.
+// 2. Modifica el comportamiento del 'return', envolviendo automáticamente 
+//    cualquier valor devuelto en una Promesa (Promise.resolve).
+//
+// Consistencia de la API (El porqué del comentario):
+// Si una función tiene rutas de código asíncronas (consultas a DB) y rutas 
+// síncronas (cláusulas de guarda que devuelven null de inmediato), el tipo 
+// de dato devuelto sería inconsistente. 
+//
+// Al declarar la función como 'async', forzamos a que incluso el 'return null' 
+// más rápido se convierta en una Promesa. Así, el código consumidor que invoca 
+// a la función puede usar siempre 'await' de forma segura sin miedo a que 
+// la aplicación colapse por un cambio de tipo de dato inesperado.
+// Una Promesa (Promise) es un objeto que representa la terminación o el 
+// fracaso eventual de una operación asíncrona. Sirve para evitar el bloqueo 
+// (blocking) del hilo principal de ejecución en JavaScript (Single-Threaded).
+//
+// Una Promesa tiene 3 estados posibles:
+// 1. Pending (Pendiente): Estado inicial. La operación aún no ha terminado.
+// 2. Fulfilled (Resuelta): La operación terminó con éxito (llama a 'resolve').
+// 3. Rejected (Rechazada): La operación falló (llama a 'reject').
+//
+// Consumo tradicional vs Moderno:
+// - Tradicional: Se usan los métodos .then() para capturar el éxito y 
+//   .catch() para capturar el error.
+// - Moderno: Se usa la sintaxis 'async/await', que "pausa" visualmente el 
+//   código hasta que la Promesa se resuelve, haciendo que el código asíncrono 
+//   se lea de arriba a abajo como si fuera código síncrono clásico.
   async function recuperarIntencion(compra) {
     if (!compra.payment_intent_id) return null;
     
-    // Pide a Stripe el estado actual del pago. { expand: ['latest_charge'] } le dice a Stripe 
-    // que incluya todos los detalles de la tarjeta usada dentro de la misma respuesta.
-    return stripe.paymentIntents.retrieve(compra.payment_intent_id, { expand: ['latest_charge'] });
-  }
+    // ============================================================================
+// CONEXIÓN CON STRIPE: RECUPERACIÓN Y EXPANSIÓN DE DATOS BANCARIOS
+// ============================================================================
+
+// Pide a Stripe el estado actual del pago. { expand: ['latest_charge'] } le dice a Stripe 
+// que incluya todos los detalles de la tarjeta usada dentro de la misma respuesta.
+// 'retrieve' es simplemente el nombre que los arquitectos de software de Stripe 
+// decidieron darle a la función encargada de realizar peticiones HTTP GET 
+// contra su endpoint de "Payment Intents". No es código nativo de JavaScript.
+return stripe.paymentIntents.retrieve(
+  
+  // PARÁMETRO 1: EL LOCALIZADOR (Identificador)
+  // Es el ID único (ej: 'pi_12345') que guardamos en nuestra base de datos.
+  // Funciona como el número de seguimiento de un paquete postal.
+  compra.payment_intent_id, 
+
+  // PARÁMETRO 2: CONFIGURACIÓN DE RED Y DICCIONARIO EXTERNO
+  // 'latest_charge' no es una variable local nuestra. Es un texto (String) literal
+  // extraído directamente de la Documentación Oficial de Stripe.
+  // Al enviarlo dentro de la propiedad 'expand', obligamos al servidor de Stripe 
+  // a hacer un esfuerzo extra antes de responder: sustituir el ID básico del cobro 
+  // por un Objeto completo con los datos del banco, tipo de tarjeta y recibo.
+  // Esto nos ahorra hacer una segunda petición a internet.
+  { expand: ['latest_charge'] }
+
+); // El 'return' inicial captura la Promesa generada por esta petición de red 
+   // y la devuelve hacia arriba para que el servidor pueda esperar con 'await'.
+}
 
   function comprobarIntencion(compra, intencion) {
     // Escudo antifraude: Comprueba que el usuario no haya manipulado la petición en el frontend 
@@ -288,40 +687,134 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
 
   // Traductor de estados: Convierte los estados de la base de datos a mensajes legibles para el cliente.
   async function resultado(cx, compra, intencion = null) {
-    // Busca en la BD todos los platos individuales (Pedidos) que pertenecen a este carrito (Compra).
-    const pedidos = (await cx.query('SELECT * FROM Pedidos WHERE id_compra = $1 ORDER BY id_pedido', [compra.id_compra])).rows;
-    const mensajes = {
-      BORRADOR: 'Revisa el importe y confirma la compra.',
-      AUTORIZADA: 'El pedido completo está guardado. Estamos confirmando el pago; no vuelvas a pagar.',
-      RESERVADA: compra.solicitud.metodo_pago === 'TARJETA' ? 'Reserva confirmada. El banco retiene el importe; se cobrará a la hora reservada, cuando todo esté disponible. Si no lo está en los 30 minutos siguientes, cancelaremos la reserva y liberaremos la retención.' : 'Reserva confirmada. Se enviará al local a la hora elegida, cuando todo esté disponible. Si no lo está en los 30 minutos siguientes, se cancelará.',
-      CONFIRMADA: 'El local ha recibido tu pedido completo.',
-      CANCELANDO: 'Compra cancelada. Estamos liberando la autorización de tu tarjeta.',
-      CANCELADA: 'Compra cancelada. No se ha efectuado ningún cobro.',
-      REEMBOLSO_PENDIENTE: 'Compra cancelada. Estamos tramitando la devolución del pago.',
-      REEMBOLSADA: 'La devolución se ha tramitado. Tu banco determina cuándo aparece en tu cuenta.',
-      REEMBOLSO_FALLIDO: 'El banco no ha completado la devolución. Contacta con el local para resolverla.',
-    };
+  // [1. CONSULTA BD Y ASINCRONÍA]
+  // 'await': Pausa la ejecución de esta función hasta que la base de datos responda, sin bloquear el servidor.
+  // '$1': Consulta parametrizada. Inyecta el ID de forma segura para evitar ataques de Inyección SQL.
+  // '.rows': Desecha los metadatos técnicos de la base de datos y extrae únicamente el Array con los platos puros.
+  const pedidos = (await cx.query('SELECT * FROM Pedidos WHERE id_compra = $1 ORDER BY id_pedido', [compra.id_compra])).rows;
+  
+  // [2. PATRÓN DE DICCIONARIO]
+  // Evita usar decenas de condicionales (if/else). Actúa como un traductor directo
+  // entre los códigos técnicos de la máquina ('BORRADOR') y el texto amigable para el cliente.
+  const mensajes = {
+    BORRADOR: 'Revisa el importe y confirma la compra.',
+    AUTORIZADA: 'El pedido completo está guardado. Estamos confirmando el pago; no vuelvas a pagar.',
+    // Operador ternario (? :): Cambia dinámicamente la frase dependiendo de si el pago es en efectivo o con tarjeta.
+    RESERVADA: compra.solicitud.metodo_pago === 'TARJETA' ? 'Reserva confirmada. El banco retiene el importe; se cobrará a la hora reservada, cuando todo esté disponible. Si no lo está en los 30 minutos siguientes, cancelaremos la reserva y liberaremos la retención.' : 'Reserva confirmada. Se enviará al local a la hora elegida, cuando todo esté disponible. Si no lo está en los 30 minutos siguientes, se cancelará.',
+    CONFIRMADA: 'El local ha recibido tu pedido completo.',
+    CANCELANDO: 'Compra cancelada. Estamos liberando la autorización de tu tarjeta.',
+    CANCELADA: 'Compra cancelada. No se ha efectuado ningún cobro.',
+    REEMBOLSO_PENDIENTE: 'Compra cancelada. Estamos tramitando la devolución del pago.',
+    REEMBOLSADA: 'La devolución se ha tramitado. Tu banco determina cuándo aparece en tu cuenta.',
+    REEMBOLSO_FALLIDO: 'El banco no ha completado la devolución. Contacta con el local para resolverla.',
+  };
+  
+  // [3. FORMATEO DE SALIDA (DTO)]
+  // Empaqueta los datos con la estructura exacta que la aplicación móvil espera recibir.
+  return {
+    id_compra: compra.id_compra, 
+    estado: compra.estado, 
     
-    return {
-      id_compra: compra.id_compra, estado: compra.estado, subtotal: compra.resumen.subtotal_centimos / 100,
-      envio: compra.resumen.envio_centimos / 100, total: compra.total_centimos / 100,
-      client_secret: compra.estado === 'BORRADOR' ? intencion?.client_secret || null : null,
-      fecha_programada: compra.solicitud.fecha_programada, autorizacion_hasta: fechaISO(compra.autorizacion_hasta),
-      items: compra.resumen.items, pedidos: pedidos.map(p => ({ ...p, estado_pago: compra.estado, nombre_plato: p.nombre_producto, precio_plato: p.precio_centimos / 100 })), mensaje: compra.motivo || mensajes[compra.estado] || 'Estamos comprobando la compra.',
-    };
-  }
+    // CONVERSIÓN DE DIVISA: Divide entre 100. Deshace la protección del backend (que calcula
+    // en enteros para no perder precisión decimal) para mostrar Euros reales en el Frontend.
+    subtotal: compra.resumen.subtotal_centimos / 100,
+    envio: compra.resumen.envio_centimos / 100, 
+    total: compra.total_centimos / 100,
+    
+    // REGLA DE SEGURIDAD: Solo envía la clave secreta de pago (client_secret) si el pedido
+    // sigue en 'BORRADOR'. Si ya se autorizó, envía 'null' para bloquear cualquier doble cobro accidental.
+    client_secret: compra.estado === 'BORRADOR' ? intencion?.client_secret || null : null,
+    
+    fecha_programada: compra.solicitud.fecha_programada, 
+    autorizacion_hasta: fechaISO(compra.autorizacion_hasta),
+    items: compra.resumen.items, 
+    
+    // MUTACIÓN DE DATOS CON .MAP: Recorre el Array de platos puros de la BD e inyecta propiedades nuevas
+    // (estado_pago), renombra columnas (nombre_producto a nombre_plato) y convierte los precios a Euros.
+    pedidos: pedidos.map(p => ({ 
+      ...p, 
+      estado_pago: compra.estado, 
+      nombre_plato: p.nombre_producto, 
+      precio_plato: p.precio_centimos / 100 
+    })), 
+    
+    // CORTOCIRCUITO LÓGICO (||): Lee de izquierda a derecha. Si hay un motivo manual, lo usa.
+    // Si no, busca la traducción en el diccionario. Si el estado no existe, muestra el genérico.
+    mensaje: compra.motivo || mensajes[compra.estado] || 'Estamos comprobando la compra.',
+  };
+}
 
   async function notificarUnaVez(cx, compra) {
-    // Si la compra ya fue notificada, OR su estado NO es Reservada/Confirmada, sale de la función.
-    // Esto evita enviar correos duplicados al restaurante o al cliente.
-    if (compra.notificada || !['RESERVADA', 'CONFIRMADA'].includes(compra.estado)) return;
+    // ============================================================================
+    // CLÁUSULA DE GUARDA (EL PORTERO DE LA DISCOTECA)
+    // ============================================================================
+
+    if (
+      // MOTIVO A: ¿El cliente ya recibió un aviso previamente?
+      // Si esto es 'true', significa que ya se le envió el email en el pasado.
+      compra.notificada 
+      
+      || // Operador "O" lógico (Si se cumple el Motivo A, o el Motivo B)
+      
+      // MOTIVO B: ¿El estado actual NO es válido para avisar al restaurante?
+      // 1. Creamos un Array (lista) con los únicos estados válidos: ['RESERVADA', 'CONFIRMADA']
+      // 2. .includes(compra.estado) busca si el estado actual está dentro de esa lista.
+      // 3. El símbolo de exclamación (!) invierte el resultado: si NO está en la lista, da 'true'.
+      !['RESERVADA', 'CONFIRMADA'].includes(compra.estado)
+    ) {
+      
+      // EL FRENO DE EMERGENCIA (Trabajo 2 del return)
+      // Como el return está vacío (no hay datos a su derecha), actúa como un botón de pánico.
+      // Si el 'if' SÍ SE CUMPLE (la compra ya se notificó o el estado es inválido):
+      // El motor lee este 'return' y aborta la función instantáneamente.
+      // Así evitamos enviar emails duplicados o avisar de pedidos cancelados.
+      return; 
+    }
+
+    // Si el 'if' NO SE CUMPLE (es una compra nueva y en estado válido):
+    // El motor ignora el 'return', pasa de largo y continúa leyendo el código de aquí abajo
+    // (que será donde realmente estén las instrucciones para enviar el correo).
     
-    // Try/Catch: Intenta enviar la notificación. Si el servidor de correos se cae, el bloque catch
-    // atrapa el error y lo imprime en consola, permitiendo que el código siga funcionando sin colapsar.
-    try {
-      await notificar(compra, (await cx.query('SELECT * FROM Pedidos WHERE id_compra = $1', [compra.id_compra])).rows, cx);
-      await cx.query('UPDATE Compras SET notificada = TRUE WHERE id_compra = $1', [compra.id_compra]);
-    } catch (error) { console.error('No se pudo notificar la compra:', error.code || 'NOTIFICACION'); }
+    // ============================================================================
+// ENVÍO DE NOTIFICACIONES Y ACTUALIZACIÓN DE ESTADO
+// ============================================================================
+
+// [1. LA RED DE SEGURIDAD (TRY / CATCH)]
+// Intenta enviar la notificación. Si el servidor de correos se cae o hay un corte de red, 
+// el bloque catch atrapa el error y lo imprime en consola. Esto es VITAL porque evita 
+// que un fallo secundario (un email no enviado) haga colapsar/explotar el servidor completo.
+try {
+  
+  // [2. CONSULTA ANIDADA: EXTRACCIÓN DE LA LISTA COMPLETA]
+  // La función 'notificar' necesita saber qué pidió el cliente. 
+  // - $1: Usamos consulta parametrizada para protegernos de hackers (Inyección SQL).
+  // - .rows: Extraemos la matriz de datos puras de la caja técnica. 
+  // - NO usamos [0]: Porque un cliente pide múltiples cosas. Necesitamos pasarle a 
+  //   la función notificar el Array completo con todos los platos, no solo el primero.
+  await notificar(
+    compra, 
+    (await cx.query('SELECT * FROM Pedidos WHERE id_compra = $1', [compra.id_compra])).rows, 
+    cx
+  );
+
+  // [3. EL UPDATE "DISPARA Y OLVIDA" (FIRE AND FORGET)]
+  // Si la notificación se envió con éxito (el código no saltó al catch), le decimos 
+  // a la base de datos que marque esta compra como notificada.
+  // ¿Por qué no hay .rowCount ni .rows aquí? 
+  // Porque no nos interesa guardar ni auditar el resultado en ninguna variable. 
+  // Confiamos en que funcione para que, en el futuro, la "Cláusula de Guarda" (el portero 
+  // de la discoteca del paso anterior) lea que ya está notificada y bloquee emails duplicados.
+  await cx.query('UPDATE Compras SET notificada = TRUE WHERE id_compra = $1', [compra.id_compra]);
+  
+} catch (error) { 
+  
+  // [4. EL AMORTIGUADOR (CATCH)]
+  // Si cualquiera de las promesas de arriba (los await) falla y lanza un error,
+  // el código aborta el bloque 'try', salta directamente aquí y deja un registro
+  // silencioso en los logs del servidor para que el programador lo revise luego.
+  console.error('No se pudo notificar la compra:', error.code || 'NOTIFICACION'); 
+  
+}
   }
 
   // ============================================================================
