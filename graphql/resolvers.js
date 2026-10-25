@@ -1,13 +1,48 @@
+// ============================================================================
+// GESTIÓN DE SECRETOS (VARIABLES DE ENTORNO) CON DOTENV
+// ============================================================================
+
+// La instrucción `import 'dotenv/config';` es el punto de entrada para 
+// la gestión de secretos en aplicaciones Node.js modernas.
+//
+// 1. Inyección Automática: Esta importación lee un archivo oculto llamado 
+//    .env en la raíz del proyecto y mapea sus pares clave-valor (Key=Value) 
+//    dentro del objeto global de Node.js: `process.env`.
+//
+// 2. Twelve-Factor App: Cumple con el estándar de la industria de separar 
+//    estrictamente el código (que se versiona en Git) de la configuración 
+//    (que varía entre entornos: Desarrollo, Staging, Producción).
+//
+// 3. Prevención de Fugas (Leaks): Evita el "Hardcoding" de credenciales 
+//    (API Keys, Passwords de DB, Tokens de JWT), garantizando que si el 
+//    repositorio de código es expuesto, los secretos permanezcan a salvo.
 import 'dotenv/config';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import { EventEmitter, on } from 'events';
-import pool from '../config/db.js';
+// ============================================================================
+// LAS 3 FUENTES DE IMPORTACIÓN EN NODE.JS
+// ============================================================================
+
+// GRUPO 1: HERRAMIENTAS COMPRADAS EN LA TIENDA (Librerías externas NPM)
+// Fíjate que no tienen puntos al principio. Node.js sabe que debe buscarlas 
+// en la carpeta gigantesca llamada "node_modules" que se descargó de internet.
+import bcrypt from 'bcrypt';            // Encripta contraseñas (las convierte en texto incomprensible).
+import jwt from 'jsonwebtoken';         // Crea pases VIP digitales para mantener la sesión del usuario iniciada.
+import nodemailer from 'nodemailer';    // El cartero. Sirve para enviar emails (ej. recibo de compra).
+import { OAuth2Client } from 'google-auth-library'; // Permite poner el botón de "Inicia sesión con Google".
+import Stripe from 'stripe';            // El datáfono digital para cobrar tarjetas.
+
+// GRUPO 2: HERRAMIENTAS DE FÁBRICA (Módulos nativos de Node.js)
+// Tampoco tienen puntos. Vienen instaladas de serie cuando instalas Node.js.
+import { EventEmitter, on } from 'events'; // Permite que diferentes partes de tu código "hablen" entre sí en vivo.
+import crypto from 'crypto';               // Herramienta matemática para generar códigos aleatorios súper seguros.
+
+// GRUPO 3: TUS PROPIOS ARCHIVOS (El código que tú o tu equipo habéis escrito)
+// LA REGLA DE ORO: Si empieza por un punto, es un archivo tuyo.
+// El servidor usa tu posición actual como mapa del tesoro.
+import pool from '../config/db.js';              
+// El "../" significa: "Sal de la carpeta donde estamos ahora mismo, busca otra que se llame 'config' y abre 'db.js'".
+
 import { procesarMensaje } from './nlp/chatbot.js'; 
-import nodemailer from 'nodemailer';
-import { OAuth2Client } from 'google-auth-library';
-import Stripe from 'stripe';
-import crypto from 'crypto';
+// El "./" significa: "Quédate en esta misma carpeta, entra en 'nlp' y tráeme la función del chatbot".
 import { crearActualizadorNegocio } from './actualizarNegocio.js';
 import { validarHorariosRecogida } from '../shared/horariosRecogida.js';
 import { crearConsultasZona } from './consultasZona.js';
@@ -78,9 +113,35 @@ const resolversBase = {
   Pedido: {
     imagen_plato: async pedido => pedido.imagen_plato || (pedido.id_plato ? (await pool.query('SELECT p.imagen_url FROM Menu_Platos mp JOIN Platos p ON p.id_plato = mp.id_plato_incluido JOIN Platos m ON m.id_plato = mp.id_menu WHERE mp.id_menu = $1 AND p.id_restaurante = m.id_restaurante AND p.imagen_url IS NOT NULL ORDER BY p.id_plato LIMIT 1', [pedido.id_plato])).rows[0]?.imagen_url || null : null),
   },
-  Query: {
-    ...operacionesPago.Query,
-    ...compras.Query,
+  // ============================================================================
+// EL OPERADOR SPREAD (...): VOLCANDO EL CONTENIDO (EL EJEMPLO DE LA CARTA)
+// ============================================================================
+
+// El objeto 'Query' es la Carta Principal del restaurante (tu servidor).
+// Aquí es donde el cliente (el frontend) mira para ver qué acciones puede pedir.
+Query: {
+  
+  // 1. EL PROBLEMA SI NO USAMOS (...)
+  // Si escribiéramos esto sin los tres puntos, estaríamos metiendo la carpeta 
+  // entera del pastelero dentro de la carta. GraphQL (el camarero) se haría 
+  // un lío porque encontraría "carpetas dentro de carpetas" en lugar de 
+  // una lista clara de acciones.
+  
+  // 2. LA SOLUCIÓN: LA ORDEN DE "VACIADO" (...)
+  // Los tres puntos le dicen a JavaScript: "Abre el archivo de operacionesPago, 
+  // saca todas sus funciones sueltas y escríbelas directamente aquí, 
+  // en la lista principal".
+  ...operacionesPago.Query,
+  
+  // Hacemos exactamente lo mismo con el archivo de compras (la lista del barman).
+  // Sacamos todas sus funciones y las volcamos en esta misma lista, justo debajo.
+  ...compras.Query,
+  
+  // 3. EL RESULTADO FINAL INVISIBLE
+  // Gracias a los ..., el servidor GraphQL no ve archivos separados. 
+  // Ve una lista única, plana y perfecta con TODAS las funciones listas para 
+  // usarse. Esto te permite tener tu código súper ordenado en 20 archivos 
+  // distintos, pero que el servidor los lea todos como si fuera uno solo.
     ...crearConsultasZona(pool),
     ...crearBuscadorDirecciones(),
     obtenerTags: async () => (await pool.query('SELECT * FROM Preferencias_Tags')).rows,
@@ -132,6 +193,22 @@ const resolversBase = {
       return rest;
     },
 
+
+
+    //////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
+
+    
     obtenerMenuRestaurante: async (_, { id_restaurante }) => {
       const res = await pool.query('SELECT * FROM Platos WHERE id_restaurante = $1', [id_restaurante]);
       const ahora = new Date();
