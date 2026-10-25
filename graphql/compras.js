@@ -1110,7 +1110,26 @@ if (
         await cancelar(cx, compra, 'La fecha elegida supera la autorización de esta tarjeta. Reserva con efectivo o elige una hora más cercana.');
         throw errorCompra('La fecha elegida supera la autorización de esta tarjeta. No se ha cobrado: reserva con efectivo o elige otra hora.', 'AUTORIZACION_CORTA');
       }
-      await cx.query('UPDATE Compras SET autorizacion_hasta = $2 WHERE id_compra = $1', [compra.id_compra, vencimiento]);
+      
+      // ============================================================================
+// CONSULTAS PARAMETRIZADAS Y EL BOMBEO DE DATOS ($1, $2)
+// ============================================================================
+
+await cx.query(
+  
+  // 1. LA PLANTILLA DE TEXTO (Con huecos vacíos)
+  // Observa que el programador puso el $2 antes que el $1 en la frase. 
+  // No importa el orden en el texto, PostgreSQL buscará el número exacto.
+  'UPDATE Compras SET autorizacion_hasta = $2 WHERE id_compra = $1', 
+  
+  // 2. LA MUNICIÓN (El Array)
+  // Como hay un $1 y un $2, el array está obligado a tener dos elementos exactos.
+  [
+    compra.id_compra,  // Elemento 1 del array -> Vuela y sustituye a todos los $1
+    vencimiento        // Elemento 2 del array -> Vuela y sustituye a todos los $2
+  ]
+  
+);
       compra.autorizacion_hasta = vencimiento;
     }
     
@@ -1121,26 +1140,41 @@ if (
       // En cada vuelta, 'item' representará un plato diferente.
       for (const item of compra.resumen.items) {
         await cx.query(`
-          INSERT INTO Pedidos (id_usuario, id_restaurante, id_plato, metodo_pago, direccion_envio, fecha_programada, estado, id_compra, precio_centimos, nombre_producto)
-          
-          -- TRUCO SQL (generate_series): Si el cliente pidió 4 unidades de este plato, 
-          -- generate_series(1, 4) crea 4 filas idénticas de golpe, ahorrando recursos del servidor.
-          SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 FROM generate_series(1, $11::int)
-          
-        `, [
-          // ARRAY DE VARIABLES: Rellena los huecos del $1 al $11 en orden estricto.
-          compra.id_usuario,           // $1
-          compra.id_restaurante,       // $2
-          item.id_plato,               // $3
-          compra.solicitud.metodo_pago,// $4
-          compra.solicitud.direccion_envio, // $5
-          compra.solicitud.fecha_programada, // $6
-          estadoPedido,                // $7
-          compra.id_compra,            // $8
-          item.precio_centimos,        // $9
-          item.nombre,                 // $10
-          item.cantidad                // $11 (Indica a generate_series cuántos insertar)
-        ]);
+  -- 1. EL DESTINO FINAL (El molde de la tabla)
+  -- Definimos exactamente las 10 columnas físicas de la base de datos 
+  -- que van a recibir los datos. Cada plato ocupará una fila independiente.
+  INSERT INTO Pedidos (id_usuario, id_restaurante, id_plato, metodo_pago, direccion_envio, fecha_programada, estado, id_compra, precio_centimos, nombre_producto)
+  
+  -- 2. LOS DATOS A GUARDAR (La tinta)
+  -- El SELECT extrae los parámetros del $1 al $10 y los empareja en orden estricto 
+  -- con las 10 columnas de arriba. 
+  -- IMPORTANTE: El $11 NO va aquí porque no es un dato de la comida y la tabla no tiene una columna "cantidad".
+  SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 
+  
+  -- 3. EL CONTROL DEL BUCLE (La máquina clonadora)
+  -- La base de datos lee esto antes de guardar nada. generate_series va al array, 
+  -- agarra el $11 (ej. un 4) y le ordena al SELECT que se repita 4 veces. 
+  -- El comando ::int es obligatorio para forzar que el dato sea un número matemático.
+  FROM generate_series(1, $11::int)
+  
+`, [
+  // 4. EL ARRAY DE VARIABLES (La munición de Node.js)
+  // El número de la etiqueta $N no depende de las columnas de la tabla, 
+  // depende EXCLUSIVAMENTE del número de asiento que el dato ocupa en esta lista.
+  compra.id_usuario,                 // Asiento 1  -> Viaja a la base de datos como $1
+  compra.id_restaurante,             // Asiento 2  -> Viaja a la base de datos como $2
+  item.id_plato,                     // Asiento 3  -> Viaja a la base de datos como $3
+  compra.solicitud.metodo_pago,      // Asiento 4  -> Viaja a la base de datos como $4
+  compra.solicitud.direccion_envio,  // Asiento 5  -> Viaja a la base de datos como $5
+  compra.solicitud.fecha_programada, // Asiento 6  -> Viaja a la base de datos como $6
+  estadoPedido,                      // Asiento 7  -> Viaja a la base de datos como $7
+  compra.id_compra,                  // Asiento 8  -> Viaja a la base de datos como $8
+  item.precio_centimos,              // Asiento 9  -> Viaja a la base de datos como $9
+  item.nombre,                       // Asiento 10 -> Viaja a la base de datos como $10
+  
+  item.cantidad                      // Asiento 11 -> Viaja a la base de datos como $11 
+                                     // (Y solo se usa en el FROM para controlar cuántas copias hacer)
+]);
       }
       
       // DOBLE TERNARIO: Calcula el estado de la compra con dos preguntas en cadena.
