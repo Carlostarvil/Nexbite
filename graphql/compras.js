@@ -1267,13 +1267,52 @@ await cx.query(
   
     async function confirmar(clave, contexto) {
       const usuario = exigirUsuario(contexto);
-      return conBloqueo(clave, async cx => {
-        let compra = await leer(cx, clave);
-        if (!compra || String(compra.id_usuario) !== usuario) throw errorCompra('Esta compra no pertenece a tu cuenta.', 'FORBIDDEN');
-        compra = await confirmarInterna(cx, compra);
-        if (compra.estado === 'AUTORIZADA') compra = await capturar(cx, compra, await recuperarIntencion(compra));
-        return resultado(cx, compra);
-      });
+      // ============================================================================
+// EL DIRECTOR DE ORQUESTA: PROCESAMIENTO FINAL DEL PEDIDO
+// ============================================================================
+
+// 1. EL ESCUDO ANTI-DOBLE CLIC (conBloqueo)
+// 'conBloqueo' es un guardián de concurrencia. Si el cliente tiene mala conexión 
+// y pulsa el botón de "Pagar" 4 veces seguidas muy rápido, esta función crea un 
+// candado. Solo deja pasar al primer clic, procesa todo, y bloquea a los demás 
+// para evitar que se le cobre 4 veces al cliente.
+return conBloqueo(clave, async cx => {
+  
+  // 2. LECTURA DEL PEDIDO
+  // Usando la conexión a la base de datos (cx), vamos a buscar el ticket 
+  // de compra exacto usando su clave única.
+  let compra = await leer(cx, clave);
+  
+  // 3. LA ADUANA DE SEGURIDAD (Autorización)
+  // Verificamos dos cosas críticas:
+  // a) !compra: ¿Existe realmente este pedido o se lo ha inventado un hacker?
+  // b) String(...) !== usuario: ¿El usuario que está intentando pagar este pedido 
+  //    es realmente el dueño del pedido? (Evita que alguien pague/cancele la comida de otro).
+  if (!compra || String(compra.id_usuario) !== usuario) {
+      throw errorCompra('Esta compra no pertenece a tu cuenta.', 'FORBIDDEN');
+  }
+  
+  // 4. EL NÚCLEO DURO (Confirmación Interna)
+  // Aquí es donde ocurre TODA la magia que hemos visto antes: 
+  // - Se comprueba si la hora de entrega es válida.
+  // - Se insertan las filas de los platos en la tabla (con el generate_series).
+  // - Se le suman los +10 puntos al usuario.
+  compra = await confirmarInterna(cx, compra);
+  
+  // 5. EL COBRO REAL AL BANCO (Stripe)
+  // Si el paso anterior fue un éxito y el pedido quedó marcado como 'AUTORIZADA', 
+  // nos conectamos a Stripe (recuperarIntencion) y ejecutamos la función 'capturar'.
+  // Esto es lo que saca el dinero de la cuenta del cliente y lo mete en la tuya.
+  if (compra.estado === 'AUTORIZADA') {
+      compra = await capturar(cx, compra, await recuperarIntencion(compra));
+  }
+  
+  // 6. LA RESPUESTA AL MÓVIL DEL CLIENTE
+  // Se formatea todo el resultado (ticket, estado del pago, puntos ganados) 
+  // y se envía de vuelta al Frontend para que muestre la pantalla de "¡Pedido Exitoso!".
+  return resultado(cx, compra);
+  
+});
     }
   
     async function consultar(clave, contexto) {
@@ -1325,9 +1364,35 @@ await cx.query(
         
         if (compra.solicitud.metodo_pago === 'EFECTIVO') {
           compra = await cambiar(cx, compra, 'CONFIRMADA');
-          // PARAMETRIZACIÓN DE SEGURIDAD: Aunque sea 1 solo valor (compra.id_compra), 
-          // la librería exige ponerlo dentro de un Array [] para limpiar el dato y meterlo en el $1.
-          await cx.query("UPDATE Pedidos SET estado = 'PENDIENTE' WHERE id_compra = $1 AND estado = 'PROGRAMADO'", [compra.id_compra]);
+          // ============================================================================
+// TRANSICIÓN DE ESTADOS: ENVIANDO EL PEDIDO A LA COCINA
+// ============================================================================
+
+await cx.query(`
+  
+  -- 1. LA TABLA DESTINO
+  -- "Vamos a hacer una modificación en la tabla donde guardamos las comandas".
+  UPDATE Pedidos 
+  
+  -- 2. EL CAMBIO DE ESTADO
+  -- "A partir de este momento, el estado de estos platos deja de ser el que 
+  -- tenían antes y se convierte en 'PENDIENTE' (pendientes de cocinar)".
+  SET estado = 'PENDIENTE' 
+  
+  -- 3. EL DOBLE FILTRO DE SEGURIDAD (El francotirador con dos lentes)
+  -- Lente A: Solo modifica los platos que pertenezcan a ESTE número de ticket ($1).
+  WHERE id_compra = $1 
+  
+  -- Lente B: Y ADEMÁS, solo modifica los platos que estuvieran en estado 'PROGRAMADO'.
+  AND estado = 'PROGRAMADO'
+  
+`, [
+  
+  // 4. EL ARRAY DE MUNICIÓN
+  // Solo hay un hueco ($1) que rellenar en el texto de arriba.
+  compra.id_compra 
+  
+]);
         } else compra = await cambiar(cx, compra, 'AUTORIZADA');
         
         await cx.query('COMMIT');
@@ -1352,6 +1417,26 @@ await cx.query(
     const permitidos = ['PENDIENTE', 'EN COCINA', 'PREPARANDO', 'EN CAMINO', 'ENVIADO', 'ENTREGADO', 'CANCELADO', 'RECHAZADO'];
     if (!permitidos.includes(estado)) throw errorCompra('El estado del pedido no es válido.');
     
+
+    // 1. LOS APODOS (p. y c.)
+// En SQL, si vas a leer de dos tablas a la vez (ej. Pedidos y Compras),
+// da mucha pereza escribir el nombre completo todo el rato. Así que las bautizamos:
+// 'p' = Tabla de Pedidos (donde están los platos individuales).
+// 'c' = Tabla de Compras (donde está el ticket general).
+// 2. EL ASTERISCO (p.*)
+  // El asterisco significa "TODO". 
+  // Al poner p.* le estás diciendo a la base de datos: "De la tabla de Pedidos (p),
+  // no quiero tener que escribir las 10 columnas a mano. Tráeme ABSOLUTAMENTE TODAS
+  // las columnas que tenga esta tabla (nombre del plato, precio, cantidad, etc)".
+  // 3. EL RENOMBRAMIENTO OBLIGATORIO (c.estado AS estado_compra)
+  // De la tabla de Compras (c) solo queremos sacar 1 columna: su 'estado'.
+  // PERO HAY UN PROBLEMA: La tabla Pedidos (p) también tiene una columna llamada 'estado'.
+  // Si le enviamos a JavaScript dos datos llamados 'estado', el código explotará
+  // porque no sabrá cuál es el estado del plato y cuál es el estado del ticket general.
+  // 
+  // La palabra AS (como) le pone una pegatina encima al dato antes de enviarlo a Node.js:
+  // "Coge el estado de la tabla 'c', pero envíaselo a JavaScript disfrazado con 
+  // el nombre 'estado_compra'".
     const pedido = (await conexion.query('SELECT p.*, c.estado AS estado_compra FROM Pedidos p LEFT JOIN Compras c ON p.id_compra = c.id_compra WHERE p.id_pedido = $1', [idPedido])).rows[0];
     if (!pedido) throw errorCompra('El pedido no existe.');
     if (['ENTREGADO', 'CANCELADO', 'RECHAZADO'].includes(pedido.estado)) throw errorCompra('Este pedido ya ha finalizado.');
@@ -1360,6 +1445,20 @@ await cx.query(
     // MÁQUINA DE ESTADOS: Diccionario que asigna un valor numérico a cada estado.
     // Esto impide matemáticamente que el restaurante mueva un pedido hacia atrás.
     // Si intenta pasar de ENTREGADO (3) a PREPARANDO (1), la condición (1 < 3) se cumple y bloquea la acción.
+    // ============================================================================
+// SINTAXIS DE CLAVES (KEYS) EN OBJETOS JAVASCRIPT
+// ============================================================================
+
+// Al definir un Objeto Literal {}, los nombres de las propiedades (Keys) 
+// pueden escribirse sin comillas SIEMPRE Y CUANDO cumplan las reglas de los 
+// "Identificadores Válidos" de JavaScript:
+// 1. No contener espacios.
+// 2. No contener guiones (ej. 'en-cocina' fallaría sin comillas).
+// 3. No empezar por un número.
+//
+// Si la clave incumple alguna de estas reglas (como tener un espacio en blanco), 
+// es obligatorio envolver la clave en comillas simples ('') o dobles ("") 
+// para que el intérprete o motor V8 de Node.js la trate como un String completo.
     const etapas = { PENDIENTE: 0, PREPARANDO: 1, 'EN COCINA': 1, ENVIADO: 2, 'EN CAMINO': 2, ENTREGADO: 3 };
     if (etapas[estado] < etapas[pedido.estado]) throw errorCompra('Un pedido no puede volver a un estado anterior.');
     
