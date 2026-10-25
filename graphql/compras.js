@@ -817,13 +817,55 @@ try {
 }
   }
 
+
+
+
+
+
+
+
+
+
+
+////////////////
+
+
+
+
+
+
+
+
   // ============================================================================
   // GESTIÓN DE CANCELACIONES Y REEMBOLSOS (Idempotencia)
   // ============================================================================
   async function finalizarCancelacion(cx, compra) {
-    if (!compra.payment_intent_id) return cambiar(cx, compra, 'CANCELADA', compra.motivo);
+    // El símbolo de exclamación (!) al principio significa "NO existe", "está vacío" o "es nulo".
+// Le pregunta al objeto: "¿Es cierto que a esta compra le falta su código de Stripe?"
+    if (!compra.payment_intent_id) 
+      // EL RETURN DE DOBLE ACCIÓN (Freno + Repartidor)
+  // 1. Freno: Como está dentro de un 'if', sigue matando esta función al instante.
+  // 2. Repartidor: Como TIENE algo a su derecha, antes de morir le pasa "el paquete" 
+  // (el problema) a la función 'cambiar' para que ella se encargue de arreglar el desastre.
+      return cambiar(cx, compra, 'CANCELADA', compra.motivo);
     try {
+      // ============================================================================
+// EL PORQUÉ DEL 'AWAIT' Y QUÉ ES REALMENTE 'COMPRA'
+// ============================================================================
+
+// 1. ¿QUÉ ES 'COMPRA'?
+// Es simplemente un objeto JSON normal y corriente que vive en la memoria RAM 
+// de tu servidor en este momento. Es como el "ticket de papel" del restaurante.
+// Sí, sus datos se sacaron de la base de datos un poco antes, pero ahora 
+// mismo es solo un trozo de texto con datos como:
+// { id_compra: 5, estado: 'BORRADOR', payment_intent_id: 'pi_123...' }
+
+// 2. ¿POR QUÉ EL AWAIT?
+// El await afecta a la FUNCIÓN (la acción), no a la variable (el ticket).
       const intencion = await recuperarIntencion(compra);
+      // Es el equivalente en la vida real a decirle a un camarero:
+// "Toma este ticket (compra). Vete a la cocina a preguntar (recuperarIntencion) 
+// y ESPERA (await) allí quieto hasta que el cocinero (Stripe) te dé la respuesta (intencion)".
       comprobarIntencion(compra, intencion);
       
       // Si el pago ya había sido cobrado físicamente ('succeeded'), se debe emitir un REEMBOLSO.
@@ -844,8 +886,33 @@ try {
         return cambiar(cx, compra, 'REEMBOLSO_PENDIENTE', 'La devolución del pago está pendiente de confirmación.');
       }
       
-      // Si el dinero solo estaba "retenido" pero no cobrado, le decimos a Stripe que cancele esa retención.
-      if (intencion.status !== 'canceled') await stripe.paymentIntents.cancel(intencion.id, {}, { idempotencyKey: 'nexbite-cancelar-' + compra.id_compra });
+      // ============================================================================
+// LA REGLA DE LAS POSICIONES EN JAVASCRIPT (Firma de la función)
+// ============================================================================
+
+// El manual de Stripe dice que su función acepta hasta 3 parámetros en este orden:
+// stripe.paymentIntents.cancel( Identificador, Datos_del_negocio, Opciones_de_red )
+
+await stripe.paymentIntents.cancel(
+  
+  // HUECO 1: Identificador (Obligatorio)
+  // Siempre tiene que ser el texto con el ID del cobro ('pi_123').
+  intencion.id, 
+  
+  // HUECO 2: Datos del negocio (Opcional, pero posicionalmente necesario)
+  // Aquí Stripe permite enviar información como { cancellation_reason: 'fraudulent' }.
+  // Tu código no necesita enviar un motivo, pero en JavaScript no puedes "saltarte" 
+  // el hueco 2 para llegar al hueco 3. Si pones el hueco 3 en la segunda posición, 
+  // Stripe pensará que es el hueco 2 y explotará.
+  // Por eso ponemos {} (un objeto vacío). Sirve como un "puente" para rellenar el espacio.
+  {}, 
+  
+  // HUECO 3: Opciones de Red (Opcional)
+  // Aquí es donde el manual de Stripe dice que debes poner configuraciones 
+  // de seguridad del servidor, como la clave de idempotencia.
+  { idempotencyKey: 'nexbite-cancelar-' + compra.id_compra }
+  
+);
       return cambiar(cx, compra, 'CANCELADA', compra.motivo);
     } catch (error) {
       // Si ocurre un error, imprime el código de error. El || 'CONEXION' significa: 
@@ -891,15 +958,49 @@ try {
       // Seguridad: Comprueba que Stripe capturó el importe exacto que cuesta el carrito.
       if (intencion.amount_received !== compra.total_centimos) return cancelar(cx, compra, 'El importe recibido no coincide con el pedido. Se ha cancelado y se tramitará su devolución.');
       
-      await cx.query('BEGIN');
-      try {
-        compra = await cambiar(cx, compra, 'CONFIRMADA');
-        await cx.query("UPDATE Pedidos SET estado = 'PENDIENTE' WHERE id_compra = $1 AND estado = 'PROGRAMADO'", [compra.id_compra]);
-        await cx.query('COMMIT');
-      } catch (error) { await cx.query('ROLLBACK'); throw error; }
-      
-      await notificarUnaVez(cx, compra);
-      return compra;
+      // ============================================================================
+// TRANSACCIONES DE BASE DE DATOS (EL PRINCIPIO DE "TODO O NADA")
+// ============================================================================
+
+// [1. BEGIN: Abre la caja de arena (Modo Simulador)]
+// Le dice a PostgreSQL: "A partir de ahora, todo lo que te pida, guárdalo 
+// en una memoria temporal secreta. No cambies la base de datos real todavía".
+await cx.query('BEGIN');
+
+try {
+  // [2. OPERACIONES CRÍTICAS: El bloque de riesgo]
+  // Paso A: Marcamos el carrito entero (Compra) como CONFIRMADO.
+  compra = await cambiar(cx, compra, 'CONFIRMADA');
+  
+  // Paso B: Marcamos cada plato individual (Pedidos) como PENDIENTE de cocinar.
+  await cx.query("UPDATE Pedidos SET estado = 'PENDIENTE' WHERE id_compra = $1 AND estado = 'PROGRAMADO'", [compra.id_compra]);
+  
+  // [3. COMMIT: El botón de "Guardar Oficialmente"]
+  // Si el ordenador llega a esta línea, significa que el Paso A y el Paso B 
+  // funcionaron sin dar errores. Le decimos a PostgreSQL: "Todo ha ido perfecto, 
+  // fusiona los cambios de la memoria temporal en la base de datos real".
+  await cx.query('COMMIT');
+  
+} catch (error) { 
+  
+  // [4. ROLLBACK: La máquina del tiempo (Ctrl + Z)]
+  // Si CUALQUIER línea dentro del 'try' falla (ej: el Paso B da error de sintaxis 
+  // o el servidor pierde conexión), JavaScript salta aquí. 
+  // El ROLLBACK le grita a PostgreSQL: "¡Cancela todo! Borra la memoria temporal 
+  // y deja la base de datos exactamente como estaba antes del BEGIN".
+  await cx.query('ROLLBACK'); 
+  
+  // Vuelve a lanzar el error hacia arriba para que tu servidor sepa que hubo un fallo grave.
+  throw error; 
+}
+
+// [5. FUERA DE LA TRANSACCIÓN: Las consecuencias]
+// Como ya estamos 100% seguros de que la base de datos guardó los cambios con éxito,
+// ahora sí es seguro enviar el WhatsApp o Email al restaurante.
+await notificarUnaVez(cx, compra);
+
+// Devuelve el objeto del carrito actualizado al Frontend.
+return compra;
     }
     
     if (intencion.status === 'canceled') return cancelar(cx, compra, 'La autorización bancaria ha caducado. No se ha cobrado la compra.');
@@ -920,17 +1021,92 @@ try {
       if (intencion.status === 'canceled') return cancelar(cx, compra, 'La autorización se ha cancelado. No se ha cobrado la compra.');
       if (intencion.status !== 'requires_capture') throw errorCompra('Completa la autorización de tu tarjeta para confirmar el pedido.', 'AUTORIZACION_PENDIENTE');
       
-      // 'capture_before' lee de Stripe en qué momento exacto caducará la retención del dinero en el banco.
-      // (Los '?' evitan que la aplicación se rompa si el dato no viene en la respuesta).
-      const limite = intencion.latest_charge?.payment_method_details?.card?.capture_before;
+      // ============================================================================
+// EXTRACCIÓN SEGURA DE DATOS PROFUNDOS (OPTIONAL CHAINING)
+// ============================================================================
+
+// El objetivo de esta línea NO es recolectar todos los datos del camino, 
+// sino viajar a través del "árbol" de información de Stripe para agarrar 
+// EXCLUSIVAMENTE el último dato de la derecha (capture_before).
+
+// Los símbolos '?.' actúan como "puertas de seguridad" que el ordenador 
+// va abriendo de izquierda a derecha:
+// 1. Abre latest_charge -> ¿Existe? Sí, sigue el viaje.
+// 2. Abre payment_method_details -> ¿Existe? Sí, sigue.
+// 3. Abre card -> ¿Existe? (Si pagó con Bizum o ApplePay, aquí no habrá tarjeta).
+//
+// Si el ordenador se encuentra una puerta que NO existe, el '?.' hace que 
+// aborte el viaje de inmediato y guarde 'undefined' (vacío) en la variable, 
+// salvando así al servidor de sufrir un error fatal y colapsar.
+//
+// Si todas las puertas existen, guarda en la variable 'limite' un único 
+// dato: un número gigante (Timestamp) que representa la fecha límite del banco.
+const limite = intencion.latest_charge?.payment_method_details?.card?.capture_before;
       
       // Calcula la fecha de vencimiento. Si Stripe dio un límite, lo multiplica por 1000 
       // (para pasar de segundos a milisegundos). Si no, le suma 5 días por defecto.
       const vencimiento = new Date(limite ? limite * 1000 : (intencion.created * 1000 || ahora().getTime()) + 5 * 86400_000);
       
-      // Compara la fecha de entrega del pedido vs la fecha en que caduca la retención del banco.
-      // Si el cliente pide la comida para un día en el que el dinero ya no estará retenido, cancela la compra.
-      if (new Date(compra.solicitud.fecha_programada || ahora()) >= new Date(vencimiento.getTime() - 30 * 60_000)) {
+      // ============================================================================
+// VALIDACIÓN DE TIEMPO: EL MARGEN DE SEGURIDAD DE 30 MINUTOS
+// ============================================================================
+
+if (
+  // --------------------------------------------------------------------------
+  // LADO IZQUIERDO: ¿CUÁNDO SE TIENE QUE ENTREGAR EL PEDIDO?
+  // --------------------------------------------------------------------------
+  // El operador || (O) actúa como un valor por defecto (fallback).
+  // Si el cliente eligió una hora para más tarde, usa 'fecha_programada'.
+  // Si el cliente pidió la comida para YA (el campo está vacío), usa 'ahora()'.
+  // new Date(...) envuelve esa fecha para poder compararla matemáticamente.
+  new Date(compra.solicitud.fecha_programada || ahora()) 
+  
+  >= // ¿Es MAYOR O IGUAL? (En fechas, "mayor" significa "después en el tiempo")
+  
+  // --------------------------------------------------------------------------
+  // LADO DERECHO: EL LÍMITE DEL BANCO MENOS EL COLCHÓN DE SEGURIDAD
+  // --------------------------------------------------------------------------
+  // 1. vencimiento.getTime(): Transforma la fecha límite del banco en un número
+  //    gigante de milisegundos para poder hacer operaciones matemáticas.
+  // 2. 30 * 60_000: Calcula cuántos milisegundos hay en 30 minutos. 
+  //    (Nota: El guion bajo en 60_000 es solo un separador visual de JavaScript 
+  //    para que los humanos leamos "sesenta mil" más fácilmente).
+  // 3. La resta (-): Al límite del banco le quitamos esos 30 minutos.
+  // 4. new Date(...): Volvemos a convertir ese número matemático en una Fecha real.
+  new Date(vencimiento.getTime() - 30 * 60_000)
+) 
+// Si entramos aquí, significa que la fecha de entrega ocurre DEMASIADO CERCA 
+  // (o incluso después) de que el banco nos quite el dinero. ¡Peligro!
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ///////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+{
         await cancelar(cx, compra, 'La fecha elegida supera la autorización de esta tarjeta. Reserva con efectivo o elige una hora más cercana.');
         throw errorCompra('La fecha elegida supera la autorización de esta tarjeta. No se ha cobrado: reserva con efectivo o elige otra hora.', 'AUTORIZACION_CORTA');
       }
