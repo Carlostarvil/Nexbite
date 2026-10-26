@@ -209,7 +209,47 @@ Query: {
 
 
     
-    obtenerMenuRestaurante: async (_, { id_restaurante }) => {
+    // ============================================================================
+// RESOLVER RAÍZ: LA PUERTA DE ENTRADA AL MENÚ DEL RESTAURANTE
+// ============================================================================
+
+// 'obtenerMenuRestaurante' es el nombre de la función que el cliente (la app) 
+// llama cuando quiere ver la carta.
+obtenerMenuRestaurante: async (
+  
+  // --------------------------------------------------------------------------
+  // POSICIÓN 1: EL PADRE (LA MANO IZQUIERDA DEL MENSAJERO)
+  // --------------------------------------------------------------------------
+  // Por reglas del motor de GraphQL, esta posición siempre recibe el resultado 
+  // de la búsqueda anterior. 
+  // Como esta es la consulta inicial (el cliente acaba de abrir la app y no hay 
+  // pasos previos), esta caja nos llega completamente vacía.
+  // 
+  // ¿Por qué ponemos el guion bajo '_'? 
+  // Actúa como un "cono de tráfico". Le dice a JavaScript: "Sé que me obligas 
+  // a recibir un dato aquí, pero como es inútil, lo marco con un guion bajo 
+  // para tirarlo a la basura e impedir que la Posición 2 se ruede hacia la izquierda".
+  _, 
+  
+  // --------------------------------------------------------------------------
+  // POSICIÓN 2: LOS ARGUMENTOS (LA MANO DERECHA DEL MENSAJERO)
+  // --------------------------------------------------------------------------
+  // Esta posición recibe el paquete con lo que el usuario ha tecleado en su móvil 
+  // (un Objeto que podría traer muchas variables mezcladas).
+  // 
+  // ¿Por qué usamos llaves { }? (Object Destructuring)
+  // En lugar de meter todo el paquete entero a la cocina, usamos las llaves 
+  // para abrir la caja directamente en la puerta de entrada. Extraemos 
+  // quirúrgicamente solo el número que nos interesa ('id_restaurante') y el 
+  // resto de variables (si las hubiera) se destruyen para proteger el servidor.
+  { id_restaurante }
+
+) => {
+  // 'async' avisa a Node.js: "A partir de esta flecha (=>), voy a tener que 
+  // ir a la base de datos (la cocina). No me esperes bloqueado, atiende a otros 
+  // clientes mientras yo busco los datos, porque voy a tardar unos milisegundos".
+  
+  // ... aquí iría el código SQL para buscar los platos (el await)
       const res = await pool.query('SELECT * FROM Platos WHERE id_restaurante = $1', [id_restaurante]);
       const ahora = new Date();
       for (let plato of res.rows) {
@@ -232,6 +272,21 @@ Query: {
 
     obtenerPedidosVendedor: async (_, { id_restaurante }) => (await pool.query(`SELECT pe.*, c.estado AS estado_pago, c.motivo AS mensaje_pago, COALESCE(pe.nombre_producto, pl.nombre) AS nombre_plato, pl.imagen_url AS imagen_plato FROM Pedidos pe LEFT JOIN Platos pl ON pe.id_plato = pl.id_plato LEFT JOIN Compras c ON c.id_compra = pe.id_compra WHERE pe.id_restaurante = $1 ORDER BY pe.id_pedido DESC`, [id_restaurante])).rows,
 
+
+    // ============================================================================
+// FUNCIÓN SQL COALESCE (MANEJO DE VALORES NULOS / FALLBACKS)
+// ============================================================================
+
+// COALESCE(arg1, arg2, ..., argN) es una función estándar de SQL que evalúa 
+// sus argumentos en orden y devuelve el primer valor que NO sea NULL.
+//
+// Propósito arquitectónico:
+// Se utiliza como un mecanismo de "Fallback" (respaldo) o valor por defecto. 
+// En bases de datos relacionales, es común tener campos condicionales (ej. un 
+// alias personalizado que sobrescribe el nombre por defecto). 
+// COALESCE previene que la consulta retorne NULL a la aplicación (lo que 
+// podría causar errores de Frontend), asegurando que siempre se entregue 
+// un dato válido basado en una jerarquía de prioridades.
     obtenerPedidosCliente: async (_, { id_usuario }) => {
       const res = await pool.query(`
         SELECT pe.id_pedido, pe.id_restaurante, pe.id_plato, pe.estado, pe.metodo_pago, pe.direccion_envio, pe.fecha_programada, pe.fecha_pedido, pe.id_compra, c.estado AS estado_pago, c.motivo AS mensaje_pago,
@@ -252,35 +307,106 @@ Query: {
       return res.rows[0];
     },
 
-    obtenerResenasRestaurante: async (_, { id_restaurante }) => {
-      try {
-        const result = await pool.query(
-          `SELECT r.id_resena, u.nombre AS nombre_usuario, r.puntuacion, r.comentario, r.fecha 
-           FROM resenas r 
-           JOIN Usuarios u ON r.id_usuario = u.id_usuario 
-           WHERE r.id_restaurante = $1 
-           ORDER BY r.id_resena DESC`,
-          [id_restaurante]
-        );
-        return result.rows;
-      } catch (error) {
-        console.error("Error obteniendo reseñas:", error);
-        return [];
-      }
-    }
+    obtenerResenasRestaurante: async (
+  
+  // 1. LA FIRMA DE GRAPHQL (POSICIONES ESTRICTAS)
+  // El '_' (Posición 1): Ocupa el espacio del 'parent' vacío. Actúa como un cono de 
+  // tráfico para que la Posición 2 no se ruede hacia la izquierda.
+  // El '{ id_restaurante }' (Posición 2): Usa "Destructuring" para abrir la caja 
+  // de argumentos del cliente en la misma puerta, extrayendo solo el ID y 
+  // descartando posibles datos basura o maliciosos.
+  _, { id_restaurante }
+
+) => {
+  
+  // 2. EL PLAN A: EL INTENTO (BLOQUE TRY)
+  // 'async' permite usar 'await'. El servidor intenta ejecutar esto, pausando 
+  // la función (sin bloquear a otros usuarios) hasta que la base de datos responda.
+  try {
+    const result = await pool.query(
+      
+      // 3. LA CONSULTA SQL (JOIN Y PARÁMETROS DE SEGURIDAD)
+      // Se usa un JOIN normal para fusionar la tabla 'resenas' con 'Usuarios', 
+      // de modo que la app pueda mostrar el nombre del cliente que dejó el comentario.
+      `SELECT r.id_resena, u.nombre AS nombre_usuario, r.puntuacion, r.comentario, r.fecha 
+       FROM resenas r 
+       JOIN Usuarios u ON r.id_usuario = u.id_usuario 
+       WHERE r.id_restaurante = $1 
+       ORDER BY r.id_resena DESC`, // DESC: Las reseñas más nuevas salen primero.
+      
+      // 4. LOS CORCHETES DE MUNICIÓN (PARÁMETROS SQL)
+      // Cargamos el 'id_restaurante' en estos corchetes para inyectarlo de forma 
+      // segura en el hueco '$1'. Esto evita las Inyecciones SQL (hackeos).
+      [id_restaurante]
+    );
+    
+    // 5. DEVOLVER UNA COLECCIÓN (MÚLTIPLES FILAS)
+    // Como un restaurante tiene MUCHAS reseñas (Relación 1:N), devolvemos 
+    // la caja entera (result.rows). No usamos [0] porque eso borraría 
+    // todas las reseñas excepto la primera.
+    return result.rows;
+    
+  } 
+  
+  // 6. EL PLAN B: EL SALVAVIDAS (BLOQUE CATCH)
+  // Si el servidor de base de datos se cae, o la consulta SQL falla, 
+  // Node.js aborta el 'try' y salta directamente aquí para no colapsar.
+  catch (error) {
+    // Registramos el error de forma interna para que el programador lo lea.
+    console.error("Error obteniendo reseñas:", error);
+    
+    // 7. DEVOLVER EL FALLBACK (GRACEFUL DEGRADATION)
+    // LOS CORCHETES VACÍOS: Devolvemos un Array en blanco. La app del móvil 
+    // esperaba una lista de reseñas; al darle una lista vacía, el móvil simplemente 
+    // mostrará "No hay reseñas", evitando que la pantalla explote o se cuelgue.
+    return [];
+  }
+}
   },
 
   // Los resolvers de campos calculan valores derivados, como la media de reseñas del local.
-  Restaurante: {
-    calificacion: async (parent) => {
-      try {
-        const res = await pool.query('SELECT AVG(puntuacion) as media FROM resenas WHERE id_restaurante = $1', [parent.id_restaurante]);
-        return res.rows[0].media ? parseFloat(res.rows[0].media) : 0.0;
-      } catch (error) {
-        return 0.0;
-      }
+  // ============================================================================
+// RESOLVER DE TIPO (FIELD RESOLVER): CALCULANDO DATOS EN VIVO
+// ============================================================================
+
+// Cuando GraphQL encuentra un objeto de tipo 'Restaurante', lee estas instrucciones
+// para saber cómo rellenar sus campos especiales.
+Restaurante: {
+  
+  // 1. EL USO REAL DE LA POSICIÓN 1 (EL TESTIGO DEL RELEVO)
+  // ¿Recuerdas que antes poníamos un '_' porque no había paso previo?
+  // Aquí SÍ hay paso previo. GraphQL ya buscó el restaurante en la base de datos 
+  // y nos pasa todos sus datos en la caja de la izquierda: el 'parent' (el padre).
+  calificacion: async (parent) => {
+    try {
+      
+      // 2. EL CÁLCULO EN LA BASE DE DATOS (AVG)
+      // Extraemos el ID del restaurante de esa caja padre (parent.id_restaurante).
+      // AVG(puntuacion): Es una orden para PostgreSQL. Le decimos: "No me traigas 
+      // todas las reseñas, coge todas las puntuaciones, súmalas, divídelas y 
+      // devuélveme solo la media matemática".
+      const res = await pool.query(
+        'SELECT AVG(puntuacion) as media FROM resenas WHERE id_restaurante = $1', 
+        [parent.id_restaurante]
+      );
+      
+      // 3. EL OPERADOR TERNARIO (EL PLAN B EN UNA SOLA LÍNEA)
+      // ¿Qué pasa si el restaurante es nuevo y no tiene NINGUNA reseña? 
+      // La base de datos nos devolvería un NULL en la media.
+      // Esta línea hace una pregunta (marcada por el '?'):
+      // ¿Existe la media? 
+      //   -> SI ES SÍ (antes de los dos puntos): conviértela a número decimal (parseFloat).
+      //   -> SI ES NO (después de los dos puntos): devuelve un triste 0.0.
+      return res.rows[0].media ? parseFloat(res.rows[0].media) : 0.0;
+      
+    } catch (error) {
+      // 4. EL SALVAVIDAS (GRACEFUL DEGRADATION)
+      // Si la base de datos explota, la app no se cuelga. El restaurante 
+      // simplemente aparecerá con un 0.0 de nota en la pantalla.
+      return 0.0;
     }
-  },
+  }
+},
   
   RestauranteConDistancia: {
     calificacion: async (parent) => {
@@ -293,79 +419,196 @@ Query: {
     }
   },
   
-  Mutation: {
-    actualizarPerfilUsuario: async (_, { id_usuario, telefono, direccion }) => {
-      const res = await pool.query(
-        'UPDATE Usuarios SET telefono = $1, direccion = $2 WHERE id_usuario = $3 RETURNING *',
-        [telefono, direccion, id_usuario]
-      );
-      return res.rows[0];
-    },
+  // ============================================================================
+// MUTATION: ACTUALIZANDO DATOS (FLUJO COMPLETO DE IDA Y VUELTA)
+// ============================================================================
 
-    solicitarRecuperacionPassword: async (_, { identificador }) => {
-      const res = await pool.query('SELECT id_usuario, nombre, email FROM Usuarios WHERE email ILIKE $1 OR nombre ILIKE $1', [identificador]);
+Mutation: {
+  
+  // 'actualizarPerfilUsuario' es la función llamada desde el móvil.
+  // Al estar dentro de 'Mutation' (y no de Query), le indica al sistema 
+  // que vamos a escribir o modificar datos, no solo a leerlos.
+  actualizarPerfilUsuario: async (
+    
+    // 1. POSICIÓN 1 (EL PADRE): El guion bajo '_'
+    // Ocupa el primer hueco obligatorio de GraphQL. Como esto es una operación 
+    // principal (no hay paso previo), el dato 'parent' llega vacío. Usamos '_' 
+    // como "cono de tráfico" para descartarlo y mantener las posiciones en orden.
+    _, 
+    
+    // 2. POSICIÓN 2 (LOS ARGUMENTOS): Destructuring '{ ... }'
+    // En lugar de meter toda la caja de datos enviada por el cliente, usamos 
+    // las llaves para extraer en la misma puerta exactamente los tres datos 
+    // que necesitamos. Si un atacante envía variables extra ocultas, se destruyen.
+    { id_usuario, telefono, direccion }
+    
+  ) => {
+    
+    // 3. ASINCRONÍA ('async' y 'await')
+    // Le decimos al servidor que espere la respuesta de la base de datos sin 
+    // quedarse bloqueado. El restaurante sigue atendiendo a otros mientras tanto.
+    const res = await pool.query(
+      
+      // 4. LA CONSULTA SQL Y EL VIAJE DE VUELTA (RETURNING *)
+      // Hacemos el UPDATE. Como normalmente PostgreSQL solo responde "Ok, modificado", 
+      // le añadimos 'RETURNING *'. Esto obliga a la base de datos a generar 
+      // el "Viaje de Vuelta": nos devuelve la ficha completa del usuario 
+      // (con todos sus campos, antiguos y nuevos) tal y como ha quedado.
+      'UPDATE Usuarios SET telefono = $1, direccion = $2 WHERE id_usuario = $3 RETURNING *',
+      
+      // 5. EL VIAJE DE IDA (PARÁMETROS DE SEGURIDAD)
+      // [telefono, direccion, id_usuario]
+      // Esto NO es el resultado final. Es la munición que inyectamos en los 
+      // huecos $1, $2 y $3. Al separarlo del texto SQL, evitamos Inyecciones SQL.
+      [telefono, direccion, id_usuario]
+    );
+    
+    // 6. EL DESEMPAQUETADO FINAL (res.rows[0])
+    // PostgreSQL SIEMPRE devuelve los resultados dentro de una caja (Array: res.rows).
+    // Como hemos actualizado a un solo cliente (buscado por su ID único), la caja 
+    // trae exactamente una sola ficha dentro.
+    // Usamos el índice [0] para abrir la caja, aislar el objeto limpio del perfil 
+    // y enviárselo al móvil para que la pantalla se actualice al instante.
+    return res.rows[0];
+  
+},
 
-      if (res.rows.length > 0) {
-        const usuario = res.rows[0];
-        const token = crypto.randomBytes(32).toString('hex');
-        const expira = new Date(Date.now() + 3600000);
+    // ============================================================================
+// FLUJO COMPLETO: RECUPERACIÓN DE CONTRASEÑA (MUTATION)
+// ============================================================================
 
-        await pool.query('UPDATE Usuarios SET reset_token = $1, reset_token_expira = $2 WHERE id_usuario = $3', [token, expira, usuario.id_usuario]);
+solicitarRecuperacionPassword: async (
+  
+  // 1. LA PUERTA DE ENTRADA (GRAPHQL)
+  // '_' -> Descartamos el paso anterior (parent).
+  // '{ identificador }' -> Extraemos directamente lo que el usuario escribió 
+  // en la app (puede ser su nombre o su correo).
+  _, { identificador }
 
-        const resetLink = `http://localhost:5173/?resetToken=${token}`;
+) => {
+  
+  // 2. PASO INTERMEDIO 1: BUSCAR AL USUARIO (Lectura)
+  // ILIKE: Es el recepcionista tolerante. A diferencia del '=', ILIKE ignora 
+  // las mayúsculas. Da igual si el usuario escribe "CARLOS@email.com" o "carlos@email.com".
+  // Usamos 'const res =' porque necesitamos leer lo que devuelve la caja.
+  // NO hay 'return' aquí porque la función no ha terminado.
+  const res = await pool.query(
+    'SELECT id_usuario, nombre, email FROM Usuarios WHERE email ILIKE $1 OR nombre ILIKE $1', 
+    [identificador]
+  );
 
-        console.log(`\n🔍 Recuperación solicitada para: ${identificador}`);
-        console.log(`📧 Intentando enviar correo a: ${usuario.email}...`);
+  // 3. LA COMPROBACIÓN DE LA CAJA
+  // Si la caja tiene más de 0 papeles dentro, significa que el usuario sí existe.
+  if (res.rows.length > 0) {
+    
+    // Abrimos la caja y sacamos el primer y único papel (la ficha del usuario).
+    const usuario = res.rows[0];
+    
+    // Fabricamos la llave temporal (token) y le damos 1 hora de vida.
+    const token = crypto.randomBytes(32).toString('hex');
+    const expira = new Date(Date.now() + 3600000);
 
-        try {
-          await transporter.sendMail({
-            from: `"Soporte NexBite" <${process.env.EMAIL_USER}>`,
-            to: usuario.email,
-            subject: '🔒 Restablecer contraseña - NexBite',
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                <h2 style="color: #ff4500;">Hola ${usuario.nombre},</h2>
-                <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en NexBite.</p>
-                <p>Este enlace es de un solo uso y <b>caducará en 1 hora</b> por motivos de seguridad.</p>
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${resetLink}" style="background-color: #0066cc; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">Restablecer Mi Contraseña</a>
-                </div>
-                <p style="font-size: 12px; color: #666;">Si no has solicitado este cambio, puedes ignorar este correo de forma segura. Tu cuenta sigue protegida.</p>
-              </div>
-            `
-          });
-          console.log("✅ ¡Correo enviado con éxito!");
-        } catch (error) {
-          console.error("❌ ERROR AL ENVIAR CORREO:", error.message);
-        }
-      } else {
-        console.log(`⚠️ ALERTA: Alguien intentó recuperar la cuenta '${identificador}' pero no existe en la base de datos.`);
-      }
+    // 4. PASO INTERMEDIO 2: GUARDAR LA LLAVE (Escritura / Fire and Forget)
+    // Actualizamos la base de datos con el token temporal.
+    // NO usamos 'const res =' ni 'RETURNING *' porque no necesitamos leer 
+    // cómo quedó la fila, solo necesitamos que PostgreSQL anote el dato.
+    await pool.query(
+      'UPDATE Usuarios SET reset_token = $1, reset_token_expira = $2 WHERE id_usuario = $3', 
+      [token, expira, usuario.id_usuario]
+    );
 
-      return "Si el usuario o correo existe en nuestra base de datos, te hemos enviado un enlace para restablecer la contraseña.";
-    },
+    // Preparamos el enlace mágico que el usuario pinchará en su correo.
+    const resetLink = `http://localhost:5173/?resetToken=${token}`;
 
-    restablecerPassword: async (_, { token, nueva_password }) => {
-      const res = await pool.query('SELECT id_usuario, password_hash FROM Usuarios WHERE reset_token = $1 AND reset_token_expira > NOW()', [token]);
+    console.log(`\n🔍 Recuperación solicitada para: ${identificador}`);
+    console.log(`📧 Intentando enviar correo a: ${usuario.email}...`);
 
-      if (res.rows.length === 0) {
-        throw new Error('⛔ El enlace de recuperación es inválido o ha caducado. Por favor, solicita uno nuevo.');
-      }
+    // 5. EL PLAN DE EMERGENCIA PARA EL CORREO (try / catch)
+    // Enviar correos depende de un servidor externo (ej. Gmail, SendGrid).
+    // Si ese servidor externo está caído, el código fallará. Al envolverlo 
+    // en un try/catch, evitamos que nuestro servidor se bloquee.
+    try {
+      await transporter.sendMail({
+        from: `"Soporte NexBite" <${process.env.EMAIL_USER}>`,
+        to: usuario.email,
+        subject: '🔒 Restablecer contraseña - NexBite',
+        html: `... (código HTML del correo) ...`
+      });
+      console.log("✅ ¡Correo enviado con éxito!");
+    } catch (error) {
+      console.error("❌ ERROR AL ENVIAR CORREO:", error.message);
+    }
+    
+  } else {
+    // Si la caja (res.rows) venía vacía, el usuario no existe.
+    // Solo lo registramos en nuestra terminal interna por seguridad.
+    console.log(`⚠️ ALERTA: Alguien intentó recuperar la cuenta '${identificador}' pero no existe en la base de datos.`);
+  }
 
-      const usuario = res.rows[0];
-      const esMismaPassword = await bcrypt.compare(nueva_password, usuario.password_hash);
+  // 6. LA PUERTA DE SALIDA (EL RETURN DEFINITIVO Y DE SEGURIDAD)
+  // Fíjate que devolvemos ESTE mismo mensaje TANTO SI el usuario existía COMO SI NO.
+  // ¿Por qué? Si le dijéramos "El usuario no existe", un hacker podría probar 
+  // miles de correos para descubrir quién está registrado en la app.
+  return "Si el usuario o correo existe en nuestra base de datos, te hemos enviado un enlace para restablecer la contraseña.";
+},
 
-      if (esMismaPassword) {
-        throw new Error('⚠️ La nueva contraseña no puede ser igual a la actual. Por favor, elige una diferente.');
-      }
+    // ============================================================================
+// SEGURIDAD CRIPTOGRÁFICA: BCRYPT Y CONTRASEÑAS
+// ============================================================================
 
-      const salt = await bcrypt.genSalt(10);
-      const nuevo_hash = await bcrypt.hash(nueva_password, salt);
+restablecerPassword: async (_, { token, nueva_password }) => {
+  
+  // 1. VERIFICAR LA LLAVE (El SELECT)
+  // Comprobamos si el token existe Y si todavía es válido (NOW() es la hora actual).
+  const res = await pool.query(
+    'SELECT id_usuario, password_hash FROM Usuarios WHERE reset_token = $1 AND reset_token_expira > NOW()', 
+    [token]
+  );
 
-      await pool.query('UPDATE Usuarios SET password_hash = $1, reset_token = NULL, reset_token_expira = NULL WHERE id_usuario = $2', [nuevo_hash, usuario.id_usuario]);
+  // Si la caja viene vacía, la llave es falsa o ha caducado. 
+  // 'throw new Error' expulsa al usuario inmediatamente y corta la función.
+  if (res.rows.length === 0) {
+    throw new Error('⛔ El enlace de recuperación es inválido o ha caducado. Por favor, solicita uno nuevo.');
+  }
 
-      return "✅ Tu contraseña ha sido actualizada con éxito. Ya puedes iniciar sesión.";
-    },
+  // Extraemos la ficha del usuario.
+  const usuario = res.rows[0];
+  
+  // 2. LA PRUEBA DEL SABOR (COMPARE)
+  // bcryp.compare() no descifra la contraseña vieja. Lo que hace es "batir" 
+  // la 'nueva_password' y comprobar si el resultado coincide exactamente con 
+  // el puré viejo ('usuario.password_hash').
+  const esMismaPassword = await bcrypt.compare(nueva_password, usuario.password_hash);
+
+  // Si los dos purés son iguales, le decimos que no puede reciclar la contraseña.
+  if (esMismaPassword) {
+    throw new Error('⚠️ La nueva contraseña no puede ser igual a la actual. Por favor, elige una diferente.');
+  }
+
+  // 3. GENERAR LA SAL (SALT)
+  // Fabricamos un texto aleatorio (Sal). El '10' significa 2^10 iteraciones. 
+  // Esto hace que la encriptación tarde unos milisegundos extra, lo suficiente 
+  // para que un hacker tarde años en probar combinaciones por fuerza bruta.
+  const salt = await bcrypt.genSalt(10);
+  
+  // 4. ENCENDER LA BATIDORA (HASH)
+  // Mezclamos la 'nueva_password' limpia con la 'salt' aleatoria.
+  // El resultado es el 'nuevo_hash' (ej: $2b$10$wI8a5G... irreconocible).
+  const nuevo_hash = await bcrypt.hash(nueva_password, salt);
+
+  // 5. GUARDAR Y LIMPIAR (El UPDATE final)
+  // Guardamos el nuevo hash en la base de datos.
+  // IMPORTANTE: Ponemos 'reset_token = NULL' para destruir la llave temporal. 
+  // Si no hiciéramos esto, un hacker podría usar el mismo enlace del correo 
+  // una y otra vez hasta que caduque la hora.
+  await pool.query(
+    'UPDATE Usuarios SET password_hash = $1, reset_token = NULL, reset_token_expira = NULL WHERE id_usuario = $2', 
+    [nuevo_hash, usuario.id_usuario]
+  );
+
+  // 6. LA PUERTA DE SALIDA
+  return "✅ Tu contraseña ha sido actualizada con éxito. Ya puedes iniciar sesión.";
+},
 
     ...operacionesPago.Mutation,
     ...compras.Mutation,
@@ -394,18 +637,65 @@ Query: {
         throw new Error('Este nombre de usuario ya está en uso. Por favor, elige otro.');
       }
 
-      const salt = await bcrypt.genSalt(10);
-      const password_hash = await bcrypt.hash(password, salt);
+      // ============================================================================
+// SEGURIDAD CRIPTOGRÁFICA: GENERACIÓN DEL HASH DE CONTRASEÑA
+// ============================================================================
+
+// 1. PREPARANDO LAS ESPECIAS SECRETAS (EL SALT)
+// bcrypt: Es la librería externa que hemos descargado (nuestra batidora industrial).
+// genSalt(10): Genera el "Salt", que NO es un simple número, sino una cadena 
+// aleatoria de letras y símbolos. El número '10' es el "Cost Factor": obliga a 
+// la máquina a dar miles de vueltas para que el cálculo sea intencionadamente 
+// lento y frustre los ataques de los hackers.
+// 'await': Como es un proceso lento, pausamos esta función para no bloquear el servidor.
+const salt = await bcrypt.genSalt(10);
+
+// 2. CREANDO EL PURÉ IRREVERSIBLE (EL HASH)
+// .hash(): Es el método (botón de encendido) integrado en la librería externa.
+// Toma exactamente dos valores: la 'password' original (texto legible) y 
+// el 'salt' (las especias).
+// IMPORTANTE: Esto NO es "encriptar" (que se puede revertir), esto es "hashear" 
+// (un viaje de destrucción de solo ida). El resultado es un código indescifrable 
+// que guardaremos en la base de datos para proteger al usuario.
+const password_hash = await bcrypt.hash(password, salt);
       const res = await pool.query(
         'INSERT INTO Usuarios (nombre, email, password_hash, rol) VALUES ($1, $2, $3, $4) RETURNING id_usuario, nombre, email, rol, puntos_acumulados',
         [nombre, email, password_hash, rol]
       );
 
-      const token = jwt.sign(
-        { id_usuario: res.rows[0].id_usuario, rol: res.rows[0].rol },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
-      );
+      // ============================================================================
+// JWT (JSON WEB TOKEN): FABRICANDO EL PASE VIP DEL USUARIO
+// ============================================================================
+
+// jwt.sign() es la máquina que fabrica las pulseras. Toma 3 argumentos clave.
+const token = jwt.sign(
+  
+  // 1. EL PAYLOAD (Los datos públicos)
+  // ¿Por qué usamos res.rows[0]? Porque venimos de hacer un SELECT en la base 
+  // de datos. De esa ficha única extraemos su 'id' y su 'rol'.
+  // Propósito: Cuando el usuario vuelva mañana a pedir un plato, el servidor 
+  // solo tendrá que leer esta pulsera para saber quién es y si tiene permisos 
+  // (sin tener que ir a buscarlo a la base de datos otra vez).
+  { id_usuario: res.rows[0].id_usuario, rol: res.rows[0].rol },
+  
+  // 2. LA FIRMA SECRETA (El sello holográfico anti-falsificaciones)
+  // 'process.env' es una caja fuerte del servidor donde se guardan las contraseñas 
+  // del sistema. 'JWT_SECRET' es un texto larguísimo que solo el servidor conoce.
+  // Propósito: El servidor mezcla matemáticamente los datos del usuario con este 
+  // secreto. Si un hacker intenta modificar su pulsera para ponerse "rol: admin", 
+  // el sello matemático se romperá y el servidor sabrá que es falsa.
+  process.env.JWT_SECRET,
+  
+  // 3. LA CADUCIDAD (El tiempo de vida)
+  // { expiresIn: '7d' } significa que en 7 días la pulsera dejará de funcionar.
+  // Propósito: Si al usuario le roban el móvil, el hacker no tendrá acceso 
+  // infinito a la cuenta. En 7 días el token caduca y el sistema exigirá 
+  // meter el email y la contraseña de nuevo.
+  { expiresIn: '7d' }
+);
+
+// El resultado (const token) es un texto larguísimo (ej: "eyJhbGciOiJIUzI1..."), 
+// que es lo que le enviarás al móvil para que lo guarde en su memoria interna.
 
       transporter.sendMail({
         from: `"NexBite" <${process.env.EMAIL_USER}>`,
@@ -717,6 +1007,7 @@ Query: {
       return "Eliminado";
     },
 
+
     eliminarPlato: async (_, { id_plato }) => {
       await pool.query(
         'DELETE FROM Platos WHERE id_plato = $1',
@@ -754,6 +1045,28 @@ Query: {
     }
   },
 
+  // ============================================================================
+// CASOS DE USO REALES DE SUBSCRIPTIONS EN FOOD-DELIVERY (SIN GPS)
+// ============================================================================
+
+// Aunque las GraphQL Subscriptions (WebSockets) son vitales para telemetría 
+// continua (como tracking GPS), en arquitecturas de gestión de restaurantes 
+// resuelven la "Sincronización de Estado Orientada a Eventos" (Event-Driven State):
+//
+// 1. Dashboard de Recepción (POS/Kitchen Display): Permite el empuje (Push) 
+//    de nuevos registros (ej. `PedidoCreado`) directamente a la interfaz del 
+//    restaurante en tiempo real, eliminando la necesidad de hacer "Long Polling" 
+//    o refrescos manuales que saturarían la base de datos.
+//
+// 2. Transiciones de Máquina de Estados (State Machine transistions): 
+//    Notifica al cliente instantáneamente sobre mutaciones en la columna `estado` 
+//    (ej. PENDIENTE -> PREPARANDO -> LISTO_PARA_RECOGER) para actualizar la UI 
+//    de seguimiento de forma reactiva.
+//
+// 3. Filtrado por Tópico (Topic Filtering): El parámetro `id_restaurante` 
+//    actúa como un identificador de canal (Channel ID) en el patrón Pub/Sub, 
+//    garantizando que los eventos se multiplexan y se emiten de forma aislada 
+//    solo a los clientes autorizados de ese local.
   Subscription: {
     nuevoPedido: {
       subscribe: async function* (_, { id_restaurante }, contexto) {

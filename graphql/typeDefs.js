@@ -212,17 +212,49 @@ export const typeDefs = `#graphql
     
     solicitarAviso(id_usuario: ID!, tipo: String!, id_referencia: ID!): String
 
-    registrarNegocio(
-      nombre: String!, 
-      tipo: String!, 
-      latitud: Float, 
-      longitud: Float, 
-      imagen_url: String,
-      radio_cobertura_km: Float,
-      telefono: String,
-      direccion: String,
-      horarios_recogida: [FranjaRecogidaInput!]
-    ): Restaurante
+    // ============================================================================
+// EL CONTRATO DE GRAPHQL (SCHEMA DEFINITION)
+// Esto NO es el código que guarda datos (Resolver). Es "el menú" o 
+// "el portero de discoteca": filtra, valida los tipos de datos y bloquea 
+// peticiones mal formadas ANTES de que lleguen a tocar tu base de datos.
+// ============================================================================
+
+registrarNegocio(
+  
+  // 1. CAMPOS OBLIGATORIOS (El modificador '!')
+  // El cierre de exclamación '!' significa "Non-Nullable" (No puede estar vacío).
+  // Si la app móvil intenta registrar un negocio sin enviar el 'nombre' o el 'tipo', 
+  // GraphQL aborta la petición automáticamente en la puerta de entrada. 
+  nombre: String!, 
+  tipo: String!, 
+  
+  // 2. CAMPOS OPCIONALES Y DECIMALES (Tipos Escalares)
+  // 'Float' indica un número con decimales (vital para coordenadas GPS).
+  // Como NO tienen el símbolo '!', son opcionales. El portero de GraphQL 
+  // dejará pasar la petición aunque estos campos vengan vacíos.
+  latitud: Float, 
+  longitud: Float, 
+  radio_cobertura_km: Float,
+  
+  // 'String' son cadenas de texto tradicionales (también opcionales aquí).
+  imagen_url: String,
+  telefono: String,
+  direccion: String,
+  
+  // 3. ESTRUCTURAS COMPLEJAS (Listas y Tipos Input)
+  // Los corchetes '[]' indican que se espera recibir una LISTA (Array).
+  // 'FranjaRecogidaInput' es una regla estructurada que tú mismo creaste.
+  // Le dice a GraphQL: "Aquí no quiero un simple texto, quiero que me manden 
+  // varios objetos completos que contengan los días y las horas por separado".
+  horarios_recogida: [FranjaRecogidaInput!]
+
+// 4. LA PROMESA DE DEVOLUCIÓN (El Molde / Return Type)
+// Los dos puntos ':' definen el "Return Type".
+// Promete que, al terminar, no devolverá un simple mensaje de "OK", sino 
+// un objeto que encaja exactamente en el molde llamado 'Restaurante'.
+// Esto da a la app móvil el superpoder de elegir qué piezas de ese molde 
+// quiere recibir (ej. pedir solo el 'id_restaurante' para no gastar datos de internet).
+): Restaurante
     
     actualizarNegocio(
       id_restaurante: ID!,
@@ -258,7 +290,30 @@ export const typeDefs = `#graphql
         platos_existentes: [ID!]
     ): Plato
 
-    alternarFavorito(id_restaurante: ID!): String
+    // ============================================================================
+// CONTRATO GRAPHQL: EL INTERRUPTOR DE FAVORITOS (TOGGLE)
+// ============================================================================
+
+alternarFavorito(
+  
+  // 1. EL TIPO ESPECIAL (ID) Y EL PORTERO (!)
+  // 'id_restaurante' es el dato que el móvil tiene que enviar.
+  // 'ID' es un tipo de dato exclusivo de GraphQL. Aunque en tu base de datos 
+  // sea un número (ej. 5) o un texto largo, GraphQL lo trata como un "código 
+  // de barras único". Le dice al programador del móvil: "No intentes sumar 
+  // ni hacer matemáticas con esto, es solo una etiqueta de identificación".
+  // El '!' hace que sea obligatorio. Si el móvil no envía a qué restaurante 
+  // darle like, la petición se rechaza en la puerta.
+  id_restaurante: ID!
+
+// 2. LA RESPUESTA LIGERA (: String)
+// En la función anterior devolvíamos un objeto gigante (: Restaurante).
+// Aquí devolvemos un simple 'String' (una cadena de texto). 
+// ¿Por qué? Porque el usuario ya está viendo el restaurante en la pantalla 
+// de su móvil. No necesita que le vuelvas a enviar la foto o las coordenadas. 
+// Solo necesita que el servidor le devuelva un mensaje de texto como: 
+// "Añadido a favoritos" o "Eliminado de favoritos" para confirmar la acción.
+): String
     alternarFavoritoPlato(id_plato: ID!): String
 
     iniciarSesion(email: String!, password: String!): UsuarioAuth
