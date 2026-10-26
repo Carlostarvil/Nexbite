@@ -50,6 +50,19 @@ import './Tipografia.css';
 import AvisoCookies from './AvisoCookies'; 
 import ChatSoporteIA from './ChatSoporteIA';
 
+// ============================================================================
+// FRONTEND (APLICACIÓN MÓVIL/WEB): PREPARANDO LA PETICIÓN AL SERVIDOR
+// ============================================================================
+
+// 1. LA CONSTANTE EN MAYÚSCULAS:
+// Por convención (regla no escrita de los programadores), usamos mayúsculas 
+// para indicar que esta es una plantilla fija de consulta. Es decir, la "comanda" 
+// base no va a cambiar mientras el usuario usa la app.
+// 2. EL TRADUCTOR ('gql'):
+  // Esta es una función externa (generalmente importada de Apollo Client). 
+  // Su trabajo es coger el texto que escribas a continuación y traducirlo 
+  // a un formato estructurado (llamado AST) que tu servidor backend entienda.
+  // Sin esto, el servidor rechazaría el mensaje por no saber leerlo.
 const OBTENER_DATOS_INICIO = gql`
   query ObtenerDatosInicio($id_usuario: ID!, $latitud: Float!, $longitud: Float!, $solo_con_entrega: Boolean!) {
     obtenerMejoresRestaurantes(latitud: $latitud, longitud: $longitud, solo_con_entrega: $solo_con_entrega) { id_restaurante, nombre, tipo, imagen_url, aceptando_pedidos, tiempo_reactivacion, calificacion }
@@ -66,8 +79,58 @@ const OBTENER_DATOS_INICIO = gql`
 
 const obtenerDatosDesdeToken = (token) => {
   try {
+    // ============================================================================
+// ESTRUCTURA DEL JWT Y EXTRACCIÓN DEL PAYLOAD
+// ============================================================================
+
+// Físicamente, un JSON Web Token (JWT) es un String concatenado por puntos 
+// que delimitan sus tres partes constituyentes: `Header.Payload.Signature`.
+//
+// 1. Método `String.prototype.split()`: Actúa como un tokenizador, dividiendo 
+//    la cadena original utilizando el delimitador `.` para generar un Array 
+//    de 3 posiciones (índices 0, 1 y 2).
+//
+// 2. Extracción del Índice [1]: El segundo segmento (índice 1) corresponde 
+//    estrictamente al 'Payload' (las "Claims" o datos del usuario). 
+//
+// 3. Naturaleza del Payload: Este segmento está codificado en Base64Url, 
+//    no encriptado. Permite al cliente (Frontend) decodificar el estado del 
+//    usuario (Identity) de manera síncrona y offline, reduciendo las llamadas 
+//    de red al Backend.
     const payload = token.split('.')[1];
+    // 1. atob() -> EL TRADUCTOR BASE64
+  // 'atob' (ASCII to Binary) es una función nativa del navegador. Coge el 
+  // texto incomprensible del payload y lo traduce a texto normal legibe por humanos.
+  
+  // 2. JSON.parse() -> EL ORGANIZADOR
+  // Aunque 'atob' traduzca el texto, para JavaScript sigue siendo una simple 
+  // frase de texto plana. 'JSON.parse' coge esa frase y la convierte 
+  // oficialmente en un Objeto de JavaScript, permitiéndonos acceder a sus 
+  // piezas internas.
+  
+  // 3. .id_usuario -> EL SELECTOR FINAL
+  // Una vez convertido en objeto, ponemos el punto y el nombre de la variable 
+  // para extraer únicamente el identificador del usuario.
+  // Aquí ocurre exactamente el mismo proceso de traducción, pero esta 
+  // vez para extraer únicamente el rol del usuario (admin, cliente, etc).
     return { id_usuario: JSON.parse(atob(payload)).id_usuario, rol: JSON.parse(atob(payload)).rol };
+
+    // ============================================================================
+// OPTIONAL CATCH BINDING (ES2019 / ES10)
+// ============================================================================
+
+// 1. Sintaxis Histórica: Previo a ECMAScript 2019, el bloque `catch` requería 
+//    obligatoriamente el enlazado (binding) de un parámetro para instanciar 
+//    el objeto de error (ej. `catch (err)`), incluso si dicho objeto nunca 
+//    iba a ser evaluado en el bloque lógico posterior.
+//
+// 2. Modificación del Estándar: La propuesta "Optional Catch Binding" modificó 
+//    la gramática de JavaScript permitiendo omitir los paréntesis y el identificador 
+//    completamente: `try { ... } catch { ... }`.
+//
+// 3. Casos de Uso: Esta omisión es la convención recomendada cuando la lógica 
+//    de recuperación (Fallback) es genérica y no depende de la naturaleza o 
+//    el mensaje de la excepción lanzada, optimizando la legibilidad del código.
   } catch (e) { return null; }
 };
 
@@ -105,7 +168,68 @@ const extraerTags = (descripcion, categoriasBackend) => {
 };
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  
+
+/* 
+  EL CONCEPTO PRINCIPAL:
+  Esta línea no está "creando" un array. Está "abriendo" un paquete (un array) 
+  que React te acaba de devolver, rompiéndolo en el aire y poniéndole nombre 
+  a las dos piezas que vienen dentro. Es pura pereza sintáctica (un atajo).
+*/
+
+// LA LÍNEA MODERNA (ES6 - Actualidad)
+const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+/*
+  DESGLOSE PASO A PASO DE LO QUE HACE LA MÁQUINA:
+
+  1. useState(false): 
+     Le pides a React que reserve memoria para un estado inicial (false).
+     React te devuelve un array cerrado que SIEMPRE tiene 2 cosas:
+     [ el_dato_actual, la_herramienta_para_cambiarlo ]
+
+  2. Los corchetes [ ] a la izquierda del igual:
+     Se llaman "Array Destructuring". Rompen el array que devolvió React.
+
+  3. isLoggedIn (Posición 0):
+     - TIPO DE DATO: Booleano (porque le pasamos 'false' al inicio).
+     - QUÉ ES: Es tu variable de lectura. El estado actual.
+     - REGLA: Es inmutable. NUNCA puedes hacer `isLoggedIn = true`.
+
+  4. setIsLoggedIn (Posición 1):
+     - TIPO DE DATO: Función (Setter).
+     - QUÉ ES: Es el "control remoto". La ÚNICA forma permitida de cambiar el estado.
+     - MAGIA: Al ejecutar `setIsLoggedIn(true)`, React cambia el valor interno y 
+       automáticamente recarga (renderiza) la pantalla con el nuevo dato.
+*/
+
+
+// ============================================================================
+// COMPARATIVA: CÓMO SE HACÍA ANTIGUAMENTE (ES5 - Antes de 2015)
+// ============================================================================
+
+/* 
+  Antes no existía el atajo de los corchetes. Para hacer exactamente lo mismo, 
+  estabas obligado a guardar el array completo en una variable basura y sacar 
+  las piezas manualmente por su número de índice.
+*/
+
+// ============================================================================
+// CÓMO SE HACÍA ANTIGUAMENTE (ES5) - Todo comentado para que no se ejecute
+// ============================================================================
+
+// 1. Recibir y guardar el paquete completo (el Array) en la memoria:
+// var estadoDeReact = useState(false);
+
+// 2. Extraer la posición 0 manualmente (El Booleano):
+// var isLoggedInViejo = estadoDeReact[0];
+
+// 3. Extraer la posición 1 manualmente (La Función):
+// var setIsLoggedInViejo = estadoDeReact[1];
+  // ============================================================================
+// RESUMEN: EL HOOK USESTATE Y LA DESESTRUCTURACIÓN DE ARRAYS
+// ============================================================================
   const [userId, setUserId] = useState(null);
   const [userRol, setUserRol] = useState(null);
   const [ubicacionEntrega, setUbicacionEntrega] = useState(() => {
