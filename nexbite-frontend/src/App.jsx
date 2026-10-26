@@ -1,3 +1,21 @@
+// ============================================================================
+// LA REGLA DE ORO DE LOS IMPORTS Y EXPORTS EN JAVASCRIPT
+// ============================================================================
+
+/* 
+  LA ANALOGÍA DEL RESTAURANTE:
+  - export default (Plato Principal): Solo puede haber UNO por archivo. Se pide SIN llaves.
+  - export normal (La Carta de Extras): Puede haber decenas. Se piden CON llaves.
+*/
+
+// ----------------------------------------------------------------------------
+// 1. EL ARCHIVO DE ORIGEN (La Cocina: 'modulo.js')
+// ----------------------------------------------------------------------------
+
+// EXPORTACIONES NOMBRADAS (Los Extras)
+// El cocinero usa 'export' a secas. Como NO llevan la palabra 'default', 
+// estas herramientas se van a la lista secundaria.s
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@apollo/client/react/index.js';
 import { gql } from '@apollo/client/core/index.js';
