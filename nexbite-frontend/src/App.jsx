@@ -264,39 +264,143 @@ const [isLoggedIn, setIsLoggedIn] = useState(false);
   const repetimosRef = useRef(null);
 
   const agregarAlCarrito = (plato) => {
+    // PROPÓSITO: Asegurar que el plato tenga un restaurante asignado. 
+    // Toma el ID que viene en el plato, o usa el 'restauranteActivo' por defecto.
     const idRestauranteDelPlato = plato.id_restaurante || restauranteActivo;
+    
+    // PROPÓSITO: Actualizar el estado del carrito de forma segura, 
+    // tomando una "foto" del carrito actual (prevCarrito).
     setCarrito(prevCarrito => {
+      
+      // PROPÓSITO: Buscar la posición (0, 1, 2...) de este plato en el carrito actual.
+      // Compara los IDs convirtiéndolos a texto (String) para evitar errores.
+      // Si no lo encuentra en toda la lista, devolverá -1.
       const index = prevCarrito.findIndex(p => String(p.id_plato) === String(plato.id_plato));
+      
+      // PROPÓSITO: Tomar decisiones basadas en si el plato se encontró o no.
+      // Literalmente dice: "Si el número de posición NO ES -1" (es decir, el plato YA EXISTE).
       if (index !== -1) {
-        const nuevoCarrito = [...prevCarrito];
-        nuevoCarrito[index] = { ...nuevoCarrito[index], cantidad: (nuevoCarrito[index].cantidad || 1) + 1 };
-        return nuevoCarrito;
+        // PROPÓSITO: Los tres puntos [...] sirven para hacer una COPIA EXACTA del arreglo.
+    // En React está prohibido modificar el arreglo original (prevCarrito) directamente.
+    // Al usar [...prevCarrito] creas un "nuevoCarrito" independiente donde sí puedes hacer cambios.
+    const nuevoCarrito = [...prevCarrito]; 
+    
+    nuevoCarrito[index].cantidad += 1; // Aquí ya puedes modificar la copia libremente
+    return nuevoCarrito; // Le entregas a React la copia modificada
       } else {
         return [...prevCarrito, { ...plato, id_restaurante: idRestauranteDelPlato, cantidad: 1 }];
       }
     });
-    numeroAviso.current += 1;
-    setAvisoCarrito({ ...plato, id_restaurante: idRestauranteDelPlato, id: numeroAviso.current });
-  };
+    // PROPÓSITO GENERAL: Aumentar en 1 un contador interno sin provocar 
+// que la pantalla (el componente de React) se vuelva a dibujar.
 
-  const restarDelCarrito = useCallback(idPlato => {
+// 1. numeroAviso: Es la referencia (creada con useRef) cuyo propósito es guardar un dato que perdure.
+// 2. .current: Es la propiedad obligatoria de useRef. Su propósito es acceder al valor actual guardado.
+// 3. += 1: Es la operación matemática. Su propósito es sumarle 1 al valor existente.
+    numeroAviso.current += 1;
+
+    // PROPÓSITO GENERAL: Guardar un nuevo objeto en el estado de React para mostrar 
+// una notificación (aviso) en pantalla, asegurando que tenga los datos correctos y un ID único.
+setAvisoCarrito({ 
+  // PROPÓSITO: Operador de propagación. Extrae y copia automáticamente todas las 
+  // propiedades originales del 'plato' (nombre, precio, etc.) dentro de este nuevo objeto.
+  ...plato, 
+  
+  // PROPÓSITO: Asignar el restaurante validado. Si el objeto 'plato' original 
+  // ya tenía una propiedad llamada 'id_restaurante', esta línea la sobrescribe 
+  // con el valor correcto de la variable 'idRestauranteDelPlato'.
+  id_restaurante: idRestauranteDelPlato, 
+  
+  // PROPÓSITO: Asignar un identificador único a esta notificación en particular 
+  // usando el número de la referencia (useRef). Esto es vital para que React 
+  // sepa exactamente qué alerta mostrar o borrar si hay varios avisos al mismo tiempo.
+  id: numeroAviso.current 
+});
+};
+// PROPÓSITO GENERAL: Guardar la notificación en el estado de React creando un objeto nuevo, 
+// pero escribiendo manualmente cada propiedad en lugar de usar el atajo de los tres puntos (...plato).
+//setAvisoCarrito({
+  // PROPÓSITO: Extraer y asignar manualmente cada dato que viene en el objeto 'plato'.
+  // Si el día de mañana agregas una foto o descripción al plato, tendrías que 
+  // venir a esta línea y agregar "imagen: plato.imagen", etc.
+  //id_plato: plato.id_plato,
+  //nombre: plato.nombre,
+  //precio: plato.precio,
+  // ... (aquí irían todas las demás propiedades que tenga tu plato)
+  
+  // PROPÓSITO: Asignar el restaurante correcto usando la variable donde preveniste errores.
+  // Como lo escribes manualmente, esto reemplaza la necesidad de sobrescribir el dato.
+  //id_restaurante: idRestauranteDelPlato,
+  
+  // PROPÓSITO: Darle un identificador único (matrícula) a esta notificación específica
+  // usando el contador que creaste con useRef, para que React no confunda las alertas.
+  //id: numeroAviso.current
+//});
+  
+
+  // PROPÓSITO GENERAL: Crear una función para restar platos y guardarla en memoria 
+// de forma permanente para que React no tenga que volver a crearla en cada recarga.
+const restarDelCarrito = useCallback(
+  
+  // PRIMER PARÁMETRO DE useCallback: Es la función que realmente hace el trabajo.
+  // PROPÓSITO: Recibir el ID del plato y ejecutar la lógica para restarlo del carrito.
+  (idPlato) => {
     setCarrito(anterior => anterior.flatMap(plato => {
       if (String(plato.id_plato) !== String(idPlato)) return [plato];
       const cantidad = plato.cantidad || 1;
       return cantidad > 1 ? [{ ...plato, cantidad: cantidad - 1 }] : [];
     }));
-  }, []);
+  }, 
+  
+  // SEGUNDO PARÁMETRO DE useCallback: El arreglo de dependencias [].
+  // PROPÓSITO: Decirle a React cuándo debe actualizar esta función. 
+  // Al estar vacío [], le dice: "Nunca la cambies, memorízala tal como está para siempre".
+  []
+);
 
-  const abrirCarrito = (irAPago = false, idRestaurante = null) => {
-    setDestinoCarrito({ irAPago, idRestaurante });
-    setMostrarCarrito(true);
-    setMostrarFavoritos(false);
-    setMostrarPerfil(false);
-    setRestauranteActivo(null);
-    setPlatoActivo(null);
-    cerrarAvisoCarrito();
-    window.scrollTo(0, 0);
-  };
+  // PROPÓSITO GENERAL: Función que actúa como "director de orquesta". 
+// Prepara la pantalla para mostrar el carrito, guardando a dónde quiere ir el usuario 
+// y cerrando cualquier otro menú que esté estorbando en la interfaz.
+const abrirCarrito = (
+  // PARÁMETROS POR DEFECTO (No son una función, son los datos que recibe):
+  // PROPÓSITO: Si llamas a abrirCarrito() sin enviarle nada, no marcará error; 
+  // usará 'false' y 'null' por seguridad. Si le envías datos, usará los que le des.
+  irAPago = false, 
+  idRestaurante = null
+) => {
+  
+  // PROPÓSITO: Guardar en la memoria las instrucciones de navegación del carrito.
+  // Las llaves {} crean un OBJETO. Como la etiqueta y la variable se llaman EXACTAMENTE igual,
+  // se usa este atajo de JavaScript. Es el equivalente automático a escribir:
+  // setDestinoCarrito({ irAPago: irAPago, idRestaurante: idRestaurante });
+  setDestinoCarrito({ irAPago, idRestaurante });
+  
+  // PROPÓSITO: La acción principal. Cambia el estado a 'true' para que 
+  // el componente del carrito se dibuje y sea visible en la pantalla.
+  setMostrarCarrito(true);
+  
+  // PROPÓSITO: Manejo de menús excluyentes. Si la ventana de Favoritos 
+  // o el Perfil del usuario estaban abiertos, los apaga (false) para que no 
+  // se encimen y la pantalla no se vuelva un caos de ventanas superpuestas.
+  setMostrarFavoritos(false);
+  setMostrarPerfil(false);
+  
+  // PROPÓSITO: Limpiar selecciones previas. Si el usuario estaba viendo el detalle 
+  // de un restaurante o de un plato específico, esto los deselecciona (null) 
+  // para cerrar esos modales/ventanas.
+  setRestauranteActivo(null);
+  setPlatoActivo(null);
+  
+  // PROPÓSITO: Limpieza visual. Si había un cartelito flotante temporal diciendo 
+  // "Agregado al carrito", ejecuta esta función para desaparecerlo de inmediato.
+  cerrarAvisoCarrito();
+  
+  // PROPÓSITO: Mejorar la experiencia del usuario (UX) moviendo el navegador (window).
+  // Le da la orden de mover la barra de desplazamiento a las coordenadas X: 0, Y: 0.
+  // Esto sube la pantalla de golpe hasta la parte más alta de la página web. 
+  // Así, si el usuario estaba viendo cosas hasta abajo, no tiene que subir manualmente para ver el carrito.
+  window.scrollTo(0, 0);
+};
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -307,23 +411,109 @@ const [isLoggedIn, setIsLoggedIn] = useState(false);
       return; 
     }
     const token = localStorage.getItem('nexbite_token');
+    // PROPÓSITO GENERAL: Verificar de forma rápida si la variable 'token' existe 
+// y contiene algún dato válido (como el texto de tu sesión), usando 
+// una evaluación automática del lenguaje conocida como "Truthy".
+
+
+    
+    // ---------------------------------------------------------
+    // 1. LA CONDICIÓN IMPLÍCITA (El propósito de escribirlo así)
+    // Aunque a simple vista parezca que falta una condición matemática o lógica, 
+    // la condición SÍ existe, pero está implícita. Al escribir solo "token", 
+    // el propósito es decirle a JavaScript que evalúe si el valor es real.
+    // Si tiene texto (ej. "eyJhG..."), es "Truthy" (verdadero) y entra a este bloque.
+    // Si está vacío, es "Falsy" (falso) y salta este bloque.
+
+    // ---------------------------------------------------------
+    // 2. LO QUE TE AHORRA (La versión larga)
+    // El propósito de este atajo es ahorrarte escribir manualmente todas 
+    // las formas en que el dato podría estar vacío. 
+    // Internamente, JavaScript ejecuta el equivalente exacto a esto:
+    // if (token !== null && token !== undefined && token !== "") { ... }
+
+    // ---------------------------------------------------------
+    // 3. LOS ERRORES QUE EVITA (Por qué no usar = o ===)
+    // - NO se escribe "if (token = true)" porque un solo '=' tiene el propósito 
+    //   de ASIGNAR. Eso borraría tu texto original y guardaría un 'true', 
+    //   destruyendo la seguridad del sistema y dejándolo entrar siempre.
+    //
+    // - NO se escribe "if (token === true)" porque el '===' tiene el propósito 
+    //   de COMPARAR ESTRICTAMENTE. Como tu token es un texto y no la palabra 
+    //   booleana 'true', la condición siempre daría falso y nunca entraría aquí.
+
+
     if (token) {
       const datos = obtenerDatosDesdeToken(token);
       if (datos) { setIsLoggedIn(true); setUserId(datos.id_usuario); setUserRol(datos.rol); }
     }
   }, []);
 
-  const { loading, error, data: datosInicio } = useQuery(OBTENER_DATOS_INICIO, {
-    variables: { id_usuario: userId, latitud: ubicacionEntrega?.lat, longitud: ubicacionEntrega?.lng, solo_con_entrega: modoEntrega === 'DOMICILIO' },
-    skip: !isLoggedIn || !userId || userRol === 'VENDEDOR' || !ubicacionEntrega,
-    fetchPolicy: 'network-only' 
-  });
+  // PROPÓSITO GENERAL: Ejecutar una consulta a la base de datos (useQuery) y 
+// "abrir el paquete" (el objeto) que nos devuelve para extraer directamente 
+// 3 variables sueltas e independientes listas para usar (Desestructuración).
+const { 
+
+  // VARIABLE 1: loading (Sin renombrar)
+  // PROPÓSITO: Extraer el estado de carga. Como en este momento es la única o 
+  // principal consulta, no necesitamos los dos puntos (:). Conservamos su nombre 
+  // original por comodidad, ya que no chocará con otras variables. 
+  // Valdrá 'true' mientras el servidor siga buscando la información.
+  loading, 
+
+  // VARIABLE 2: error (Sin renombrar)
+  // PROPÓSITO: Extraer si hubo algún fallo. Igual que con loading, dejamos su 
+  // nombre original porque es universal y suficiente para esta única consulta.
+  // (OJO: Si hicieras otra consulta debajo de esta, estarías OBLIGADO a usar los 
+  // dos puntos para renombrarlo, ej. error: errorInicio, o el programa explotaría).
+  error, 
+
+  // VARIABLE 3: datosInicio (Con renombramiento)
+  // PROPÓSITO DE LOS DOS PUNTOS (:): Renombrar una propiedad para evitar confusión.
+  // La propiedad original que entrega la base de datos se llama 'data', un nombre 
+  // terriblemente genérico. Le estamos diciendo a JavaScript: "Extrae lo que hay 
+  // dentro de 'data', pero en mi código bautízalo como 'datosInicio'".
+  data: datosInicio 
+
+} = useQuery(OBTENER_DATOS_INICIO, {
+  
+  // PROPÓSITO DE VARIABLES: Son los "ingredientes" o filtros que le mandas 
+  // al servidor para que sepa exactamente qué información devolverte.
+  variables: { 
+    id_usuario: userId, 
+    latitud: ubicacionEntrega?.lat, 
+    longitud: ubicacionEntrega?.lng, 
+    solo_con_entrega: modoEntrega === 'DOMICILIO' 
+  },
+  
+  // PROPÓSITO DE SKIP (Saltar): Es un escudo de seguridad. Le dice a React: 
+  // "Ni siquiera intentes hacer esta búsqueda si el usuario no ha iniciado sesión, 
+  // no tiene ID, es un vendedor, o aún no conocemos su ubicación".
+  skip: !isLoggedIn || !userId || userRol === 'VENDEDOR' || !ubicacionEntrega,
+  
+  // PROPÓSITO DE FETCH POLICY: 'network-only' (solo-red) obliga al sistema a 
+  // conectarse a internet siempre para traer datos frescos, prohibiéndole usar 
+  // datos viejos que hayan quedado guardados en la memoria caché del celular o navegador.
+  fetchPolicy: 'network-only' 
+});
+
 
   const data = loading ? undefined : datosInicio;
 
   const handleCerrarSesion = () => {
     localStorage.removeItem('nexbite_token');
     localStorage.removeItem('user');
+    // PROPÓSITO GENERAL: Redirigir al usuario inmediatamente a la página 
+// principal (inicio), pero forzando una RECARGA COMPLETA del navegador.
+// A diferencia de la navegación suave de React (como useNavigate), esto destruye 
+// toda la memoria temporal (estados, variables, carritos a medio llenar), 
+// por lo que es ideal para funciones como "Cerrar Sesión".
+
+// 1. window: Representa la ventana completa de tu navegador web.
+// 2. .location.href: Es la barra de direcciones. Al ponerle un "=", 
+//    le ordenas al navegador que borre la URL actual y escriba la nueva.
+// 3. '/': Significa "La Raíz" o página principal (Home) de tu sitio web.
+
     window.location.href = '/'; 
   };
 
@@ -348,7 +538,28 @@ const [isLoggedIn, setIsLoggedIn] = useState(false);
     if (destino === 'carrito') return abrirCarrito();
     if (destino === 'ubicacion') {
       if (ubicacionEntrega) setMostrarSelectorUbicacion(true);
-      else { handleInicio(); document.getElementById('direccion-entrega')?.focus(); }
+      else { 
+  // PROPÓSITO: Ejecutar la función que prepara o limpia la pantalla de inicio.
+  handleInicio(); 
+  
+  // PROPÓSITO GENERAL: Buscar la caja donde se escribe la dirección y poner 
+  // el cursor adentro automáticamente para facilitarle la vida al usuario.
+  document.getElementById('direccion-entrega')?.focus(); 
+
+  // DESGLOSE EXACTO DE LA LÍNEA ANTERIOR:
+  // 1. document.getElementById('direccion-entrega'): 
+  //    Su propósito es buscar en toda la página HTML el elemento (la caja de texto) 
+  //    que tenga exactamente ese ID.
+  //
+  // 2. ?. (Optional Chaining o Encadenamiento Opcional): 
+  //    Es un escudo de seguridad. Su propósito es decir: "SI encuentras la caja, 
+  //    entonces haz lo que sigue. Pero si la caja no existe en la pantalla en 
+  //    este momento, detente aquí y NO rompas el programa".
+  //
+  // 3. .focus(): 
+  //    Su propósito es darle el "foco" a ese elemento. Activa la caja de texto 
+  //    y pone el cursor a parpadear adentro, listo para que el usuario teclee.
+}
       return;
     }
     handleInicio();
@@ -359,10 +570,44 @@ const [isLoggedIn, setIsLoggedIn] = useState(false);
     window.scrollTo(0, 0);
   };
 
-  const handleRecomprarRapido = (e, pedido) => {
-    e.stopPropagation();
-    agregarAlCarrito({ id_plato: pedido.id_plato, id_restaurante: pedido.id_restaurante, nombre: pedido.nombre_plato, precio: pedido.precio_plato, imagen_url: pedido.imagen_plato });
-  };
+  // PROPÓSITO GENERAL: Función que se activa cuando el usuario le da clic 
+// a un botón de "Volver a pedir" o "Recomprar" en su historial de compras.
+const handleRecomprarRapido = (
+
+  // 1. ¿QUÉ SON LOS PARÁMETROS (e, pedido)?
+  // 'e' (Abreviatura de Evento): Es un objeto que el navegador te regala automáticamente 
+  // cuando alguien hace clic. Contiene toda la información de ese clic (dónde fue, con qué botón, etc.).
+  // 'pedido': Es el objeto que contiene toda la información de la base de datos sobre la orden anterior.
+  e, pedido
+
+) => {
+  
+  // 2. ¿QUÉ ES Y QUÉ HACE e.stopPropagation()?
+  // PROPÓSITO: Evitar que el clic "traspase" hacia los elementos del fondo (Burbujeo).
+  // Imagina que tu botón de "Recomprar" está adentro de un cuadro (tarjeta) más grande. 
+  // Si haces clic en el cuadro grande, se abren los detalles del pedido.
+  // Si haces clic en el botón de "Recomprar", el navegador por defecto también le avisa 
+  // al cuadro grande que hubo un clic, y se abrirían los detalles por accidente.
+  // stopPropagation() le dice al navegador: "El clic muere aquí en el botón, NO avises a nadie más".
+  e.stopPropagation();
+  
+  
+  // 3. ¿QUÉ SON ESTAS LLAVES { } ADENTRO DE LA FUNCIÓN?
+  // ¡Acertaste! Estás fabricando un objeto nuevo "al vuelo" (en ese mismo instante).
+  // PROPÓSITO: Traducción o "Mapeo" de datos. 
+  // El historial de pedidos guardó el precio bajo el nombre 'precio_plato'.
+  // PERO, tu función del carrito espera que ese dato se llame simplemente 'precio'.
+  // Al crear este objeto nuevo, estás sacando los datos del historial y poniéndoles 
+  // las etiquetas exactas que tu carrito exige para funcionar sin errores.
+  agregarAlCarrito({ 
+    id_plato: pedido.id_plato, 
+    id_restaurante: pedido.id_restaurante, 
+    nombre: pedido.nombre_plato, 
+    precio: pedido.precio_plato, 
+    imagen_url: pedido.imagen_plato 
+  });
+  
+};
 
   const abrirDetalleDesdePedido = (pedido) => {
     setMostrarPerfil(false);
@@ -375,7 +620,39 @@ const [isLoggedIn, setIsLoggedIn] = useState(false);
   };
 
   const scrollRepetimos = (desplazamiento) => {
-    if (repetimosRef.current) repetimosRef.current.scrollBy({ left: desplazamiento, behavior: 'smooth' });
+    // PROPÓSITO GENERAL: Desplazar (scrollear) suavemente un carrusel o lista horizontal 
+// de elementos, pero solo si ese carrusel realmente existe en la pantalla en este momento.
+
+if (repetimosRef.current) {
+  
+  // 1. ¿QUÉ CONDICIÓN SE ESTÁ CUMPLIENDO AQUÍ?
+  // PROPÓSITO DEL IF: Evitar que el programa explote. 
+  // 'repetimosRef' es un "gancho" (useRef) de React que apunta a una caja HTML 
+  // (probablemente un contenedor de restaurantes o platos). 
+  // Cuando la página apenas está cargando, ese gancho está vacío (null / Falsy). 
+  // La condición simplemente evalúa: "¿El elemento HTML ya se dibujó en la pantalla y existe?".
+  // Si la respuesta es SÍ (Truthy), entra y ejecuta la animación.
+  
+  repetimosRef.current.scrollBy({ 
+    
+    // 2. ¿QUÉ ES scrollBy?
+    // Es una orden directa del navegador. Su propósito es mover la barra de desplazamiento 
+    // de ESE elemento en específico "X" cantidad de píxeles desde donde está ahorita.
+    // (A diferencia de scrollTo que te lleva a un punto fijo, scrollBy te suma o resta distancia).
+    
+    // PROPÓSITO DE 'left': Indica hacia dónde te mueves. 
+    // Mueve el contenido horizontalmente (izquierda/derecha) usando 
+    // la cantidad de píxeles que tenga guardada tu variable 'desplazamiento'.
+    left: desplazamiento, 
+    
+    // PROPÓSITO DE 'behavior: smooth': Experiencia de usuario (UX).
+    // Si no pones esto, el cambio es instantáneo y agresivo, como un parpadeo.
+    // 'smooth' le dice al navegador que haga una animación suave, deslizando 
+    // el contenido como si lo empujaras con el dedo.
+    behavior: 'smooth' 
+    
+  });
+}
   };
 
   if (!isLoggedIn) {
@@ -407,7 +684,33 @@ const [isLoggedIn, setIsLoggedIn] = useState(false);
     );
   }
 
-  const totalArticulos = carrito.reduce((acc, p) => acc + (p.cantidad || 1), 0);
+  // PROPÓSITO GENERAL: Recorrer toda la lista de platos en el carrito, sumar 
+// la cantidad de cada uno y devolver un único número con el total de artículos.
+
+const totalArticulos = carrito.reduce(
+  
+  // 1. ¿QUÉ ES (acc, p)?
+  // Son los dos parámetros obligatorios que necesita reduce para trabajar.
+  // 
+  // - 'acc' (Acumulador): Es la memoria de la calculadora. Guarda el total acumulado 
+  //   hasta el momento. En la primera vuelta, vale lo que pusiste al final (0).
+  // - 'p' (Plato / Producto): Representa el elemento actual que estás revisando 
+  //   en esta vuelta del ciclo (ej. la Pizza, luego la Hamburguesa, etc.).
+  (acc, p) => 
+    
+    // PROPÓSITO DE LA SUMA: Lo que devuelvas aquí se guardará en 'acc' para la siguiente vuelta.
+    // Tomas el total que llevas (acc) y le sumas la cantidad de este plato (p.cantidad).
+    // El "|| 1" es un seguro de vida: si por algún error el plato no tiene guardada 
+    // una cantidad, asume que al menos hay 1.
+    acc + (p.cantidad || 1), 
+  
+  // 2. ¿QUÉ ES ESTE CERO (0) AL FINAL?
+  // PROPÓSITO: Es el valor inicial del Acumulador (acc). 
+  // Le dices a la calculadora: "Antes de empezar a contar los platos, 
+  // asegúrate de que la pantalla empiece en cero".
+  0
+
+);
   const platoDelAviso = avisoCarrito && carrito.find(plato => String(plato.id_plato) === String(avisoCarrito.id_plato));
 
   const favoritosLocales = data?.obtenerPlatosFavoritos?.map(fav => String(fav.id_plato)) || [];
@@ -495,7 +798,59 @@ const [isLoggedIn, setIsLoggedIn] = useState(false);
   }) || [];
 
   return (
+    // ============================================================================
+// ANATOMÍA COMPLETA DEL CONTEXT PROVIDER (El Router Wi-Fi de React)
+// PROPÓSITO GENERAL: Encender una "antena transmisora" para enviar las variables 
+// del carrito a cualquier componente hijo de la app (el frontend), saltándose 
+// el molesto proceso de pasarlas de mano en mano piso por piso (Prop Drilling).
+// ============================================================================
+// 1. EstadoCarritoContext (El Router Wi-Fi / El Objeto Base)
+  // - QUÉ ES: Es un objeto oficial de React creado en otro archivo (estadoCarrito.js) 
+  //   y que trajiste a App.js usando un 'import'.
+  // - EL MOLDE (El chivatazo del editor): Tu editor de código sabe que quien creó 
+  //   este objeto le puso una regla estricta: esta red solo está autorizada para 
+  //   transportar una lista (carrito) y una función (restarDelCarrito).
+  
+  // 2. .Provider (La Antena Transmisora)
+  // - QUÉ ES: El punto (.) saca un dato que vive adentro del objeto EstadoCarritoContext.
+  // - PROPÓSITO: Ese dato que sacamos resulta ser un Componente (etiqueta < >) de React. 
+  //   Actúa como la antena. Todo el HTML que envuelvas dentro de esta etiqueta 
+  //   quedará "bañado" por su señal.
+  // - EL SECRETO: De fábrica, este proyector/antena viene completamente vacío.
+  
+  // 3. value= (La ranura del enchufe)
+  // - QUÉ ES: Es un parámetro (Prop) inventado y exigido por los creadores de React.
+  // - PROPÓSITO: Es la "ranura" oficial por donde le inyectas tu información a la antena. 
+  //   No es una regla general de JavaScript, es la regla estricta de React para 
+  //   que el Provider sepa qué tiene que transmitir.
+  
+  // 4. Las dobles llaves {{ }} (El Empaquetado)
+  // - LLAVES EXTERNAS { }: Le dicen a React: "Pausa el HTML, lo que sigue es código JavaScript".
+  // - LLAVES INTERNAS { }: Crean un Objeto nuevo (una "caja").
+  // - PROPÓSITO: Como la ranura 'value' es muy pequeña y solo acepta recibir UNA 
+  //   sola cosa a la vez, estás obligado a meter tus dos variables dentro de un 
+  //   solo paquete (objeto) para poder enviarlas juntas.
+  
+  // 5. carrito, restarDelCarrito (El Contenido / La Película)
+  // - QUÉ SON: Son los datos reales. Estas variables las creaste tú más arriba 
+  //   en este mismo archivo (con useState y funciones). 
+  // - PROPÓSITO: Al ponerlas aquí, las estás metiendo en el camión de reparto. 
+  //   Gracias a esto, cualquier componente oculto (como un botón de borrar) solo 
+  //   tendrá que usar la antena receptora ('useContext') para atrapar estos datos 
+  //   directamente desde el aire.
+
+// Aquí adentro va todo tu frontend (Header, Main, Footer, etc)...
     <EstadoCarritoContext.Provider value={{ carrito, restarDelCarrito }}>
+
+
+
+      ////////////////////////////////////////
+
+
+
+
+
+      
     <ErrorBoundary>
       <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: userRol === 'VENDEDOR' ? '#f7f9f5' : '#ffffff', position: 'relative' }}>
         <div className="header-contenedor" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)}>
