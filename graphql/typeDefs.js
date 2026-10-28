@@ -1,6 +1,6 @@
 // ============================================================================
 // Definición del Esquema GraphQL (El contrato entre el Frontend y el Backend).
-// La etiqueta '#graphql' activa el resaltado de sintaxis en el editor de código.
+// Fuera de la cadena usamos //; dentro del esquema GraphQL usamos #.
 // ============================================================================
 export const typeDefs = `#graphql
   
@@ -8,7 +8,7 @@ export const typeDefs = `#graphql
   # DEFINICIÓN DE TIPOS DE SALIDA (Lo que el servidor devuelve al cliente)
   # ============================================================================
   # 'String' = Texto, 'Float' = Decimal, 'Int' = Entero, 'ID' = Identificador único.
-  # El '!' significa que el dato es OBLIGATORIO (Non-Nullable) y nunca devolverá un valor vacío.
+  # '!' impide null; en una entrada también exige enviar el dato. No rechaza por sí solo un texto vacío.
   type DireccionUbicacion { direccion: String!, lat: Float!, lng: Float! }
   type Tag { id_tag: ID!, nombre: String!, categoria: String! }
   type UsuarioAuth { id_usuario: ID!, nombre: String!, email: String!, rol: String!, puntos_acumulados: Int!, token: String! }
@@ -17,7 +17,7 @@ export const typeDefs = `#graphql
   # ============================================================================
   # DEFINICIÓN DE TIPOS DE ENTRADA (Lo que el cliente debe enviar al servidor)
   # ============================================================================
-  # 'input' se usa exclusivamente para agrupar datos complejos que se envían en Mutaciones.
+  # 'input' agrupa datos de entrada; se puede usar en argumentos de Query y de Mutation.
   input FranjaRecogidaInput { dia: Int!, inicio: String!, fin: String! }
   
   type Restaurante { 
@@ -141,16 +141,16 @@ export const typeDefs = `#graphql
   }
 
   # ============================================================================
-  # QUERIES: OPERACIONES DE LECTURA (GET)
+  # QUERIES: OPERACIONES PARA CONSULTAR DATOS
   # ============================================================================
-  # Funciones que solo buscan o descargan datos sin modificar la base de datos.
+  # Por diseño consultan datos. Query no es un método HTTP ni garantiza ausencia de efectos secundarios.
   type Query {
     # Exige un 'id_compra' obligatorio (!). Devuelve un objeto 'Compra' obligatorio (!).
     consultarCompra(id_compra: ID!): Compra!
     obtenerMisTarjetas(id_usuario: ID!): [TarjetaGuardada!]!
     buscarDirecciones(termino: String!): [DireccionUbicacion!]!
     
-    # Devuelve 'DireccionUbicacion' SIN '!' final. Significa que si las coordenadas caen 
+    # Devuelve 'DireccionUbicacion' SIN '!' final. Significa que si las coordenadas caen
     # en medio del océano y no hay calle, es válido que la función devuelva 'null'.
     obtenerDireccionUbicacion(latitud: Float!, longitud: Float!): DireccionUbicacion
     obtenerTags: [Tag]
@@ -185,20 +185,19 @@ export const typeDefs = `#graphql
   }
 
   # ============================================================================
-  # MUTATIONS: OPERACIONES DE ESCRITURA (POST / PUT / DELETE)
+  # MUTATIONS: OPERACIONES QUE SOLICITAN CAMBIOS
   # ============================================================================
   # Funciones que alteran la base de datos (crear, actualizar, borrar, pagar).
   type Mutation {
-    # Recibe un objeto agrupado 'CompraInput' obligatorio, y devuelve el carrito guardado 'Compra!'.
+    # Recibe CompraInput y devuelve Compra: el registro del proceso de compra, no el estado React del carrito.
     prepararCompra(input: CompraInput!): Compra!
     confirmarCompra(id_compra: ID!): Compra!
     registrarUsuario(nombre: String!, email: String!, password: String!, rol: String): UsuarioAuth
     guardarPreferencias(id_usuario: ID!, tags: [ID!]!): String
     
     # DIRECTIVA DE OBSOLESCENCIA (@deprecated):
-    # La función se mantiene viva para no romper versiones antiguas de la App móvil que 
-    # aún usan el sistema de pedidos individuales, pero el servidor avisa a los programadores 
-    # de que deben usar el nuevo sistema de carritos (prepararCompra) para código nuevo.
+    # Marca la operación antigua: los clientes deben usar prepararCompra para el flujo actual.
+    # La directiva comunica la obsolescencia; no implementa por sí sola el comportamiento del resolver.
     crearPedido(
       id_usuario: ID!, 
       id_restaurante: ID!, 
@@ -212,48 +211,48 @@ export const typeDefs = `#graphql
     
     solicitarAviso(id_usuario: ID!, tipo: String!, id_referencia: ID!): String
 
-    // ============================================================================
-// EL CONTRATO DE GRAPHQL (SCHEMA DEFINITION)
-// Esto NO es el código que guarda datos (Resolver). Es "el menú" o 
-// "el portero de discoteca": filtra, valida los tipos de datos y bloquea 
-// peticiones mal formadas ANTES de que lleguen a tocar tu base de datos.
-// ============================================================================
+    # ============================================================================
+# EL CONTRATO DE GRAPHQL (SCHEMA DEFINITION)
+# Esto NO es el código que guarda datos (Resolver). Es "el menú" o
+# "el portero de discoteca": filtra, valida los tipos de datos y bloquea
+# peticiones mal formadas ANTES de que lleguen a tocar tu base de datos.
+# ============================================================================
 
 registrarNegocio(
   
-  // 1. CAMPOS OBLIGATORIOS (El modificador '!')
-  // El cierre de exclamación '!' significa "Non-Nullable" (No puede estar vacío).
-  // Si la app móvil intenta registrar un negocio sin enviar el 'nombre' o el 'tipo', 
-  // GraphQL aborta la petición automáticamente en la puerta de entrada. 
+  # 1. CAMPOS OBLIGATORIOS (El modificador '!')
+  # El cierre de exclamación '!' significa "Non-Nullable" (No admite null; un texto vacío requiere validación adicional).
+  # Si la app móvil intenta registrar un negocio sin enviar el 'nombre' o el 'tipo',
+  # GraphQL aborta la petición automáticamente en la puerta de entrada.
   nombre: String!, 
   tipo: String!, 
   
-  // 2. CAMPOS OPCIONALES Y DECIMALES (Tipos Escalares)
-  // 'Float' indica un número con decimales (vital para coordenadas GPS).
-  // Como NO tienen el símbolo '!', son opcionales. El portero de GraphQL 
-  // dejará pasar la petición aunque estos campos vengan vacíos.
+  # 2. CAMPOS OPCIONALES Y DECIMALES (Tipos Escalares)
+  # 'Float' indica un número con decimales (vital para coordenadas GPS).
+  # Como NO tienen el símbolo '!', son opcionales. El portero de GraphQL
+  # dejará pasar la petición aunque estos campos vengan vacíos.
   latitud: Float, 
   longitud: Float, 
   radio_cobertura_km: Float,
   
-  // 'String' son cadenas de texto tradicionales (también opcionales aquí).
+  # 'String' son cadenas de texto tradicionales (también opcionales aquí).
   imagen_url: String,
   telefono: String,
   direccion: String,
   
-  // 3. ESTRUCTURAS COMPLEJAS (Listas y Tipos Input)
-  // Los corchetes '[]' indican que se espera recibir una LISTA (Array).
-  // 'FranjaRecogidaInput' es una regla estructurada que tú mismo creaste.
-  // Le dice a GraphQL: "Aquí no quiero un simple texto, quiero que me manden 
-  // varios objetos completos que contengan los días y las horas por separado".
+  # 3. ESTRUCTURAS COMPLEJAS (Listas y Tipos Input)
+  # Los corchetes '[]' indican que se espera recibir una LISTA (Array).
+  # 'FranjaRecogidaInput' es una regla estructurada que tú mismo creaste.
+  # Le dice a GraphQL: "Aquí no quiero un simple texto, quiero que me manden
+  # varios objetos completos que contengan los días y las horas por separado".
   horarios_recogida: [FranjaRecogidaInput!]
 
-// 4. LA PROMESA DE DEVOLUCIÓN (El Molde / Return Type)
-// Los dos puntos ':' definen el "Return Type".
-// Promete que, al terminar, no devolverá un simple mensaje de "OK", sino 
-// un objeto que encaja exactamente en el molde llamado 'Restaurante'.
-// Esto da a la app móvil el superpoder de elegir qué piezas de ese molde 
-// quiere recibir (ej. pedir solo el 'id_restaurante' para no gastar datos de internet).
+# 4. LA PROMESA DE DEVOLUCIÓN (El Molde / Return Type)
+# Los dos puntos ':' definen el "Return Type".
+# Promete que, al terminar, no devolverá un simple mensaje de "OK", sino
+# un objeto que encaja exactamente en el molde llamado 'Restaurante'.
+# Esto da a la app móvil el superpoder de elegir qué piezas de ese molde
+# quiere recibir (ej. pedir solo el 'id_restaurante' para no gastar datos de internet).
 ): Restaurante
     
     actualizarNegocio(
@@ -290,29 +289,29 @@ registrarNegocio(
         platos_existentes: [ID!]
     ): Plato
 
-    // ============================================================================
-// CONTRATO GRAPHQL: EL INTERRUPTOR DE FAVORITOS (TOGGLE)
-// ============================================================================
+    # ============================================================================
+# CONTRATO GRAPHQL: EL INTERRUPTOR DE FAVORITOS (TOGGLE)
+# ============================================================================
 
 alternarFavorito(
   
-  // 1. EL TIPO ESPECIAL (ID) Y EL PORTERO (!)
-  // 'id_restaurante' es el dato que el móvil tiene que enviar.
-  // 'ID' es un tipo de dato exclusivo de GraphQL. Aunque en tu base de datos 
-  // sea un número (ej. 5) o un texto largo, GraphQL lo trata como un "código 
-  // de barras único". Le dice al programador del móvil: "No intentes sumar 
-  // ni hacer matemáticas con esto, es solo una etiqueta de identificación".
-  // El '!' hace que sea obligatorio. Si el móvil no envía a qué restaurante 
-  // darle like, la petición se rechaza en la puerta.
+  # 1. EL TIPO ESPECIAL (ID) Y EL PORTERO (!)
+  # 'id_restaurante' es el dato que el móvil tiene que enviar.
+  # 'ID' es un tipo de dato exclusivo de GraphQL. Aunque en tu base de datos
+  # sea un número (ej. 5) o un texto largo, GraphQL lo trata como un "código
+  # de barras único". Le dice al programador del móvil: "No intentes sumar
+  # ni hacer matemáticas con esto, es solo una etiqueta de identificación".
+  # El '!' hace que sea obligatorio. Si el móvil no envía a qué restaurante
+  # darle like, la petición se rechaza en la puerta.
   id_restaurante: ID!
 
-// 2. LA RESPUESTA LIGERA (: String)
-// En la función anterior devolvíamos un objeto gigante (: Restaurante).
-// Aquí devolvemos un simple 'String' (una cadena de texto). 
-// ¿Por qué? Porque el usuario ya está viendo el restaurante en la pantalla 
-// de su móvil. No necesita que le vuelvas a enviar la foto o las coordenadas. 
-// Solo necesita que el servidor le devuelva un mensaje de texto como: 
-// "Añadido a favoritos" o "Eliminado de favoritos" para confirmar la acción.
+# 2. LA RESPUESTA LIGERA (: String)
+# En la función anterior devolvíamos un objeto gigante (: Restaurante).
+# Aquí devolvemos un simple 'String' (una cadena de texto).
+# ¿Por qué? Porque el usuario ya está viendo el restaurante en la pantalla
+# de su móvil. No necesita que le vuelvas a enviar la foto o las coordenadas.
+# Solo necesita que el servidor le devuelva un mensaje de texto como:
+# "Añadido a favoritos" o "Eliminado de favoritos" para confirmar la acción.
 ): String
     alternarFavoritoPlato(id_plato: ID!): String
 

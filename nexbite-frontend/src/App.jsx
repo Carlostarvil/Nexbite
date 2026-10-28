@@ -280,13 +280,14 @@ const [isLoggedIn, setIsLoggedIn] = useState(false);
       // PROPÓSITO: Tomar decisiones basadas en si el plato se encontró o no.
       // Literalmente dice: "Si el número de posición NO ES -1" (es decir, el plato YA EXISTE).
       if (index !== -1) {
-        // PROPÓSITO: Los tres puntos [...] sirven para hacer una COPIA EXACTA del arreglo.
-    // En React está prohibido modificar el arreglo original (prevCarrito) directamente.
-    // Al usar [...prevCarrito] creas un "nuevoCarrito" independiente donde sí puedes hacer cambios.
-    const nuevoCarrito = [...prevCarrito]; 
-    
-    nuevoCarrito[index].cantidad += 1; // Aquí ya puedes modificar la copia libremente
-    return nuevoCarrito; // Le entregas a React la copia modificada
+        // [...] copia la lista, pero los objetos de dentro siguen siendo los mismos.
+        // Copiamos también el producto con {...} antes de cambiar su cantidad.
+        const nuevoCarrito = [...prevCarrito];
+        nuevoCarrito[index] = {
+          ...nuevoCarrito[index],
+          cantidad: (nuevoCarrito[index].cantidad || 1) + 1
+        };
+        return nuevoCarrito;
       } else {
         return [...prevCarrito, { ...plato, id_restaurante: idRestauranteDelPlato, cantidad: 1 }];
       }
@@ -807,9 +808,8 @@ const totalArticulos = carrito.reduce(
 // 1. EstadoCarritoContext (El Router Wi-Fi / El Objeto Base)
   // - QUÉ ES: Es un objeto oficial de React creado en otro archivo (estadoCarrito.js) 
   //   y que trajiste a App.js usando un 'import'.
-  // - EL MOLDE (El chivatazo del editor): Tu editor de código sabe que quien creó 
-  //   este objeto le puso una regla estricta: esta red solo está autorizada para 
-  //   transportar una lista (carrito) y una función (restarDelCarrito).
+  // - El valor inicial de createContext sirve de alternativa si no hay Provider.
+  //   En JavaScript no impone un tipo estricto: el Provider aporta el objeto real.
   
   // 2. .Provider (La Antena Transmisora)
   // - QUÉ ES: El punto (.) saca un dato que vive adentro del objeto EstadoCarritoContext.
@@ -844,7 +844,7 @@ const totalArticulos = carrito.reduce(
 
 
 
-      ////////////////////////////////////////
+      {/* El carrito queda disponible para los componentes descendientes. */}
 
 
 
@@ -854,13 +854,8 @@ const totalArticulos = carrito.reduce(
     <ErrorBoundary>
       <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: userRol === 'VENDEDOR' ? '#f7f9f5' : '#ffffff', position: 'relative' }}>
         
-        / ============================================================================
-// EL CONTENEDOR DEL HEADER Y EL ESCUDO DE CRISTAL ('inert')
-// PROPÓSITO GENERAL: Dibujar la caja superior de la app (el menú/logo) y 
-// bloquearla por completo (como si le pusieras un cristal blindado por encima) 
-// para que el usuario no pueda hacer clics accidentales cuando tiene ventanas 
-// flotantes importantes abiertas en el centro de la pantalla.
-// ============================================================================
+        {/* El atributo inert impide interactuar con el header mientras está abierto
+            el selector de ubicación o la confirmación del pedido. */}
 
 <div className="header-contenedor" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)}>
 
@@ -906,8 +901,8 @@ const totalArticulos = carrito.reduce(
   {/* 
     7. Boolean(confirmacionPedido) (La Condición B / El Traductor)
     EL PROBLEMA: 'confirmacionPedido' guarda un Objeto gigante, no un true/false.
-    LA SOLUCIÓN: 'Boolean()' actúa como traductor. Si el objeto está vacío, 
-    lo traduce a 'false'. Si tiene datos, lo traduce a 'true'.
+    'Boolean()' convierte el valor a true o false: null da false; un objeto,
+    incluso vacío ({}), da true. Aquí null significa que no hay confirmación.
   */}
   {/* 
   ============================================================================
@@ -1037,7 +1032,7 @@ const totalArticulos = carrito.reduce(
   // Como el CSS externo no puede leer la variable 'userRol', usamos 'style' 
   // para inyectar reglas matemáticas directamente. 
   // Si alguna de estas reglas (como maxWidth) choca con lo que dice 
-  // 'nexbite-contenido', esta línea SIEMPRE gana por tener prioridad absoluta.
+  // 'nexbite-contenido', el estilo en línea normalmente gana; !important puede alterar esa prioridad.
   // ========================================================================
   style={{ 
     padding: 'clamp(1rem, 4vw, 2rem)', 

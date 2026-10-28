@@ -21,8 +21,10 @@ function almacenPrueba() {
   const llamadas = [];
   const pool = { query: async (sql, valores) => {
     llamadas.push({ sql, valores });
-    assert.match(sql, /WHERE id_restaurante = \$10 AND id_usuario_dueño = \$11/);
-    assert.doesNotMatch(sql, /SET[^]*aceptando_pedidos/);
+    // Los comentarios y saltos de línea no cambian la condición de propiedad del SQL.
+    const consulta = sql.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ').trim();
+    assert.match(consulta, /WHERE id_restaurante = \$10 AND id_usuario_dueño = \$11/);
+    assert.doesNotMatch(consulta, /SET[^]*aceptando_pedidos/);
     const fila = filas.find(r => r.id_restaurante === valores[9] && r.id_usuario_dueño === valores[10]);
     if (!fila) return { rows: [] };
     const campos = ['nombre', 'tipo', 'latitud', 'longitud', 'imagen_url', 'radio_cobertura_km', 'telefono', 'direccion'];

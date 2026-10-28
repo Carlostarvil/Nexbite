@@ -140,8 +140,8 @@ export function protegerResolvers(pool, originales, compras) {
   };
   
   // 6. Eliminar elementos con validación de "Pedidos Activos"
-  // Comprobar y borrar bajo la misma transacción (BEGIN/COMMIT) evita el "Phantom Read": 
-  // Evita que un cliente inicie una compra justo en el microsegundo que separa la comprobación del borrado.
+  // Agrupamos la comprobación y el borrado en una transacción y bloqueamos la fila.
+  // BEGIN por sí solo no impide lecturas fantasma: importan los bloqueos y el aislamiento.
   for (const [nombre, tabla, campo, entidad] of [
     ['eliminarRestaurante', 'Restaurantes', 'id_restaurante', 'local'],
     ['eliminarPlato', 'Platos', 'id_plato', 'producto'],

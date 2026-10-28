@@ -439,6 +439,25 @@ test('cancelar una unidad cancela toda la compra y devuelve o libera el importe 
   assert.equal(devoluciones.size, 1);
 });
 
+test('cancelar una reserva ya cancelada en Stripe no repite la cancelación externa', async () => {
+  const input = solicitud('compra-cancelada-000001', {
+    fecha_programada: new Date(reloj.getTime() + 3600_000).toISOString(),
+  });
+  await servicio.preparar(input, cliente);
+  const intencion = autorizar(input.clave);
+  await servicio.confirmar(input.clave, cliente);
+  // Simula una cancelación externa que todavía no se ha reflejado en NexBite.
+  intencion.status = 'canceled';
+  stripe.paymentIntents.cancel = async () => {
+    assert.fail('No debe solicitar otra cancelación a Stripe');
+  };
+  await servicio.cancelarPedido((await filas(input.clave))[0].id_pedido, cliente);
+  const compra = (await db.query('SELECT estado FROM Compras WHERE id_compra = $1', [input.clave])).rows[0];
+  assert.equal(compra.estado, 'CANCELADA');
+  assert.ok((await filas(input.clave)).every(p => p.estado === 'CANCELADO'));
+  assert.equal(capturas, 0);
+});
+
 test('el chatbot informa de una devolución real y no inventa reembolsos para pedidos antiguos', async () => {
   const input = solicitud(); await servicio.preparar(input, cliente); autorizar(input.clave); await servicio.confirmar(input.clave, cliente);
   const id = (await filas(input.clave))[0].id_pedido;

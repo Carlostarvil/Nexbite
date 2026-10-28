@@ -409,7 +409,7 @@ if (
 
 
 
-          throw errorCompra(`${nombre} no estará disponible a esa hour. Elige otra hour o retira el producto del carrito.`, 'NO_DISPONIBLE');
+        throw errorCompra(`${nombre} no estará disponible a esa hora. Elige otra hora o retira el producto del carrito.`, 'NO_DISPONIBLE');
       }
     };
     
@@ -797,7 +797,7 @@ try {
     cx
   );
 
-  // [3. EL UPDATE "DISPARA Y OLVIDA" (FIRE AND FORGET)]
+  // [3. EL UPDATE ESPERADO CON AWAIT]
   // Si la notificación se envió con éxito (el código no saltó al catch), le decimos 
   // a la base de datos que marque esta compra como notificada.
   // ¿Por qué no hay .rowCount ni .rows aquí? 
@@ -893,7 +893,8 @@ try {
 // El manual de Stripe dice que su función acepta hasta 3 parámetros en este orden:
 // stripe.paymentIntents.cancel( Identificador, Datos_del_negocio, Opciones_de_red )
 
-await stripe.paymentIntents.cancel(
+// Si Stripe ya la canceló, no repetimos una operación que puede ser rechazada.
+if (intencion.status !== 'canceled') await stripe.paymentIntents.cancel(
   
   // HUECO 1: Identificador (Obligatorio)
   // Siempre tiene que ser el texto con el ID del cobro ('pi_123').
@@ -1135,6 +1136,16 @@ await cx.query(
     
     try {
       await cx.query('BEGIN');
+      // Revisamos de nuevo la disponibilidad, los precios y los componentes del menú.
+      // El resumen mostrado al preparar la compra no autoriza a cobrar datos que cambiaron.
+      const resumen = await cotizar(cx, compra.solicitud, 'confirmar');
+      if (resumen.total_centimos !== compra.total_centimos
+        || resumen.items.some((item, i) => item.precio_centimos !== compra.resumen.items[i].precio_centimos)
+        || JSON.stringify(resumen.composicion_menu) !== JSON.stringify(compra.resumen.composicion_menu)) {
+        throw errorCompra('Los precios o los productos del menú han cambiado. Revisa el carrito antes de confirmar otra compra.', 'PRECIO_ACTUALIZADO');
+      }
+      // Un pedido futuro espera su activación; uno inmediato entra en la cola del local.
+      const estadoPedido = compra.solicitud.fecha_programada ? 'PROGRAMADO' : 'PENDIENTE';
       ////////////
       // BUCLE FOR...OF: Recorre cada producto distinto que hay dentro del carrito.
       // En cada vuelta, 'item' representará un plato diferente.

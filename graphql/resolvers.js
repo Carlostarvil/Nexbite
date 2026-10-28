@@ -508,7 +508,7 @@ solicitarRecuperacionPassword: async (
     const token = crypto.randomBytes(32).toString('hex');
     const expira = new Date(Date.now() + 3600000);
 
-    // 4. PASO INTERMEDIO 2: GUARDAR LA LLAVE (Escritura / Fire and Forget)
+    // 4. PASO INTERMEDIO 2: GUARDAR LA LLAVE (Escritura esperada con await)
     // Actualizamos la base de datos con el token temporal.
     // NO usamos 'const res =' ni 'RETURNING *' porque no necesitamos leer 
     // cómo quedó la fila, solo necesitamos que PostgreSQL anote el dato.
@@ -532,7 +532,18 @@ solicitarRecuperacionPassword: async (
         from: `"Soporte NexBite" <${process.env.EMAIL_USER}>`,
         to: usuario.email,
         subject: '🔒 Restablecer contraseña - NexBite',
-        html: `... (código HTML del correo) ...`
+        // El enlace real debe incluirse en el correo; un texto de ejemplo impediría recuperarla.
+        html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                <h2 style="color: #ff4500;">Hola ${usuario.nombre},</h2>
+                <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en NexBite.</p>
+                <p>Este enlace es de un solo uso y <b>caducará en 1 hora</b> por motivos de seguridad.</p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${resetLink}" style="background-color: #0066cc; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">Restablecer Mi Contraseña</a>
+                </div>
+                <p style="font-size: 12px; color: #666;">Si no has solicitado este cambio, puedes ignorar este correo de forma segura. Tu cuenta sigue protegida.</p>
+              </div>
+            `
       });
       console.log("✅ ¡Correo enviado con éxito!");
     } catch (error) {
