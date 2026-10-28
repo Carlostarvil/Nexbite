@@ -89,6 +89,29 @@ export default function AvisoCookies() {
             fontSize: '0.95rem',
             transition: 'transform 0.1s'
           }}
+
+          
+  /* 
+    ============================================================================
+    LA ILUSIÓN DEL BOTÓN FÍSICO (onMouseDown)
+    
+    ¿QUÉ ES 'onMouseDown'?: 
+    A diferencia de 'onClick' (que espera a que termines de soltar el clic), 
+    'onMouseDown' se activa en el microsegundo exacto en el que aprietas 
+    el botón hacia abajo. Es la primera mitad de un clic.
+
+    ¿QUÉ HACE EL CÓDIGO? {e => e.currentTarget.style.transform = 'scale(0.95)'}:
+    - 'e.currentTarget': Agarra físicamente este botón exacto.
+    - 'style.transform = scale(0.95)': Le inyecta una regla CSS matemática. Le 
+      dice: "Encógete y hazte un 5% más pequeño de tu tamaño original".
+
+    EL PROPÓSITO (Feedback visual):
+    Al reducir el tamaño al apretar, engaña al ojo dándole la sensación 
+    de "peso" y "profundidad". Te hace sentir que realmente estás empujando 
+    un botón físico hacia adentro de la pantalla.
+    ============================================================================
+  */
+
           onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
           onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
         >

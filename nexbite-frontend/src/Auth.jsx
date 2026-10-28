@@ -53,6 +53,35 @@ function ConfirmacionAcceso({ confirmacion, onIniciarSesion, onOtroIdentificador
   return <section className="auth-confirmacion" aria-labelledby="auth-confirmacion-titulo">
     <div className="auth-confirmacion-estado" role="status" aria-atomic="true">
       <div className="auth-confirmacion-icono" aria-hidden="true">
+        {/* 
+  ============================================================================
+  ¿QUÉ ES UN SVG? (Gráficos Vectoriales Escalables)
+  A diferencia de un JPG o PNG (que están hechos de miles de cuadritos o píxeles 
+  que se ven borrosos al agrandarlos), un SVG es un "dibujante matemático". 
+  Contiene fórmulas que puedes agrandar al tamaño de un edificio y jamás 
+  perderán calidad.
+
+  EL LIENZO Y EL LÁPIZ (Propiedades principales):
+  - viewBox="0 0 24 24": El mapa de coordenadas interno.
+  - width="38" height="38": El tamaño físico en pantalla.
+  - stroke="currentColor": ¡El gran truco! El lápiz copiará automáticamente el 
+    color del texto que tenga alrededor (ideal para cambios a modo oscuro).
+
+  EL CAMBIO DE FORMA (Renderizado Condicional):
+  Aquí la máquina hace una pregunta con la variable 'recuperacion':
+  
+  - SI ES VERDAD (Modo Recuperación): Dibuja un SOBRE DE CORREO usando la 
+    etiqueta <rect> (rectángulo base) y <path> (la línea en 'V' de la solapa).
+    
+  - SI ES FALSO (Modo Normal): Dibuja un ESCUDO DE SEGURIDAD. Usa un <path> 
+    muy largo para la silueta del escudo y otro para el ganchito de "aprobado" (✓).
+
+  EL SECRETO DE LAS ETIQUETAS INVISIBLES (<> y </>):
+  Se llaman "Fragmentos". Como React te obliga a agrupar los elementos en una 
+  sola caja, usamos esta "bolsa invisible" para juntar los trazos del dibujo 
+  sin crear etiquetas HTML adicionales que ensucien el código.
+  ============================================================================
+*/}
         <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
           {recuperacion ? <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m3 7 9 6 9-6" /></> : <><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>}
         </svg>
@@ -83,6 +112,29 @@ export default function Auth({ onLogin }) {
   const [modo, setModo] = useState(() => tokenURL ? 'RESTABLECER' : 'LOGIN');
   const [confirmacion, setConfirmacion] = useState(null);
   const [mensajeAuth, setMensajeAuth] = useState(null);
+  // ============================================================================
+// ¿QUÉ ES useRef? (El Ninja Silencioso / El Puntero Láser)
+// Mientras que 'useState' le grita a la página "¡REDIBÚJATE!" cada vez que 
+// cambia, 'useRef' es completamente silencioso. Crea una "caja fuerte" o un 
+// "puntero láser" que sobrevive a las recargas de la página, pero NUNCA 
+// provoca que la pantalla parpadee o se vuelva a pintar al cambiar su valor.
+//
+// EL VALOR INICIAL (null):
+// Al principio, le indicamos a React que nuestro láser no apunta a nada (null).
+//
+// SUS DOS GRANDES SUPERPODERES:
+//
+// 1. ATRAPAR HTML FÍSICO (Probablemente el uso de 'mensajeRef'): 
+//    Te permite pegarle un "chip GPS" a una etiqueta HTML real más abajo 
+//    en tu código (ej: <div ref={mensajeRef}>). Gracias a esto, puedes darle 
+//    órdenes físicas directas al navegador, como por ejemplo: "haz scroll 
+//    automático hasta donde está este mensaje" o "pon el cursor aquí".
+// 
+// 2. LA MEMORIA SECRETA:
+//    Sirve para guardar datos técnicos "de fondo" (como el ID de un 
+//    temporizador) que el usuario no necesita ver. Te ahorra mucha memoria 
+//    porque evitas que React redibuje toda la pantalla por un cambio invisible.
+// ============================================================================
   const mensajeRef = useRef(null);
   const enviandoRef = useRef(false);
 
@@ -231,6 +283,38 @@ export default function Auth({ onLogin }) {
           </p>
         </div>
         
+
+
+
+{/* 
+  ============================================================================
+  EL FORMULARIO (<form>) Y SU CONFIGURACIÓN
+  
+  ¿QUÉ ES?: Es el equivalente digital a un documento de papel. No es solo una 
+  caja visual (como lo sería un <div>), sino que tiene dos superpoderes clave:
+  1. Agrupa la información: Avisa al sistema de que todos los campos de texto 
+     de su interior pertenecen al mismo paquete de datos.
+  2. El superpoder de la tecla "Enter": Permite que el usuario envíe los datos 
+     simplemente presionando "Enter" en su teclado, sin obligarle a agarrar el 
+     ratón para hacer clic en el botón de enviar.
+
+  LOS CABLES DE ESTA LÍNEA:
+  
+  1. EL INTERCEPTOR DE ENVÍO (onSubmit={handleSubmit})
+  PROPÓSITO: Evitar que la página web entera se recargue al enviar los datos 
+  (lo cual borraría toda tu aplicación). 'onSubmit' atrapa el envío (por clic 
+  o por tecla Enter) y le pasa silenciosamente los datos a la función 
+  'handleSubmit' para que los procese en segundo plano.
+
+  2. EL DISEÑO EN LÍNEA (style={{ ... }})
+  PROPÓSITO: Aplica CSS directamente. Las dobles llaves indican a React que 
+  estamos inyectando un objeto JavaScript con reglas de diseño.
+  - display: 'flex' y flexDirection: 'column': Apila los campos verticalmente.
+  - gap: '1.2rem': Añade una separación automática para que no queden pegados.
+  ============================================================================
+*/}
+
+
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
           
           {/* Registro: selección del rol de la cuenta. */}
@@ -271,6 +355,29 @@ export default function Auth({ onLogin }) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s'
                   }}>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      {/* 
+  ============================================================================
+  EL TRAZO MATEMÁTICO (<path d="...">)
+  La etiqueta <path> es el lápiz. El atributo 'd' contiene las instrucciones 
+  exactas de cómo debe moverse ese lápiz por el lienzo.
+
+  TRADUCCIÓN DE LA FÓRMULA: "M3 9h18v2H3z"
+  
+  - M3 9 (Move): Levanta el lápiz sin rayar y apóyalo en la coordenada X:3, Y:9.
+  - h18  (Horizontal): Dibuja una línea horizontal de 18 pasos hacia la derecha.
+  - v2   (Vertical): Dibuja una línea vertical de 2 pasos hacia abajo.
+  - H3   (Horizontal absoluta): Dibuja una línea horizontal de regreso hasta 
+         chocar con la coordenada X:3 exacta.
+  - z    (Cerrar/Zip): Cierra la figura dibujando una línea automática desde 
+         donde estás hasta el punto inicial original.
+
+  EL RESULTADO VISUAL:
+  Esta fórmula dibuja perfectamente un rectángulo estrecho y alargado 
+  (18 de ancho y 2 de alto). En los iconos, esta forma se suele usar para 
+  dibujar ranuras, la banda magnética de una tarjeta, un signo de "menos", 
+  o una de las tres rayitas de un menú hamburguesa.
+  ============================================================================
+*/}
                       <path d="M3 9h18v2H3z"></path>
                       <path d="M4 11v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9"></path>
                       <path d="M2 5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"></path>
@@ -340,6 +447,49 @@ export default function Auth({ onLogin }) {
               <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#999' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>
+              {/* 
+  ============================================================================
+  ¿QUÉ ES <input>? (La caja de texto)
+  Es el área interactiva donde el usuario teclea información. 
+  
+  DESGLOSE DE TODOS SUS CABLES Y CONFIGURACIONES:
+
+  1. COMPORTAMIENTO BÁSICO:
+  - type="password": Le dice al navegador "oculta lo que el usuario escriba 
+    poniendo puntitos negros". Así nadie que mire la pantalla puede leer la clave.
+  - placeholder="...": El texto "fantasma" gris que aparece cuando la caja está 
+    vacía, para guiar al usuario sobre qué debe escribir ahí.
+
+  2. EL BUCLE CERRADO DE REACT (Control de Estado):
+  - value={formData.confirmPassword}: El input no se manda a sí mismo. Aquí le 
+    estás diciendo: "Tu texto visual será estrictamente lo que diga la variable 
+    'confirmPassword' en la memoria central (formData)".
+  - onChange={(e) => actualizarCampo(..., e.target.value)}: El Walkie-Talkie. 
+    Cada vez que el usuario pulsa una tecla, el input no la dibuja de inmediato. 
+    Primero captura ese teclazo ('e.target.value') y lo envía al cerebro 
+    ('actualizarCampo'). El cerebro se actualiza, cambia el 'value', y entonces 
+    la letra aparece en pantalla. Todo ocurre en milisegundos.
+
+  3. REGLAS DE SEGURIDAD Y ESTADO:
+  - required: Le prohíbe al <form> enviar los datos si esta caja está vacía.
+  - disabled={loading}: Si la app está en proceso de cargar algo (loading = true), 
+    la caja se bloquea (se pone gris) para que el usuario no pueda seguir 
+    escribiendo mientras el sistema piensa.
+
+  4. ACCESIBILIDAD (Para personas con discapacidad visual):
+  - aria-invalid: Si hay un error (ej: las contraseñas no coinciden), esto le 
+    avisa al lector de pantalla que el campo tiene un dato inválido.
+  - aria-describedby: Conecta esta caja invisiblemente con el mensaje de error 
+    rojo de abajo, para que el lector de pantalla se lo lea al usuario ciego en voz alta.
+
+  5. MAQUILLAJE VISUAL:
+  - className="auth-input": Le aplica el diseño base desde tu archivo CSS.
+  - style={{ ... }}: Sobrescribe reglas de diseño específicas directamente aquí 
+    (ej: bordes redondeados a 12px, color de fondo gris claro #fafafa, y un 
+    espacio interno (padding) más grande a la izquierda (48px) seguramente para 
+    hacerle hueco al icono del candado).
+  ============================================================================
+*/}
               <input 
                 type="password" placeholder="Confirmar nueva contraseña" value={formData.confirmPassword} onChange={(e) => actualizarCampo('confirmPassword', e.target.value)} required disabled={loading}
                 aria-invalid={mensajeAuth?.campo === 'confirmPassword'} aria-describedby={mensajeAuth?.campo === 'confirmPassword' ? 'auth-mensaje' : undefined}

@@ -29,6 +29,28 @@ const autorizar = clave => {
 const filas = clave => db.query('SELECT * FROM Pedidos WHERE id_compra = $1', [clave]).then(r => r.rows);
 
 before(async () => {
+  // ============================================================================
+// LA ORDEN DIRECTA A LA BASE DE DATOS (db.exec)
+// 
+// ¿QUÉ ES 'exec' (Execute) Y DE DÓNDE SALE?:
+// No es una función que hayamos tenido que programar nosotros. Es una 
+// herramienta nativa que viene "de fábrica" en el kit de la base de datos. 
+// Le da una orden bruta al sistema: "Toma todo este bloque de texto escrito 
+// en SQL puro y ejecútalo tal cual". Es ideal para ejecutar múltiples 
+// instrucciones de golpe (como crear varias tablas a la vez).
+//
+// ¿POR QUÉ LLEVA 'await' (Pausar y Esperar)?:
+// Hablar con el disco duro para guardar o consultar datos toma tiempo. 
+// 'await' le dice a tu aplicación: "Pon pausa en esta línea exacta. No sigas 
+// ejecutando el código de abajo hasta que la base de datos termine su 
+// trabajo y confirme que la operación fue un éxito".
+//
+// EL USO DE LA COMILLA INVERTIDA (`):
+// El acento grave o backtick (`) no es una comilla normal. Es un superpoder 
+// de JavaScript que permite escribir textos de múltiples líneas. Gracias a esto, 
+// puedes pulsar "Enter" y ordenar visualmente tus instrucciones SQL gigantes 
+// sin que el código lance un error de sintaxis.
+// ============================================================================
   await db.exec(`
     CREATE TABLE Usuarios (id_usuario INT PRIMARY KEY, rol TEXT, stripe_customer_id TEXT, puntos_acumulados INT DEFAULT 0);
     CREATE TABLE Restaurantes (id_restaurante INT PRIMARY KEY, id_usuario_dueño INT, nombre TEXT, tipo TEXT, latitud FLOAT8, longitud FLOAT8, radio_cobertura_km FLOAT8, aceptando_pedidos BOOLEAN DEFAULT TRUE, tiempo_reactivacion TIMESTAMPTZ, horarios_recogida JSONB);
@@ -39,6 +61,31 @@ before(async () => {
   await db.exec(SQL_COMPRAS);
   await db.exec(SQL_COMPRAS); // Arrancar de nuevo no cambia los pedidos existentes.
 });
+// ============================================================================
+// EL EQUIPO DE LIMPIEZA (after y db.close)
+// 
+// ¿QUÉ ES 'after' (Después)?:
+// Es una herramienta (un "hook") que viene de fábrica con los sistemas de 
+// pruebas (testing). Actúa como el equipo de limpieza. Le dice al sistema: 
+// "Espera pacientemente a que todas las pruebas terminen. Justo antes de 
+// apagar las luces e irnos a casa, ejecuta esta última tarea".
+//
+// LA FUNCIÓN FLECHA () => (El gatillo retrasado):
+// Si escribieras directamente 'db.close()', la conexión se cerraría al 
+// instante y tus pruebas fallarían. Al usar '() =>', empaquetas la orden 
+// y le dices a JavaScript: "No ejecutes esto ahora; guárdalo en una caja y 
+// entrégaselo a 'after' para que él decida el momento exacto de apretar 
+// el gatillo".
+//
+// ¿QUÉ HACE 'db.close()' (Colgar el teléfono)?:
+// Corta la comunicación entre tu aplicación y la base de datos de forma 
+// segura. Es un paso vital: si no cierras la conexión al terminar, tu 
+// programa se quedará "colgado" escuchando eternamente en segundo plano, 
+// consumiendo la memoria (RAM) de tu ordenador como si hubieras dejado 
+// un grifo de agua abierto.
+// ============================================================================
+
+
 after(() => db.close());
 beforeEach(async () => {
   reloj = new Date('2026-10-12T12:00:00Z');
@@ -51,6 +98,29 @@ beforeEach(async () => {
     INSERT INTO Platos (id_plato,id_restaurante,nombre,precio,categoria) VALUES (101,10,'Pizza',10,ARRAY['PLATO']),(102,10,'Bebida',2,ARRAY['BEBIDA']),(103,10,'Temporal',8,ARRAY['PLATO']),(104,10,'Menú',10.2,ARRAY['MENU']),(201,20,'Ajeno',9,ARRAY['PLATO']);
     INSERT INTO Menu_Platos VALUES (104,101),(104,102);
   `);
+
+// ============================================================================
+// LA CONSULTA DE DATOS (await db.query)
+// 
+// 1. LA FUNCIÓN 'query' (Consultar / Preguntar):
+// A diferencia de 'exec' (que se usa para ejecutar órdenes brutas donde no 
+// nos importa la respuesta, como crear tablas), 'query' se utiliza cuando 
+// necesitamos extraer información específica de la base de datos. Su trabajo 
+// es ejecutar el código SQL (generalmente un SELECT) y traernos las filas 
+// de datos resultantes para usarlas en nuestra aplicación.
+//
+// 2. EL OBJETO 'db' (La conexión):
+// Representa el puente de red abierto entre tu aplicación y el motor de la 
+// base de datos. Es el que contiene empaquetadas todas estas funciones 
+// nativas ('query', 'exec', 'close').
+//
+// 3. LA PAUSA ASÍNCRONA ('await'):
+// Buscar datos en un disco duro toma milisegundos. Si no pusiéramos 'await', 
+// JavaScript saltaría a la siguiente línea inmediatamente, intentaría usar 
+// datos que aún no han llegado, y la aplicación daría error. 'await' actúa 
+// como un semáforo rojo: pausa la ejecución de esta función exacta hasta 
+// que la base de datos termine su búsqueda y entregue la respuesta completa.
+// ============================================================================
   await db.query('UPDATE Platos SET disponible = FALSE, tiempo_disponible = $1 WHERE id_plato = 103', [new Date(reloj.getTime() + 4 * 3600_000)]);
   stripe = {
     paymentMethods: { retrieve: async id => ({ id, type: 'card', customer: id === 'pm_propia' ? 'cus_propio' : 'cus_ajeno' }) },
@@ -91,6 +161,30 @@ beforeEach(async () => {
 test('calcula precios y envío en PostgreSQL, admite coordenadas cero y solo autoriza el importe', async () => {
   const input = solicitud(undefined, { items: [{ id_plato: '101', cantidad: 1 }], monto: 0.50 });
   const compra = await servicio.preparar(input, cliente);
+  // ============================================================================
+// EL INSPECTOR DE CALIDAD (assert.equal)
+// 
+// 1. EL MÓDULO 'assert' (Afirmar / Asegurar):
+// Es una herramienta fundamental en la creación de pruebas automáticas (testing). 
+// Funciona como un inspector de control de calidad. Su único trabajo es 
+// evaluar una condición y, si dicha condición resulta ser falsa, lanza un 
+// error (un "AssertionError") que detiene el código de inmediato y marca 
+// la prueba como fallida (en rojo).
+//
+// 2. EL MÉTODO '.equal' (Igual a):
+// Su propósito es comparar dos valores. Normalmente se le pasan dos datos: 
+// primero, el resultado real que produjo tu programa, y segundo, el resultado 
+// exacto que tú esperabas que diera. Si ambos valores son iguales, el 
+// inspector "guarda silencio", no interrumpe nada, y la prueba pasa con 
+// éxito (en verde).
+//
+// 3. NOTA TÉCNICA DE EXPERTO (El nivel de estrictez):
+// La función estándar 'equal' suele usar una comparación flexible (equivale 
+// al operador '==' en JavaScript, donde el número 5 y el texto "5" se 
+// consideran iguales). En entornos de alta exigencia, es muy común ver 
+// 'assert.strictEqual', el cual obliga a que tanto el valor como el tipo 
+// de dato sean matemáticamente idénticos (el operador '===').
+// ============================================================================
   assert.equal(compra.total, 11.90);
   const intencion = [...intenciones.values()][0];
   assert.equal(intencion.amount, 1190);
@@ -116,6 +210,32 @@ test('un carrito completo se guarda en una transacción antes del cobro y los re
 test('si una unidad falla, revierte todo el pedido y libera la autorización sin cobrar', async () => {
   const input = solicitud();
   await servicio.preparar(input, cliente); autorizar(input.clave); falloProducto = '102';
+  // ============================================================================
+// LA PRUEBA DE FALLO ESPERADO (await assert.rejects)
+// 
+// 1. EL MÉTODO 'assert.rejects' (Afirmar el rechazo):
+// Es el inspector de calidad encargado de verificar el "camino triste" o el 
+// manejo de errores. A diferencia de otras pruebas que buscan el éxito, 
+// este comando evalúa una operación asíncrona esperando que fracase. 
+// Si la operación tiene éxito y NO devuelve un error, 'assert.rejects' 
+// marcará la prueba como fallida. Solo pasa la prueba si tu código bloquea 
+// la acción y lanza un error de forma correcta.
+//
+// 2. EL PROPÓSITO (Probar la seguridad):
+// Se utiliza para garantizar que tus reglas de negocio y barreras de seguridad 
+// funcionan. Por ejemplo: intentar registrar en la base de datos un correo 
+// electrónico que ya existe. Queremos estar 100% seguros de que el sistema 
+// detecta la trampa y "rechaza" (rejects) la petición.
+//
+// 3. LA NECESIDAD DEL 'await' (Pausar la prueba):
+// Como estamos probando una operación que se comunica con el exterior 
+// (ej: un error en la base de datos), este proceso toma tiempo. La función 
+// 'assert.rejects' devuelve una Promesa. El 'await' es obligatorio aquí: 
+// obliga al sistema de pruebas a detenerse y esperar a que el error realmente 
+// ocurra, sea capturado y analizado, antes de marcar la prueba con un check 
+// verde. Si omites el 'await', la prueba terminaría antes de tiempo dando 
+// un falso positivo.
+// ============================================================================
   await assert.rejects(servicio.confirmar(input.clave, cliente), /Fallo de escritura/);
   assert.equal((await filas(input.clave)).length, 0);
   assert.equal(capturas, 0);
@@ -181,9 +301,58 @@ test('el resolver identifica un fallo de conexión sin exponer datos privados y 
   ]) await assert.rejects(ejecutar(), error => {
     assert.equal(error.extensions.code, 'COMPRA_SERVIDOR_NO_DISPONIBLE');
     assert.equal(error.extensions.codigo_incidente, 'ECONNRESET');
+    // ============================================================================
+// EL INSPECTOR DE PATRONES PROHIBIDOS (assert.doesNotMatch)
+// 
+// 1. ¿QUÉ ES 'assert.doesNotMatch' (Afirmar que no coincide)?:
+// Es una función del módulo de pruebas diseñada específicamente para 
+// analizar cadenas de texto usando Expresiones Regulares (RegEx). Su 
+// trabajo es garantizar que un texto NO contenga un patrón específico. 
+// Si el texto analizado sí coincide con el patrón prohibido, el inspector 
+// lanza un error y la prueba falla. Si el patrón está ausente, la prueba pasa.
+//
+// 2. EL PROPÓSITO (Validación negativa y de seguridad):
+// Se utiliza habitualmente para comprobar que los filtros de seguridad 
+// y limpieza de tu aplicación funcionan bien. Por ejemplo: verificar que 
+// una contraseña generada automáticamente NO contenga espacios en blanco, 
+// o confirmar que un sistema de limpieza ha eliminado con éxito todas las 
+// etiquetas HTML peligrosas de un comentario antes de guardarlo.
+//
+// 3. LA DIFERENCIA CON OTRAS PRUEBAS:
+// Mientras que 'assert.equal' compara que dos valores sean 100% idénticos, 
+// 'doesNotMatch' no busca igualdades exactas ni evalúa números u objetos. 
+// Recibe un bloque de texto y una fórmula de búsqueda matemática (RegEx). 
+// Su éxito técnico radica en asegurar que esa fórmula de búsqueda arroje 
+// cero resultados dentro del texto analizado.
+// ============================================================================
     assert.doesNotMatch(error.message, /sk_test|secreto/);
     return true;
   });
+  // ============================================================================
+// EL INSPECTOR DE ESTRUCTURAS PROFUNDAS (assert.deepEqual)
+// 
+// 1. ¿QUÉ ES 'assert.deepEqual' (Igualdad profunda)?:
+// Es una función del módulo de pruebas diseñada específicamente para comparar 
+// estructuras de datos complejas, como Objetos ({}) o Arrays ([]). Su 
+// trabajo es escanear y comparar el contenido interno de estas estructuras, 
+// capa por capa y propiedad por propiedad.
+//
+// 2. EL PROBLEMA DE LA MEMORIA (Por qué no usar 'equal' normal):
+// En JavaScript, si creas dos objetos visualmente idénticos (por ejemplo: 
+// { edad: 20 } y { edad: 20 }), el sistema los considera diferentes porque 
+// ocupan distintos espacios en la memoria RAM de la computadora. El método 
+// 'equal' normal fallaría aquí. 'deepEqual' resuelve esto ignorando la 
+// dirección de memoria; en su lugar, "abre las cajas" y entra recursivamente 
+// en cada nivel para confirmar que los datos que contienen son idénticos.
+//
+// 3. NOTA TÉCNICA DE EXPERTO (La versión estricta):
+// Al igual que ocurre con 'equal', 'deepEqual' realiza una comparación 
+// interna flexible (usando el operador '=='). En entornos de desarrollo 
+// profesionales y modernos, la regla general es utilizar siempre su versión 
+// blindada: 'assert.deepStrictEqual'. Esta versión garantiza que dentro del 
+// objeto o array no solo coincidan los valores, sino también los tipos de 
+// datos exactos (usando '===').
+// ============================================================================
   assert.deepEqual(registros.mock.calls.map(llamada => llamada.arguments[1].etapa), ['confirmar', 'consultar']);
   assert.equal(registros.mock.calls[0].arguments[1].id_compra, input.clave);
   assert.doesNotMatch(JSON.stringify(registros.mock.calls), /sk_test|secreto/);
@@ -236,6 +405,32 @@ test('cancelar una unidad cancela toda la compra y devuelve o libera el importe 
   const id = (await filas(input.clave))[0].id_pedido;
   await servicio.cancelarPedido(id, cliente); await servicio.cancelarPedido(id, cliente);
   assert.equal(devoluciones.size, 1);
+  // ============================================================================
+// EL VALIDADOR DE EXISTENCIA Y VERACIDAD (assert.ok)
+// 
+// 1. ¿QUÉ ES 'assert.ok' (Afirmar que está bien / es verdadero)?:
+// Es la herramienta de comprobación más directa y fundamental del módulo 
+// de pruebas. A diferencia de 'equal' o 'deepEqual' (que siempre comparan 
+// dos cosas entre sí), 'ok' evalúa un único valor. Su trabajo es asegurar 
+// que la variable o condición que le entregues sea evaluada positivamente. 
+// Si la evaluación resulta negativa, lanza un error y detiene la prueba.
+//
+// 2. EL CONCEPTO "TRUTHY" (Evaluación de existencia):
+// La característica técnica de 'ok' es que no exige que el valor sea 
+// estrictamente el booleano 'true'. Evalúa la "existencia" general del dato 
+// (lo que en JavaScript se conoce como un valor 'truthy'). Pasará la prueba 
+// automáticamente si recibe un objeto, un array, un texto con contenido o un 
+// número. Solo fallará si recibe valores que representan "nada" o "ausencia 
+// de valor" (false, 0, null, undefined, o un texto vacío "").
+//
+// 3. EL PROPÓSITO (Comprobaciones rápidas):
+// Se utiliza constantemente para confirmar que los procesos han generado un 
+// resultado antes de continuar, cuando no nos importa el contenido exacto 
+// del mismo. Por ejemplo: verificar que la base de datos nos ha devuelto 
+// un 'usuario.id' tras un registro. No nos importa si el ID asignado es 
+// el 5 o el 5000; usamos 'assert.ok(usuario.id)' simplemente para garantizar 
+// que el dato existe, se ha creado y no está en blanco.
+// ============================================================================
   assert.ok((await filas(input.clave)).every(p => p.estado === 'CANCELADO'));
   const reserva = solicitud('compra-reserva-000001', { fecha_programada: new Date(reloj.getTime() + 3600_000).toISOString() });
   await servicio.preparar(reserva, cliente); autorizar(reserva.clave); await servicio.confirmar(reserva.clave, cliente);

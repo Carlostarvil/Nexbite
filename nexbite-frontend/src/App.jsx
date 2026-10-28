@@ -853,37 +853,254 @@ const totalArticulos = carrito.reduce(
       
     <ErrorBoundary>
       <div style={{ fontFamily: 'system-ui', margin: 0, padding: 0, minHeight: '100vh', backgroundColor: userRol === 'VENDEDOR' ? '#f7f9f5' : '#ffffff', position: 'relative' }}>
-        <div className="header-contenedor" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)}>
-        <Header 
-          onInicio={handleInicio} onLogout={handleCerrarSesion} 
-          cantidadCarrito={totalArticulos} 
-          onAbrirCarrito={() => abrirCarrito()}
-          onAbrirFavoritos={() => { setMostrarFavoritos(true); setMostrarCarrito(false); setRestauranteActivo(null); setPlatoActivo(null); setMostrarPerfil(false); }}
-          onSelectRestaurante={id => { handleInicio(); setRestauranteActivo(id); cerrarAvisoCarrito(); window.scrollTo(0, 0); }}
-          onSelectPlato={plato => { handleInicio(); setRestauranteActivo(plato.id_restaurante); setPlatoActivo(plato); cerrarAvisoCarrito(); window.scrollTo(0, 0); }}
-          onAbrirPerfil={() => abrirPerfil()}
-          vistaActiva={mostrarPerfil ? 'perfil' : mostrarCarrito ? 'carrito' : mostrarFavoritos ? 'favoritos' : 'inicio'}
-          userRol={userRol}
-          ubicacionEntrega={ubicacionEntrega}
-          modoEntrega={modoEntrega}
-          onCambiarUbicacion={() => {
-            if (ubicacionEntrega) setMostrarSelectorUbicacion(true);
-            else { handleInicio(); document.getElementById('direccion-entrega')?.focus(); }
-          }}
-          onCambiarModoEntrega={modo => { setModoEntrega(modo); handleInicio(); }}
-        />
+        
+        / ============================================================================
+// EL CONTENEDOR DEL HEADER Y EL ESCUDO DE CRISTAL ('inert')
+// PROPÓSITO GENERAL: Dibujar la caja superior de la app (el menú/logo) y 
+// bloquearla por completo (como si le pusieras un cristal blindado por encima) 
+// para que el usuario no pueda hacer clics accidentales cuando tiene ventanas 
+// flotantes importantes abiertas en el centro de la pantalla.
+// ============================================================================
+
+<div className="header-contenedor" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)}>
+
+  {/* 
+    1. div (La Caja Base)
+    QUÉ ES: La etiqueta HTML más básica. Crea un bloque o rectángulo invisible 
+    para agrupar las cosas de tu menú superior.
+  */}
+
+  {/* 
+    2. className="header-contenedor" (El Maquillaje)
+    QUÉ ES: Es el enlace a tu archivo CSS para darle colores y forma.
+    EL DETALLE: En HTML normal se escribe 'class', pero como en JavaScript 
+    esa es una palabra reservada, React inventó 'className' para evitar choques.
+  */}
+
+  {/* 
+    3. inert= (El Cristal Blindado / El 'if' visual)
+    QUÉ ES: Un atributo moderno de HTML. 
+    PROPÓSITO: Conceptualmente actúa como un 'if'. SI le inyectas un 'true', 
+    activa un escudo fantasma: bloquea clics, bloquea la navegación con teclado 
+    y lectores de pantalla. SI le pasas 'false', todo funciona normal.
+  */}
+
+  {/* 
+    4. Las llaves { ... } (El Modo JavaScript)
+    PROPÓSITO: Le dicen a React: "Pausa el HTML, voy a hacer una ecuación 
+    matemática/lógica aquí adentro para decidir si enciendo el cristal o no".
+  */}
+
+  {/* 
+    5. mostrarSelectorUbicacion (La Condición A / El Atajo)
+    QUÉ ES: Tu variable de estado (true/false) que dice si el mapa está abierto.
+    EL ATAJO: Al poner solo su nombre, JavaScript evalúa automáticamente si es verdadero.
+  */}
+
+  {/* 
+    6. || (La compuerta "O" / OR)
+    PROPÓSITO: Une las condiciones. Le dice al sistema: "Enciende el escudo 
+    SI la Condición A es verdadera... O SI la Condición B es verdadera".
+  */}
+
+  {/* 
+    7. Boolean(confirmacionPedido) (La Condición B / El Traductor)
+    EL PROBLEMA: 'confirmacionPedido' guarda un Objeto gigante, no un true/false.
+    LA SOLUCIÓN: 'Boolean()' actúa como traductor. Si el objeto está vacío, 
+    lo traduce a 'false'. Si tiene datos, lo traduce a 'true'.
+  */}
+  {/* 
+  ============================================================================
+  EL COMPONENTE HEADER (El Volante del Coche)
+  QUÉ ES: Al empezar con Mayúscula (<Header>), React sabe que esto NO es una 
+  etiqueta HTML normal (como <div>), sino una pieza de Lego fabricada por ti o tu 
+  equipo en otro archivo (Header.js). 
+  EL PROPÓSITO: El Header tiene los botones visuales, pero es "tonto". App.js (el cerebro) 
+  le inyecta funciones (cables) y variables (datos) a través de "Props" (enchufes) 
+  para darle vida.
+  ============================================================================
+*/}
+        {/* 
+  ============================================================================
+  EL COMPONENTE HEADER (El Volante del Coche)
+  QUÉ ES: Al empezar con Mayúscula (<Header>), React sabe que esto NO es una 
+  etiqueta HTML normal (como <div>), sino una pieza de Lego fabricada por ti o tu 
+  equipo en otro archivo (Header.js). 
+  EL PROPÓSITO: El Header tiene los botones visuales, pero es "tonto". App.js (el cerebro) 
+  le inyecta funciones (cables) y variables (datos) a través de "Props" (enchufes) 
+  para darle vida.
+  ============================================================================
+*/}
+<Header 
+  // ========================================================================
+  // 1. LOS CABLES DE FUNCIÓN DIRECTA
+  // onInicio: Enchufe inventado en Header.js.
+  // handleInicio: Función real en App.js que limpia y reinicia la pantalla.
+  // ========================================================================
+  onInicio={handleInicio} 
+  
+  // Si tocan salir, ejecuta la función que borra el token de seguridad
+  onLogout={handleCerrarSesion} 
+
+  // ========================================================================
+  // 2. LOS CABLES DE DATOS (Variables)
+  // Envía el número de platos para que el Header dibuje el círculo rojo.
+  // ========================================================================
+  cantidadCarrito={totalArticulos} 
+
+  // ========================================================================
+  // 3. LAS FUNCIONES "ENVUELTAS" (Funciones Flecha en línea)
+  // Crea instrucciones directamente aquí en lugar de hacerlas arriba en App.js
+  // ========================================================================
+  onAbrirCarrito={() => abrirCarrito()}
+  
+  // Apaga todas las pantallas y enciende solo la de Favoritos
+  onAbrirFavoritos={() => { 
+    setMostrarFavoritos(true); 
+    setMostrarCarrito(false); 
+    setRestauranteActivo(null); 
+    setPlatoActivo(null); 
+    setMostrarPerfil(false); 
+  }}
+
+  // ========================================================================
+  // 4. FUNCIONES QUE RECIBEN DATOS DESDE EL HIJO (El camino inverso)
+  // El Header envía el 'id' del restaurante o el objeto 'plato'.
+  // App.js lo atrapa, actualiza el estado y sube la pantalla al tope.
+  // ========================================================================
+  onSelectRestaurante={id => { 
+    handleInicio(); 
+    setRestauranteActivo(id); 
+    cerrarAvisoCarrito(); 
+    window.scrollTo(0, 0); 
+  }}
+  
+  onSelectPlato={plato => { 
+    handleInicio(); 
+    setRestauranteActivo(plato.id_restaurante); 
+    setPlatoActivo(plato); 
+    cerrarAvisoCarrito(); 
+    window.scrollTo(0, 0); 
+  }}
+  
+  onAbrirPerfil={() => abrirPerfil()}
+
+  // ========================================================================
+  // 5. EL EVALUADOR DE PANTALLAS (Operador Ternario Anidado)
+  // Evalúa en cadena qué está viendo el usuario para inyectar la palabra exacta.
+  // ========================================================================
+  vistaActiva={
+    mostrarPerfil ? 'perfil' : 
+    mostrarCarrito ? 'carrito' : 
+    mostrarFavoritos ? 'favoritos' : 
+    'inicio'
+  }
+
+  // Variables de estado puras pasadas como texto/booleanos
+  userRol={userRol}
+  ubicacionEntrega={ubicacionEntrega}
+  modoEntrega={modoEntrega}
+
+  // ========================================================================
+  // 6. MEZCLA DE REACT CON JAVASCRIPT CLÁSICO (DOM)
+  // - SI ya hay ubicación: abre el modal del mapa.
+  // - SI NO hay: usa JS puro (document.getElementById) para forzar el teclado 
+  //   a escribir en la caja 'direccion-entrega'.
+  // ========================================================================
+  onCambiarUbicacion={() => {
+    if (ubicacionEntrega) setMostrarSelectorUbicacion(true);
+    else { 
+      handleInicio(); 
+      document.getElementById('direccion-entrega')?.focus(); 
+    }
+  }}
+  
+  // Atrapa el texto de si el usuario eligió "Delivery" o "Pick up"
+  onCambiarModoEntrega={modo => { 
+    setModoEntrega(modo); 
+    handleInicio(); 
+  }}
+/>
         </div>
 
-        <main className="nexbite-contenido" inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)} style={{ padding: 'clamp(1rem, 4vw, 2rem)', maxWidth: userRol === 'VENDEDOR' ? '1440px' : '1200px', margin: '0 auto' }}>
+  <main 
+  // ========================================================================
+  // EL TRAJE DE FÁBRICA (Estilos Estáticos)
+  // Aquí trae todo el diseño general desde el archivo CSS (colores, fuentes).
+  // ========================================================================
+  className="nexbite-contenido" 
+  
+  inert={mostrarSelectorUbicacion || Boolean(confirmacionPedido)} 
+  
+  // ========================================================================
+  // LOS AJUSTES A MEDIDA (Estilos Dinámicos)
+  // Como el CSS externo no puede leer la variable 'userRol', usamos 'style' 
+  // para inyectar reglas matemáticas directamente. 
+  // Si alguna de estas reglas (como maxWidth) choca con lo que dice 
+  // 'nexbite-contenido', esta línea SIEMPRE gana por tener prioridad absoluta.
+  // ========================================================================
+  style={{ 
+    padding: 'clamp(1rem, 4vw, 2rem)', 
+    maxWidth: userRol === 'VENDEDOR' ? '1440px' : '1200px', 
+    margin: '0 auto' 
+  }}>
           
           {userRol === 'VENDEDOR' ? (
-            <EspacioVendedor vista={mostrarPerfil ? 'PERFIL' : vistaVendedor} local={localSeleccionado} onNavegar={vista => {
+            <EspacioVendedor vista={mostrarPerfil ? 'PERFIL' : vistaVendedor} local={localSeleccionado} 
+            // ========================================================================
+  // onNavegar (El Enchufe Personalizado)
+  // QUÉ ES: Es una 'Prop' inventada por quien creó el EspacioVendedor. 
+  // Empieza con la partícula 'on' por pura convención de programadores para 
+  // indicar que es un evento (significa "Al Navegar").
+  // PROPÓSITO: Es la ranura exacta por donde App.js conecta su función de 
+  // cambio de pantallas para que el vendedor pueda usarla desde adentro.
+  // ========================================================================
+  // 
+  onNavegar={vista => {
               if (vista === 'PERFIL') abrirPerfil();
               else { setMostrarPerfil(false); setVistaVendedor(vista); }
             }}>
               {mostrarPerfil ? <PerfilVendedor idUsuario={userId} onVerLocales={() => { setMostrarPerfil(false); setVistaVendedor('MIS_LOCALES'); }} />
-              : vistaVendedor === 'REGISTRAR' ? <RegistroRestaurante onCancelar={() => setVistaVendedor('MIS_LOCALES')} onGuardado={local => {
+              : vistaVendedor === 'REGISTRAR' ? 
+              
+              
+              <RegistroRestaurante 
+              // ========================================================================
+  // LA MÁQUINA DE FORMULARIOS Y SUS CABLES (Props de Eventos)
+  // EL CONCEPTO: <RegistroRestaurante> es una máquina fabricada en otro archivo. 
+  // Los botones reales de "Cancelar" y "Guardar" viven escondidos adentro de ella. 
+  // EL FLUJO: Como App.js (el padre) no puede tocar esos botones, usa estos 
+  // "cables" (onCancelar y onGuardado) que la máquina trae de fábrica.
+  // La información viaja de ADENTRO hacia AFUERA (del Hijo al Padre).
+  // ========================================================================
+
+  // ========================================================================
+  // 1. EL CABLE DE "ME ARREPENTÍ" (onCancelar)
+  // PROPÓSITO: Cuando el vendedor pisa el botón de cancelar dentro de la máquina, 
+  // esta jala este cable. App.js recibe la señal y usa su mando a distancia 
+  // (setVistaVendedor) para devolver al usuario a la pantalla de 'MIS_LOCALES'.
+  // ========================================================================
+  // 
+  onCancelar={() => setVistaVendedor('MIS_LOCALES')} 
+  // ========================================================================
+  // 2. EL CABLE DE "MISIÓN CUMPLIDA" (onGuardado)
+  // PROPÓSITO: Cuando la máquina termina de guardar el restaurante en la base 
+  // de datos, jala este cable para avisar que terminó y lanza los datos hacia afuera.
+  // ========================================================================
+  onGuardado={
+    // A. LA CESTA ATRAPADORA ('local =>')
+    // Esta variable 'local' es un parámetro inventado. Funciona como una cesta 
+    // que atrapa en el aire el paquete de datos del restaurante que acaba de 
+    // salir de la máquina.
+    local => {
+      // B. EL USO DE LOS DATOS (El Pop-up)
+      // App.js usa el mando a distancia (setMensajeVendedor) para crear una 
+      // notificación. Extrae el nombre exacto desde la cesta (local.nombre) 
+      // para que el mensaje sea personalizado.
                 setMensajeVendedor({ tipo: 'exito', titulo: '¡Tu local ya está en NexBite!', descripcion: local.nombre + ' está listo. Añade tus productos desde «Menú».' });
+                // C. LA REDIRECCIÓN
+      // Usa el mando de pantallas (setVistaVendedor) para sacar al usuario 
+      // del formulario y llevarlo a su lista de locales.
                 setVistaVendedor('MIS_LOCALES');
               }} />
               : vistaVendedor === 'GESTOR_MENU' && localSeleccionado ? <GestorMenu key={localSeleccionado.id_restaurante} idRestaurante={localSeleccionado.id_restaurante} nombreRestaurante={localSeleccionado.nombre} />
@@ -900,13 +1117,68 @@ const totalArticulos = carrito.reduce(
             ) : mostrarCarrito ? (
               <Carrito key={destinoCarrito.irAPago ? 'pago-' + destinoCarrito.idRestaurante : 'carrito'} carrito={carrito} setCarrito={setCarrito} onVolver={() => setMostrarCarrito(false)} vaciarCarrito={() => setCarrito([])} idUsuario={userId} ubicacionEntrega={ubicacionEntrega} onCambiarUbicacion={() => setMostrarSelectorUbicacion(true)} tipoEntregaInicial={modoEntrega} idRestauranteInicial={destinoCarrito.idRestaurante} irAPago={destinoCarrito.irAPago} onPedidoConfirmado={pedido => { cerrarAvisoCarrito(); setConfirmacionPedido(pedido); }} />
             ) : mostrarFavoritos ? (
-              <MisFavoritos idUsuario={userId} ubicacionEntrega={ubicacionEntrega} modoEntrega={modoEntrega} onVolver={() => setMostrarFavoritos(false)} onSelectRestaurante={(id) => { setRestauranteActivo(id); setMostrarFavoritos(false); }} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={setPlatoActivo} />
+              <MisFavoritos 
+              // ========================================================================
+  // EL CABLE DE IDENTIFICACIÓN (idUsuario)
+  // PROPÓSITO: Pasarle el carnet de identidad a la máquina de favoritos 
+  // para que sepa los gustos de quién tiene que buscar.
+  // ========================================================================
+  
+  // 1. EL ENCHUFE ('idUsuario=')
+  // Es el nombre que inventó el creador de la máquina <MisFavoritos>. 
+  // Le puso así para decir: "Si quieres que funcione, conéctame por aquí 
+  // el ID del usuario".
+  
+  // 2. LA VARIABLE / EL DNI ('{userId}')
+  // Es la variable real que vive en App.js. Guarda el código único del 
+  // usuario que hizo el login. 
+  //
+  // ¿POR QUÉ ES VITAL ESTO?
+  // La máquina <MisFavoritos> por dentro tiene un código que va a hablar 
+  // con tu base de datos y le va a decir: "Oye base de datos, dame los 
+  // platos favoritos del usuario número [userId]". 
+  // Si no le inyectas este dato desde App.js, la máquina se queda ciega y 
+  // no sabría a quién buscarle los favoritos.
+  // 
+  idUsuario={userId} ubicacionEntrega={ubicacionEntrega} modoEntrega={modoEntrega} onVolver={() => setMostrarFavoritos(false)} onSelectRestaurante={(id) => { setRestauranteActivo(id); setMostrarFavoritos(false); }} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={setPlatoActivo} />
             
             ) : restauranteActivo ? (
               <PerfilRestaurante idRestaurante={restauranteActivo} idUsuario={userId} onVolver={() => setRestauranteActivo(null)} onAgregarAlCarrito={agregarAlCarrito} onSelectPlato={setPlatoActivo} carrito={carrito} />
             ) : (
               <>
-                <TituloSeccion titulo="¿Qué te apetece hoy?" descripcion="Encuentra tu próximo favorito entre los locales de tu zona." nivel={1} destacado />
+                <TituloSeccion 
+                // ========================================================================
+  // LA MÁQUINA DE TÍTULOS (Reutilización de diseño)
+  // EL CONCEPTO: En lugar de escribir el HTML a mano con clases CSS kilométricas 
+  // en cada pantalla, usamos esta "impresora". Le pasamos los textos por los 
+  // cables y ella se encarga de pintarlos siempre con el diseño oficial de NexBite,
+  // ahorrando mucho tiempo y evitando errores de diseño.
+  // ========================================================================
+
+  // ========================================================================
+  // 1. LOS CABLES DE TEXTO PURO (Strings)
+  // Como le estamos pasando palabras (texto estático), usamos las comillas 
+  // dobles "" normales del HTML.
+  // ========================================================================
+                titulo="¿Qué te apetece hoy?" descripcion="Encuentra tu próximo favorito entre los locales de tu zona." 
+                // ========================================================================
+  // 2. EL CABLE NUMÉRICO (nivel)
+  // PROPÓSITO: Decide la jerarquía del HTML por dentro (ej: {1} dibuja un <h1> 
+  // gigante, {2} dibuja un <h2> más pequeño).
+  // ¿POR QUÉ TIENE LLAVES { }?: Si usas comillas "", React cree que es texto 
+  // (la palabra "1"). Las llaves pausan el texto para avisarle de que le 
+  // estamos inyectando un valor matemático real.
+  // ========================================================================
+                nivel={1} 
+                // ========================================================================
+  // 3. EL INTERRUPTOR MÁGICO (Booleano simplificado)
+  // QUÉ ES: La palabra 'destacado' puesta sola es un atajo elegante de React.
+  // LA REGLA: Es exactamente lo mismo que escribir destacado={true}. Si no le 
+  // asignas nada, React asume que quieres "encenderlo". 
+  // PROPÓSITO: Le dice a la máquina que este título debe llevar colores 
+  // vibrantes o algún diseño especial para llamar la atención del usuario.
+  // ========================================================================
+                destacado />
 
                 <style>{`.ocultar-scrollbar::-webkit-scrollbar { display: none; } .ocultar-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
                 <CategoriasInicio seleccionada={categoriaFiltroInicio} onSeleccionar={setCategoriaFiltroInicio} />
