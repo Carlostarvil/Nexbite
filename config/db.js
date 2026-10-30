@@ -12,10 +12,11 @@ const pool = new Pool({
     database: process.env.DB_NAME,
     password: process.env.DB_PASSWORD,
     port: process.env.DB_PORT,
+    ssl: { rejectUnauthorized: false }
 });
 
 pool.query('SELECT 1')
-    .then(() => console.log('✅ Conexión a PostgreSQL (restaurantes_ai) exitosa'))
+    .then(() => console.log(`✅ Conexión a PostgreSQL (${process.env.DB_NAME}) exitosa`))
     .catch(err => console.error('❌ Error al conectar:', err.stack));
 
 export default pool;
