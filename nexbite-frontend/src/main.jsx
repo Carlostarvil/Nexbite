@@ -33,7 +33,7 @@ if (typeof Node === 'function' && Node.prototype) {
 
 // Endpoint GraphQL utilizado por las consultas y mutaciones de la interfaz.
 const httpLink = createHttpLink({
-  uri: 'http://localhost:4000/graphql',
+  uri: 'https://nexbite.onrender.com/graphql',
 });
 
 // Envía el JWT de la sesión en Authorization para que el servidor lo verifique.

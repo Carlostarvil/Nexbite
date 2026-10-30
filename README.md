@@ -138,7 +138,7 @@ Al arrancar, el backend aplica las actualizaciones incluidas en [`config/db.js`]
 
 La configuración actual utiliza direcciones y constantes definidas en el código:
 
-- **API GraphQL:** `http://localhost:4000/graphql`, en [`nexbite-frontend/src/main.jsx`](nexbite-frontend/src/main.jsx).
+- **API GraphQL del frontend en `deploy-render`:** `https://nexbite.onrender.com/graphql`, en [`nexbite-frontend/src/main.jsx`](nexbite-frontend/src/main.jsx).
 - **Stripe:** clave publicable de pruebas en [`nexbite-frontend/src/Carrito.jsx`](nexbite-frontend/src/Carrito.jsx). Debe pertenecer a la misma cuenta y modo que la clave secreta del servidor.
 - **Google:** identificador OAuth en [`nexbite-frontend/src/Auth.jsx`](nexbite-frontend/src/Auth.jsx). Configura el origen del frontend en tu cliente OAuth y utiliza el mismo identificador en el backend.
 - **Recuperación de contraseña:** enlace del frontend definido en [`graphql/resolvers.js`](graphql/resolvers.js), actualmente con el origen `http://localhost:5173`.
