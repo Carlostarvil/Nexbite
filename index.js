@@ -15,6 +15,7 @@ import { typeDefs } from './graphql/typeDefs.js';
 import { resolvers, procesarComprasPendientes } from './graphql/resolvers.js';
 import { inicializarChatbot } from './nlp/chatbot.js';
 import pool, { horariosRecogidaListos, clientesPagoListos, menusListos, comprasListas } from './config/db.js';
+import cuerpoJson from './config/cuerpoJson.js';
 
 dotenv.config();
 
@@ -24,7 +25,7 @@ const app = express();
 const limitadorTrafico = rateLimit({ windowMs: 1 * 60 * 1000, max: 100 });
 app.use(limitadorTrafico);
 app.use(cors());
-app.use(express.json());
+app.use(cuerpoJson);
 
 const httpServer = createServer(app);
 const schema = makeExecutableSchema({ typeDefs, resolvers });

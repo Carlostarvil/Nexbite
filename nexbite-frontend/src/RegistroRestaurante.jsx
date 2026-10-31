@@ -10,6 +10,7 @@ import { IconoVendedor, TituloVendedor } from './VendedorUI';
 import { categoriasLocal, textoCategoriaLocal } from './vendedorUtils';
 import EtiquetasLocal from './EtiquetasLocal';
 import ImagenPortada from './ImagenPortada';
+import { MAX_BYTES_IMAGEN, MENSAJE_IMAGEN_GRANDE } from '../../shared/limitesImagen.js';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -118,6 +119,7 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
     if (!archivo) return;
     setErrorFormulario(null);
     if (!archivo.type.startsWith('image/')) { mostrarError('Selecciona una imagen JPG, PNG, WEBP o GIF.'); entrada.value = ''; return; }
+    if (archivo.size > MAX_BYTES_IMAGEN) { mostrarError(MENSAJE_IMAGEN_GRANDE); entrada.value = ''; return; }
     setLeyendoImagen(true);
     const fallo = texto => { setLeyendoImagen(false); entrada.value = ''; mostrarError(texto); };
     const lector = new FileReader();
@@ -166,7 +168,7 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
       const local = resultado.data?.[esEdicion ? 'actualizarNegocio' : 'registrarNegocio'];
       if (!local) throw new Error('No se ha podido confirmar el guardado. Vuelve a intentarlo.');
       onGuardado?.(local);
-    } catch (err) { mostrarError(err.message); }
+    } catch (err) { mostrarError(err.statusCode === 413 ? MENSAJE_IMAGEN_GRANDE : err.message); }
     finally { guardando.current = false; }
   };
 
@@ -184,7 +186,7 @@ export default function RegistroRestaurante({ restaurante = null, onGuardado, on
             </div>
           </section>
           <section className="vendedor-panel"><CabeceraPanel numero="02" titulo="Una portada que invite a entrar" descripcion="Muestra el ambiente y la personalidad de tu negocio." />
-            <div className="vendedor-carga-imagen"><div className="vendedor-carga-imagen-cabecera"><IconoVendedor nombre="subir" tamano={30} /><div><strong>{formData.imagen_url ? 'Cambiar imagen de portada' : 'Subir imagen de portada'}</strong><p>Foto horizontal · recomendamos al menos 800 px de ancho.</p></div></div><input type="file" aria-label="Imagen de portada del local" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageChange} />{leyendoImagen && <span role="status">Preparando tu imagen...</span>}<MensajeAccion mensaje={recomendacionImagen} /></div>
+            <div className="vendedor-carga-imagen"><div className="vendedor-carga-imagen-cabecera"><IconoVendedor nombre="subir" tamano={30} /><div><strong>{formData.imagen_url ? 'Cambiar imagen de portada' : 'Subir imagen de portada'}</strong><p>Foto horizontal · hasta 5 MB · recomendamos al menos 800 px de ancho.</p></div></div><input type="file" aria-label="Imagen de portada del local" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageChange} />{leyendoImagen && <span role="status">Preparando tu imagen...</span>}<MensajeAccion mensaje={recomendacionImagen} /></div>
           </section>
           <section className="vendedor-panel"><CabeceraPanel numero="03" titulo="Encuéntranos aquí" descripcion="La ubicación exacta se utiliza para calcular tu zona de reparto." />
             <div className="vendedor-direccion"><label className="vendedor-campo"><span>Dirección del local</span><input placeholder="Ej: Gran Vía 12, Madrid..." autoComplete="street-address" value={busqueda} onChange={e => { seleccionAutomatica.current = false; setBusqueda(e.target.value); cambiar('direccion', e.target.value); setSugerencias([]); setPosicion(null); setBuscando(false); }} /></label>{buscando && <small className="vendedor-ayuda-campo" role="status">Buscando direcciones...</small>}
