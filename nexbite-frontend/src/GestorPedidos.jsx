@@ -34,6 +34,19 @@ const ESTADOS = {
 const ALIAS = { 'EN COCINA': 'PREPARANDO', 'EN CAMINO': 'ENVIADO', RECHAZADO: 'CANCELADO' };
 const estadoCanonico = estado => ALIAS[estado] || estado;
 const estadoPedido = estado => ESTADOS[estadoCanonico(estado)] || { texto: estado, tono: 'programado', icono: 'pedidos' };
+const motivoBloqueoEstado = pedido => {
+  if (['CANCELADO', 'RECHAZADO'].includes(pedido.estado)) return 'Este pedido está cancelado y ya no admite cambios de estado.';
+  if (pedido.estado === 'ENTREGADO') return 'Este pedido ya se ha entregado y no admite cambios de estado.';
+  if (pedido.estado === 'PROGRAMADO' || pedido.estado_pago === 'RESERVADA') {
+    return 'Es una reserva' + (pedido.fecha_programada ? ' para ' + fechaVendedor(pedido.fecha_programada) : '') + '. Los estados se habilitarán cuando se active la reserva y la compra esté confirmada.';
+  }
+  if (pedido.id_compra && pedido.estado_pago !== 'CONFIRMADA') {
+    return pedido.estado_pago === 'AUTORIZADA'
+      ? 'El pago todavía se está confirmando. Los estados se habilitarán al confirmarse la compra. Pulsa «Actualizar» para comprobarlo; no hace falta cancelar el pedido.'
+      : 'La compra todavía no figura como confirmada. Pulsa «Actualizar» para revisar su estado antes de preparar el pedido.';
+  }
+  return null;
+};
 const fechaMinimaAhora = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 const MOTIVOS = ['Falta de ingredientes o stock', 'Zona de entrega fuera de cobertura', 'Cierre adelantado / Problemas técnicos', 'Exceso de pedidos en cocina'];
 
@@ -194,6 +207,7 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
                 <div className="vendedor-pedidos-lista">
                   {visibles.map(pedido => {
                     const estado = estadoPedido(pedido.estado);
+                    const motivoBloqueo = motivoBloqueoEstado(pedido);
                     const recogida = esRecogida(pedido);
                     
                     // En recogida, la acción indica que el pedido está listo para recoger en lugar de enviarlo.
@@ -227,9 +241,10 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
                           </div>
                         </div>
                         <div className="vendedor-pedido-pie">
+                          {motivoBloqueo && <p className="vendedor-ayuda-campo" role="status" style={{ flexBasis: '100%', margin: 0 }}>{motivoBloqueo}</p>}
                           <label className="vendedor-pedido-select">
                             <span>Estado</span>
-                            <select aria-label={'Estado del pedido ' + pedido.id_pedido} value={pedido.estado} disabled={ocupado || ['ENTREGADO','CANCELADO','RECHAZADO'].includes(pedido.estado)} onChange={e => e.target.value === 'CANCELADO' ? abrirDialogo('rechazo', pedido) : guardarEstado(pedido, e.target.value)}>
+                            <select aria-label={'Estado del pedido ' + pedido.id_pedido} title={motivoBloqueo || 'Selecciona el estado del pedido'} value={pedido.estado} disabled={ocupado || ['ENTREGADO','CANCELADO','RECHAZADO'].includes(pedido.estado)} onChange={e => e.target.value === 'CANCELADO' ? abrirDialogo('rechazo', pedido) : guardarEstado(pedido, e.target.value)}>
                               {!['PENDIENTE', 'PREPARANDO', 'ENVIADO', 'ENTREGADO', 'CANCELADO'].includes(pedido.estado) && <option value={pedido.estado}>{estado.texto}</option>}
                               {['PENDIENTE', 'PREPARANDO', 'ENVIADO', 'ENTREGADO', 'CANCELADO'].map(valor => <option key={valor} value={valor} disabled={valor !== 'CANCELADO' && (pedido.estado === 'PROGRAMADO' || Boolean(pedido.id_compra && pedido.estado_pago !== 'CONFIRMADA'))}>{ESTADOS[valor].texto}</option>)}
                             </select>
