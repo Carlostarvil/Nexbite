@@ -4,6 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { crearServicioCompras, normalizarSolicitud } from '../graphql/compras.js';
 import { protegerResolvers } from '../graphql/permisos.js';
 import { SQL_COMPRAS } from '../graphql/migracionCompras.js';
+import { crearNotificacionesPedidos } from '../graphql/notificacionesPedidos.js';
 import { procesarMensaje } from '../graphql/nlp/chatbot.js';
 
 // PostgreSQL en memoria: nunca utiliza .env, tarjetas reales ni datos del usuario.
@@ -355,6 +356,53 @@ test('una devolución pendiente se consulta hasta confirmarse sin solicitar otra
   await servicio.procesarPendientes();
   assert.equal((await servicio.consultar(input.clave, cliente)).estado, 'REEMBOLSADA');
   assert.equal(devoluciones.size, 1);
+});
+
+test('cancelar una compra completa registra un solo aviso con el motivo y el mensaje del local', async () => {
+  let despertares = 0;
+  const avisos = crearNotificacionesPedidos(pool, async () => {}, { ahora: () => reloj });
+  servicio = crearServicioCompras(pool, stripe, { ahora: () => reloj, registrarCambioPedido: avisos.registrar, despertarAvisosPedido: () => { despertares++; } });
+  const input = solicitud('compra-aviso-cancelacion-001', { metodo_pago: 'EFECTIVO' });
+  await servicio.preparar(input, cliente);
+  await servicio.confirmar(input.clave, cliente);
+  const id = (await filas(input.clave))[0].id_pedido;
+  await servicio.cancelarPedido(id, vendedor, 'Falta de stock', 'Lo sentimos, vuelve mañana.');
+  await servicio.cancelarPedido(id, vendedor, 'Falta de stock');
+  const eventos = (await db.query('SELECT * FROM Notificaciones_Pedido')).rows;
+  assert.equal(eventos.length, 1);
+  assert.equal(eventos[0].datos.estado, 'CANCELADO');
+  assert.equal(eventos[0].datos.compraCompleta, true);
+  assert.equal(eventos[0].datos.pedidos.length, 3);
+  assert.equal(eventos[0].datos.motivo, 'Falta de stock');
+  assert.equal(eventos[0].datos.mensaje, 'Lo sentimos, vuelve mañana.');
+  assert.equal(despertares, 1);
+});
+
+test('un fallo al registrar el aviso revierte la cancelación sin devolver un pago que sigue activo', async () => {
+  const avisos = crearNotificacionesPedidos(pool, async () => {}, { ahora: () => reloj });
+  servicio = crearServicioCompras(pool, stripe, {
+    ahora: () => reloj,
+    registrarCambioPedido: async (...args) => { await avisos.registrar(...args); throw new Error('Fallo de aviso simulado'); },
+  });
+  const input = solicitud(); await servicio.preparar(input, cliente); autorizar(input.clave);
+  await servicio.confirmar(input.clave, cliente);
+  await assert.rejects(servicio.cancelarPedido((await filas(input.clave))[0].id_pedido, cliente), /Fallo de aviso/);
+  assert.ok((await filas(input.clave)).every(p => p.estado === 'PENDIENTE'));
+  assert.equal((await db.query('SELECT estado FROM Compras WHERE id_compra = $1', [input.clave])).rows[0].estado, 'CONFIRMADA');
+  assert.equal((await db.query('SELECT * FROM Notificaciones_Pedido')).rows.length, 0);
+  assert.equal(devoluciones.size, 0);
+});
+
+test('cancelar un pedido antiguo también conserva un aviso pendiente sin duplicarlo', async () => {
+  const avisos = crearNotificacionesPedidos(pool, async () => {}, { ahora: () => reloj });
+  servicio = crearServicioCompras(pool, stripe, { ahora: () => reloj, registrarCambioPedido: avisos.registrar });
+  const pedido = (await db.query("INSERT INTO Pedidos (id_usuario, id_restaurante, id_plato, metodo_pago, estado) VALUES (1,10,101,'EFECTIVO','PENDIENTE') RETURNING *")).rows[0];
+  await servicio.cancelarPedido(pedido.id_pedido, cliente, 'Cambio de planes');
+  await servicio.cancelarPedido(pedido.id_pedido, cliente, 'Cambio de planes');
+  const eventos = (await db.query('SELECT * FROM Notificaciones_Pedido')).rows;
+  assert.equal(eventos.length, 1);
+  assert.equal(eventos[0].datos.compraCompleta, false);
+  assert.equal(eventos[0].datos.motivo, 'Cambio de planes');
 });
 
 test('sin sesión, con tarjeta ajena o con otra cuenta no se consulta ni confirma una compra', async () => {

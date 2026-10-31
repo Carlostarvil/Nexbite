@@ -66,7 +66,7 @@ export function protegerResolvers(pool, originales, compras) {
   protegidos.Mutation.actualizarEstadoPedido = async (padre, args, ctx, info) => {
     if (['CANCELADO', 'RECHAZADO'].includes(args.nuevo_estado)) {
       await exigirLocalPropio(pool, ctx, args.id_pedido, 'pedido');
-      return compras.cancelarPedido(args.id_pedido, ctx, args.motivo_rechazo || args.mensaje_personalizado || 'Cancelado por el local');
+      return compras.cancelarPedido(args.id_pedido, ctx, args.motivo_rechazo || args.mensaje_personalizado || 'Cancelado por el local', args.motivo_rechazo ? args.mensaje_personalizado || '' : '');
     }
     await exigirLocalPropio(pool, ctx, args.id_pedido, 'pedido');
     return compras.conPedidoBloqueado(args.id_pedido, async cx => {

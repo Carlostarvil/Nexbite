@@ -131,6 +131,8 @@ Utiliza valores propios en `.env`. Las credenciales de PostgreSQL, Stripe, corre
 
 Para el envío desde Render gratuito, consulta [Configurar los correos por HTTPS](docs/correo-render.md). El pago se confirma sin esperar al correo; las notificaciones de compras quedan pendientes en PostgreSQL y se intentan desde una tarea independiente cada 30 segundos mientras el servidor está activo.
 
+Los cambios de estado de pedidos tienen avisos independientes: se guardan junto al cambio, se solicita su envío inmediatamente y una tarea cada cinco segundos reintenta los pendientes. Incluyen preparación, reparto, recogida, entrega y cancelación, con mensajes específicos para cada caso.
+
 ### 4. Preparar la base de datos
 
 La configuración debe apuntar a una base de datos que ya tenga el esquema inicial de NexBite, incluidas las tablas `Usuarios`, `Restaurantes`, `Platos` y `Pedidos` y sus tablas relacionadas.

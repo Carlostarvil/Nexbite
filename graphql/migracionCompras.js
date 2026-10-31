@@ -22,4 +22,21 @@ export const SQL_COMPRAS = `
   ALTER TABLE Pedidos ADD COLUMN IF NOT EXISTS nombre_producto TEXT;
   CREATE INDEX IF NOT EXISTS pedidos_compra_idx ON Pedidos(id_compra);
   CREATE INDEX IF NOT EXISTS compras_pendientes_idx ON Compras(estado, actualizada);
+  CREATE TABLE IF NOT EXISTS Notificaciones_Pedido (
+    clave TEXT PRIMARY KEY,
+    id_notificacion BIGSERIAL UNIQUE,
+    canal TEXT NOT NULL,
+    id_pedido INT REFERENCES Pedidos(id_pedido) ON DELETE SET NULL,
+    id_usuario INT NOT NULL REFERENCES Usuarios(id_usuario) ON DELETE CASCADE,
+    datos JSONB NOT NULL,
+    creada TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    proximo_intento TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    intentos INT NOT NULL DEFAULT 0,
+    enviada TIMESTAMPTZ,
+    ultimo_error TEXT
+  );
+  CREATE INDEX IF NOT EXISTS notificaciones_pedido_pendientes_idx
+    ON Notificaciones_Pedido(proximo_intento, id_notificacion) WHERE enviada IS NULL;
+  CREATE INDEX IF NOT EXISTS notificaciones_pedido_canal_idx
+    ON Notificaciones_Pedido(canal, id_notificacion) WHERE enviada IS NULL;
 `;

@@ -12,7 +12,7 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
 import { typeDefs } from './graphql/typeDefs.js';
-import { resolvers, procesarComprasPendientes, procesarNotificacionesPendientes } from './graphql/resolvers.js';
+import { resolvers, procesarComprasPendientes, procesarNotificacionesPendientes, procesarAvisosPedidos } from './graphql/resolvers.js';
 import { inicializarChatbot } from './nlp/chatbot.js';
 import pool, { horariosRecogidaListos, clientesPagoListos, menusListos, comprasListas } from './config/db.js';
 import cuerpoJson from './config/cuerpoJson.js';
@@ -46,6 +46,7 @@ async function contextoToken(autorizacion = '') {
 
 let revisionEnCurso = null;
 let notificacionesEnCurso = null;
+let avisosEnCurso = null;
 const revisarCompras = () => {
   if (!revisionEnCurso) revisionEnCurso = procesarComprasPendientes()
     .catch(error => console.error('No se pudieron revisar las compras pendientes:', error.code || 'CONEXION', error.message))
@@ -56,7 +57,13 @@ const revisarNotificaciones = () => {
     .catch(error => console.error('No se pudieron enviar las notificaciones pendientes:', error.code || 'NOTIFICACION'))
     .finally(() => { notificacionesEnCurso = null; });
 };
+const revisarAvisos = () => {
+  if (!avisosEnCurso) avisosEnCurso = procesarAvisosPedidos()
+    .catch(error => console.error('No se pudieron revisar los avisos de estado:', error.code || 'NOTIFICACION'))
+    .finally(() => { avisosEnCurso = null; });
+};
 let temporizadorCompras;
+let temporizadorAvisos;
 
 const wsServer = new WebSocketServer({ server: httpServer, path: '/graphql' });
 const serverCleanup = useServer({ schema, context: ctx => contextoToken(ctx.connectionParams?.authorization || ctx.connectionParams?.Authorization || '') }, wsServer);
@@ -64,7 +71,7 @@ const serverCleanup = useServer({ schema, context: ctx => contextoToken(ctx.conn
 const server = new ApolloServer({
   schema,
   plugins: [
-    { async serverWillStart() { return { async drainServer() { clearInterval(temporizadorCompras); await Promise.allSettled([revisionEnCurso, notificacionesEnCurso]); await serverCleanup.dispose(); } }; } },
+    { async serverWillStart() { return { async drainServer() { clearInterval(temporizadorCompras); clearInterval(temporizadorAvisos); await Promise.allSettled([revisionEnCurso, notificacionesEnCurso, avisosEnCurso]); await serverCleanup.dispose(); } }; } },
     ApolloServerPluginLandingPageLocalDefault({ embed: true })
   ],
 });
@@ -81,8 +88,11 @@ const PORT = process.env.PORT || 4000;
 httpServer.listen(PORT, () => {
     revisarCompras();
     revisarNotificaciones();
+    revisarAvisos();
     temporizadorCompras = setInterval(() => { revisarCompras(); revisarNotificaciones(); }, 30_000);
     temporizadorCompras.unref();
+    temporizadorAvisos = setInterval(revisarAvisos, 5000);
+    temporizadorAvisos.unref();
     console.log(`🚀 Servidor HTTP listo en http://localhost:${PORT}/graphql`);
     console.log(`⚡ Servidor WebSockets listo en ws://localhost:${PORT}/graphql`);
 });

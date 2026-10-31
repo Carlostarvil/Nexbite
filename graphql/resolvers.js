@@ -17,6 +17,8 @@ import { crearResolversImagenesMenu, crearPlatoConItems } from './imagenesMenu.j
 import { crearEditorPlato } from './editarPlato.js';
 import { protegerResolvers, exigirCuentaPropia, exigirLocalPropio } from './permisos.js';
 import { crearServicioCompras } from './compras.js';
+import { crearNotificacionesPedidos } from './notificacionesPedidos.js';
+import { crearActualizadorEstadoPedido } from './actualizarEstadoPedido.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const operacionesPago = crearOperacionesPago(pool, stripe);
@@ -28,9 +30,12 @@ const eventEmitter = new EventEmitter();
 const PEDIDO_CREADO = 'PEDIDO_CREADO';
 
 const transporter = crearServicioCorreo();
+const avisosPedido = crearNotificacionesPedidos(pool, mensaje => transporter.sendMail(mensaje));
 
 
 const compras = crearServicioCompras(pool, stripe, {
+  registrarCambioPedido: avisosPedido.registrar,
+  despertarAvisosPedido: avisosPedido.despertar,
   notificar: async (compra, pedidos, conexion) => {
     const usuario = (await conexion.query('SELECT email, nombre FROM Usuarios WHERE id_usuario = $1', [compra.id_usuario])).rows[0];
     for (const pedido of pedidos) eventEmitter.emit(PEDIDO_CREADO, { nuevoPedido: pedido });
@@ -44,6 +49,7 @@ const compras = crearServicioCompras(pool, stripe, {
 
 export const procesarComprasPendientes = () => compras.procesarPendientes();
 export const procesarNotificacionesPendientes = () => compras.procesarNotificacionesPendientes();
+export const procesarAvisosPedidos = () => avisosPedido.procesarPendientes();
 
 const calcularExpiracion = (tiempoStr) => {
   if (!tiempoStr || tiempoStr === 'Indefinido') return null;
@@ -574,60 +580,7 @@ const resolversBase = {
       return res.rows[0];
     },
 
-    actualizarEstadoPedido: async (_, {
-      id_pedido,
-      nuevo_estado,
-      motivo_rechazo,
-      mensaje_personalizado
-    }, contexto) => {
-      const conexion = contexto.conexionConsulta;
-      const res = await conexion.query(
-        "UPDATE Pedidos SET estado = $1 WHERE id_pedido = $2 AND estado NOT IN ('ENTREGADO','CANCELADO','RECHAZADO') RETURNING *",
-        [nuevo_estado, id_pedido]
-      );
-
-      const pedido = res.rows[0];
-      if (!pedido) throw new Error('El pedido ha cambiado. Actualiza la lista.');
-      const userRes = await conexion.query(
-        'SELECT email, nombre FROM Usuarios WHERE id_usuario = $1',
-        [pedido.id_usuario]
-      );
-
-      if (userRes.rows.length > 0) {
-        const usuario = userRes.rows[0];
-        let mensajeCuerpo = '';
-        let asuntoCorreo = `🍔 Actualización de tu pedido NexBite (#${id_pedido})`;
-
-        if (nuevo_estado === 'PREPARANDO' || nuevo_estado === 'EN COCINA') {
-          mensajeCuerpo = `¡Hola ${usuario.nombre}! 🎉\n\nTu pedido ya se está preparando en la cocina. 🍳`;
-        } else if (nuevo_estado === 'ENVIADO' || nuevo_estado === 'EN CAMINO') {
-          mensajeCuerpo = `¡Hola ${usuario.nombre}! 🛵\n\n¡Tu pedido va en camino!`;
-        } else if (nuevo_estado === 'ENTREGADO') {
-          mensajeCuerpo = `¡Hola ${usuario.nombre}! ✅\n\nTu pedido ha sido entregado. ¡Que lo disfrutes!`;
-        } else if (nuevo_estado === 'CANCELADO' || nuevo_estado === 'RECHAZADO') {
-          mensajeCuerpo = `Hola ${usuario.nombre},\n\nTu pedido ha sido cancelado. ❌\n\n`;
-
-          if (motivo_rechazo) {
-            mensajeCuerpo += `📌 Motivo: ${motivo_rechazo}\n`;
-          }
-
-          if (mensaje_personalizado) {
-            mensajeCuerpo += `💬 Mensaje: "${mensaje_personalizado}"\n`;
-          }
-        }
-
-        transporter.sendMail({
-          from: `"NexBite Delivery" <${process.env.EMAIL_USER}>`,
-          to: usuario.email,
-          subject: asuntoCorreo,
-          text: mensajeCuerpo
-        }).catch((error) => {
-          console.error('Error correo:', error);
-        });
-      }
-
-      return pedido;
-    },
+    actualizarEstadoPedido: crearActualizadorEstadoPedido(avisosPedido),
 
     eliminarRestaurante: async (_, { id_restaurante }) => {
       await pool.query(

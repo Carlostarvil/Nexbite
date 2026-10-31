@@ -41,7 +41,7 @@ export function normalizarSolicitud(input) {
 
 // Una clave identifica una compra completa. Los bloqueos e idempotencia evitan
 // duplicados incluso cuando el navegador reintenta o el servidor se reinicia.
-export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), notificar = async () => {} } = {}) {
+export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), notificar = async () => {}, registrarCambioPedido = async () => {}, despertarAvisosPedido = () => {} } = {}) {
   async function conBloqueo(clave, accion) {
     const conexion = await pool.connect();
     let bloqueado = false;
@@ -177,14 +177,16 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     }
   }
 
-  async function cancelar(cx, compra, motivo) {
+  async function cancelar(cx, compra, motivo, mensaje = '') {
     if (finales.has(compra.estado)) return compra;
     await cx.query('BEGIN');
     try {
       compra = await cambiar(cx, compra, 'CANCELANDO', motivo);
-      await cx.query("UPDATE Pedidos SET estado = 'CANCELADO' WHERE id_compra = $1", [compra.id_compra]);
+      const pedidos = (await cx.query("UPDATE Pedidos SET estado = 'CANCELADO' WHERE id_compra = $1 RETURNING *", [compra.id_compra])).rows;
+      if (pedidos.length) await registrarCambioPedido(cx, pedidos[0], { motivo, mensaje, compraCompleta: true, pedidos });
       await cx.query('COMMIT');
     } catch (error) { await cx.query('ROLLBACK'); throw error; }
+    despertarAvisosPedido();
     return finalizarCancelacion(cx, compra);
   }
 
@@ -362,7 +364,7 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     return pedido;
   }
 
-  async function cancelarPedido(idPedido, contexto, motivo = 'Cancelado por el cliente') {
+  async function cancelarPedido(idPedido, contexto, motivo = 'Cancelado por el cliente', mensaje = '') {
     const usuario = exigirUsuario(contexto);
     let pedido = (await pool.query('SELECT * FROM Pedidos WHERE id_pedido = $1', [idPedido])).rows[0];
     if (!pedido) throw errorCompra('El pedido no existe.');
@@ -372,14 +374,23 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
       return conBloqueo(pedido.id_compra, async cx => {
         const pedidos = (await cx.query('SELECT * FROM Pedidos WHERE id_compra = $1', [pedido.id_compra])).rows;
         if (pedidos.some(p => !['PENDIENTE', 'PROGRAMADO', 'CANCELADO', 'RECHAZADO'].includes(p.estado))) throw errorCompra('La preparación ya ha empezado. Contacta con el local para resolver la incidencia.');
-        const compra = await cancelar(cx, await leer(cx, pedido.id_compra), motivo);
+        const compra = await cancelar(cx, await leer(cx, pedido.id_compra), motivo, mensaje);
         pedido = (await cx.query('SELECT * FROM Pedidos WHERE id_pedido = $1', [idPedido])).rows[0];
         return { ...pedido, estado_pago: compra.estado, mensaje_pago: (await resultado(cx, compra)).mensaje };
       });
     }
     if (!['PENDIENTE', 'PROGRAMADO', 'CANCELADO', 'RECHAZADO'].includes(pedido.estado)) throw errorCompra('La preparación ya ha empezado. Contacta con el local para resolver la incidencia.');
-    pedido = (await pool.query("UPDATE Pedidos SET estado = 'CANCELADO' WHERE id_pedido = $1 AND estado IN ('PENDIENTE','PROGRAMADO','CANCELADO','RECHAZADO') RETURNING *", [idPedido])).rows[0];
-    if (!pedido) throw errorCompra('El local ya ha empezado a preparar el pedido.');
+    pedido = await conBloqueo('pedido-' + idPedido, async cx => {
+      await cx.query('BEGIN');
+      try {
+        const actualizado = (await cx.query("UPDATE Pedidos SET estado = 'CANCELADO' WHERE id_pedido = $1 AND estado IN ('PENDIENTE','PROGRAMADO','CANCELADO','RECHAZADO') RETURNING *", [idPedido])).rows[0];
+        if (!actualizado) throw errorCompra('El local ya ha empezado a preparar el pedido.');
+        await registrarCambioPedido(cx, actualizado, { motivo, mensaje });
+        await cx.query('COMMIT');
+        return actualizado;
+      } catch (error) { await cx.query('ROLLBACK'); throw error; }
+    });
+    despertarAvisosPedido();
     return { ...pedido, mensaje_pago: pedido.metodo_pago === 'TARJETA' ? 'Pedido antiguo cancelado. Consulta con el local para verificar la devolución de su pago.' : 'Pedido cancelado. No hay ningún cobro con tarjeta.' };
   }
 
