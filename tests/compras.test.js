@@ -113,6 +113,98 @@ test('un carrito completo se guarda en una transacción antes del cobro y los re
   assert.equal((await db.query('SELECT puntos_acumulados FROM Usuarios WHERE id_usuario = 1')).rows[0].puntos_acumulados, 10);
 });
 
+test('un correo lento no retrasa la confirmación ni bloquea la gestión del pedido', { timeout: 5000 }, async t => {
+  const bloqueos = new Set();
+  const poolConcurrente = { query, connect: async () => ({
+    query: async (sql, valores) => {
+      // PGlite comparte sesión; simula aquí los bloqueos entre conexiones de pg.
+      if (sql.includes('pg_try_advisory_lock')) {
+        const libre = !bloqueos.has(valores[0]);
+        if (libre) bloqueos.add(valores[0]);
+        return { rows: [{ bloqueado: libre }] };
+      }
+      if (sql.includes('pg_advisory_unlock')) {
+        bloqueos.delete(valores[0]);
+        return { rows: [] };
+      }
+      return query(sql, valores);
+    },
+    release() {},
+  }) };
+  let terminarCorreo, anunciarInicio, envios = 0;
+  const correoPendiente = new Promise(resolve => { terminarCorreo = resolve; });
+  const correoIniciado = new Promise(resolve => { anunciarInicio = resolve; });
+  t.after(() => terminarCorreo());
+  const compras = crearServicioCompras(poolConcurrente, stripe, {
+    ahora: () => reloj,
+    notificar: async () => { envios++; anunciarInicio(); await correoPendiente; },
+  });
+  const input = solicitud('compra-correo-lento-0001', { metodo_pago: 'EFECTIVO' });
+  await compras.preparar(input, cliente);
+  const confirmada = await compras.confirmar(input.clave, cliente);
+  assert.equal(confirmada.estado, 'CONFIRMADA');
+  assert.equal(envios, 0, 'La petición de pago no debe intentar enviar correo');
+  const enviando = compras.procesarNotificacionesPendientes();
+  await correoIniciado;
+  const pedido = await compras.conPedidoBloqueado(confirmada.pedidos[0].id_pedido,
+    cx => compras.validarCambioPedido(confirmada.pedidos[0].id_pedido, 'PREPARANDO', cx));
+  assert.equal(pedido.estado_compra, 'CONFIRMADA');
+  assert.equal((await compras.consultar(input.clave, cliente)).estado, 'CONFIRMADA');
+  terminarCorreo();
+  await enviando;
+  assert.equal((await db.query('SELECT notificada FROM Compras WHERE id_compra = $1', [input.clave])).rows[0].notificada, true);
+});
+
+test('un correo fallido queda pendiente y puede reintentarse tras reiniciar sin duplicar compras', async () => {
+  let intentos = 0;
+  const compras = crearServicioCompras(pool, stripe, {
+    ahora: () => reloj,
+    notificar: async () => { intentos++; throw Object.assign(new Error('Fallo SMTP simulado'), { code: 'SMTP_PRUEBA' }); },
+  });
+  const input = solicitud('compra-correo-reintento-0001', { metodo_pago: 'EFECTIVO' });
+  await compras.preparar(input, cliente);
+  await compras.confirmar(input.clave, cliente);
+  await compras.procesarNotificacionesPendientes();
+  assert.equal((await db.query('SELECT notificada FROM Compras WHERE id_compra = $1', [input.clave])).rows[0].notificada, false);
+  const reiniciadas = crearServicioCompras(pool, stripe, { ahora: () => reloj, notificar: async () => { intentos++; } });
+  await reiniciadas.procesarNotificacionesPendientes();
+  await reiniciadas.procesarNotificacionesPendientes();
+  assert.equal(intentos, 2);
+  assert.equal((await db.query('SELECT notificada FROM Compras WHERE id_compra = $1', [input.clave])).rows[0].notificada, true);
+  assert.equal((await filas(input.clave)).length, 3);
+  assert.equal((await reiniciadas.consultar(input.clave, cliente)).estado, 'CONFIRMADA');
+});
+
+test('activar una reserva mientras sale su correo conserva pendiente el aviso de confirmación', { timeout: 5000 }, async t => {
+  let terminarCorreo, anunciarInicio;
+  const correoPendiente = new Promise(resolve => { terminarCorreo = resolve; });
+  const correoIniciado = new Promise(resolve => { anunciarInicio = resolve; });
+  t.after(() => terminarCorreo());
+  const estadosNotificados = [];
+  const compras = crearServicioCompras(pool, stripe, {
+    ahora: () => reloj,
+    notificar: async compra => {
+      estadosNotificados.push(compra.estado);
+      if (compra.estado === 'RESERVADA') { anunciarInicio(); await correoPendiente; }
+    },
+  });
+  const input = solicitud('compra-correo-reserva-0001', { metodo_pago: 'EFECTIVO', fecha_programada: new Date(reloj.getTime() + 3600_000).toISOString() });
+  await compras.preparar(input, cliente);
+  assert.equal((await compras.confirmar(input.clave, cliente)).estado, 'RESERVADA');
+  const enviando = compras.procesarNotificacionesPendientes();
+  await correoIniciado;
+  reloj = new Date(reloj.getTime() + 3600_000);
+  await compras.procesarPendientes();
+  terminarCorreo();
+  await enviando;
+  const compra = (await db.query('SELECT estado, notificada FROM Compras WHERE id_compra = $1', [input.clave])).rows[0];
+  assert.equal(compra.estado, 'CONFIRMADA');
+  assert.equal(compra.notificada, false, 'El aviso de reserva no debe marcar enviada la confirmación');
+  await compras.procesarNotificacionesPendientes();
+  await compras.procesarNotificacionesPendientes();
+  assert.deepEqual(estadosNotificados, ['RESERVADA', 'CONFIRMADA']);
+});
+
 test('si una unidad falla, revierte todo el pedido y libera la autorización sin cobrar', async () => {
   const input = solicitud();
   await servicio.preparar(input, cliente); autorizar(input.clave); falloProducto = '102';

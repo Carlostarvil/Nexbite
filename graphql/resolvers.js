@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { EventEmitter, on } from 'events';
 import pool from '../config/db.js';
 import { procesarMensaje } from './nlp/chatbot.js'; 
-import nodemailer from 'nodemailer';
+import { crearServicioCorreo } from '../config/correo.js';
 import { OAuth2Client } from 'google-auth-library';
 import Stripe from 'stripe';
 import crypto from 'crypto';
@@ -27,13 +27,7 @@ const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 const eventEmitter = new EventEmitter();
 const PEDIDO_CREADO = 'PEDIDO_CREADO';
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+const transporter = crearServicioCorreo();
 
 
 const compras = crearServicioCompras(pool, stripe, {
@@ -49,6 +43,7 @@ const compras = crearServicioCompras(pool, stripe, {
 });
 
 export const procesarComprasPendientes = () => compras.procesarPendientes();
+export const procesarNotificacionesPendientes = () => compras.procesarNotificacionesPendientes();
 
 const calcularExpiracion = (tiempoStr) => {
   if (!tiempoStr || tiempoStr === 'Indefinido') return null;
@@ -235,7 +230,9 @@ const resolversBase = {
 
         await pool.query('UPDATE Usuarios SET reset_token = $1, reset_token_expira = $2 WHERE id_usuario = $3', [token, expira, usuario.id_usuario]);
 
-        const resetLink = `http://localhost:5173/?resetToken=${token}`;
+        const resetUrl = new URL(process.env.FRONTEND_URL || (process.env.RENDER === 'true' ? 'https://nexbite-pvfz.onrender.com' : 'http://localhost:5173'));
+        resetUrl.searchParams.set('resetToken', token);
+        const resetLink = resetUrl.toString();
 
         console.log(`\n🔍 Recuperación solicitada para: ${identificador}`);
         console.log(`📧 Intentando enviar correo a: ${usuario.email}...`);

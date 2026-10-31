@@ -151,7 +151,7 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     if (compra.notificada || !['RESERVADA', 'CONFIRMADA'].includes(compra.estado)) return;
     try {
       await notificar(compra, (await cx.query('SELECT * FROM Pedidos WHERE id_compra = $1', [compra.id_compra])).rows, cx);
-      await cx.query('UPDATE Compras SET notificada = TRUE WHERE id_compra = $1', [compra.id_compra]);
+      await cx.query('UPDATE Compras SET notificada = TRUE WHERE id_compra = $1 AND estado = $2', [compra.id_compra, compra.estado]);
     } catch (error) { console.error('No se pudo notificar la compra:', error.code || 'NOTIFICACION'); }
   }
 
@@ -208,7 +208,6 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
         await cx.query("UPDATE Pedidos SET estado = 'PENDIENTE' WHERE id_compra = $1 AND estado = 'PROGRAMADO'", [compra.id_compra]);
         await cx.query('COMMIT');
       } catch (error) { await cx.query('ROLLBACK'); throw error; }
-      await notificarUnaVez(cx, compra);
       return compra;
     }
     if (intencion.status === 'canceled') return cancelar(cx, compra, 'La autorización bancaria ha caducado. No se ha cobrado la compra.');
@@ -253,7 +252,6 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
       throw error;
     }
     if (compra.estado === 'AUTORIZADA') compra = await capturar(cx, compra, intencion);
-    await notificarUnaVez(cx, compra);
     return compra;
   }
 
@@ -349,7 +347,6 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
       return cancelar(cx, compra, 'La reserva ya no se puede servir: ' + error.message);
     }
     if (compra.estado === 'AUTORIZADA') compra = await capturar(cx, compra, await recuperarIntencion(compra));
-    await notificarUnaVez(cx, compra);
     return compra;
   }
 
@@ -423,6 +420,25 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
     }
   }
 
+  async function procesarNotificacionesPendientes() {
+    const pendientes = (await pool.query(`
+      SELECT id_compra FROM Compras
+      WHERE notificada = FALSE AND estado IN ('CONFIRMADA', 'RESERVADA')
+      ORDER BY actualizada LIMIT 10
+    `)).rows;
+    for (const { id_compra } of pendientes) {
+      try {
+        // El correo tiene su propio bloqueo: nunca retiene el del pago o del pedido.
+        await conBloqueo('notificacion-' + id_compra, async cx => {
+          const compra = await leer(cx, id_compra);
+          if (compra) await notificarUnaVez(cx, compra);
+        });
+      } catch (error) {
+        if (error.extensions?.code !== 'COMPRA_EN_PROCESO') console.error('Notificación pendiente:', error.code || 'NOTIFICACION');
+      }
+    }
+  }
+
   const conPedidoBloqueado = async (idPedido, accion) => {
     const pedido = (await pool.query('SELECT id_compra FROM Pedidos WHERE id_pedido = $1', [idPedido])).rows[0];
     return conBloqueo(pedido?.id_compra || 'pedido-' + idPedido, cx => accion(cx));
@@ -441,7 +457,7 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
   }
 
   return {
-    preparar, confirmar, consultar, cancelarPedido, validarCambioPedido, procesarPendientes, conPedidoBloqueado,
+    preparar, confirmar, consultar, cancelarPedido, validarCambioPedido, procesarPendientes, procesarNotificacionesPendientes, conPedidoBloqueado,
     Query: { consultarCompra: (_, { id_compra }, ctx) => ejecutarOperacion('consultar', id_compra, () => consultar(id_compra, ctx)) },
     Mutation: {
       prepararCompra: (_, { input }, ctx) => ejecutarOperacion('preparar', input?.clave, () => preparar(input, ctx)),

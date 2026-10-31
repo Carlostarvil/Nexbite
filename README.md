@@ -120,11 +120,16 @@ cp .env.example .env
 | `DB_USER`, `DB_PASSWORD` | Credenciales del usuario de PostgreSQL |
 | `JWT_SECRET` | Valor secreto propio para firmar las sesiones |
 | `STRIPE_SECRET_KEY` | Clave secreta de Stripe en modo de pruebas |
-| `EMAIL_USER`, `EMAIL_PASS` | Cuenta de Gmail y contraseña de aplicación para enviar correos |
+| `EMAIL_PROVIDER` | `brevo` para enviar por HTTPS o `smtp` para Gmail; si está vacío, detecta Brevo cuando existe su clave |
+| `BREVO_API_KEY`, `EMAIL_FROM` | Clave API de Brevo y correo del remitente verificado |
+| `EMAIL_USER`, `EMAIL_PASS` | Cuenta de Gmail y contraseña de aplicación cuando se utiliza SMTP |
+| `FRONTEND_URL` | URL pública del frontend para los enlaces de recuperación de contraseña |
 | `GOOGLE_CLIENT_ID` | Identificador OAuth de Google, que debe coincidir con el configurado en el cliente |
 | `PHOTON_URL` | Dirección del proveedor Photon; por defecto, `https://photon.komoot.io` |
 
 Utiliza valores propios en `.env`. Las credenciales de PostgreSQL, Stripe, correo y sesión no se deben incluir en el README ni en archivos publicados.
+
+Para el envío desde Render gratuito, consulta [Configurar los correos por HTTPS](docs/correo-render.md). El pago se confirma sin esperar al correo; las notificaciones de compras quedan pendientes en PostgreSQL y se intentan desde una tarea independiente cada 30 segundos mientras el servidor está activo.
 
 ### 4. Preparar la base de datos
 
@@ -141,7 +146,7 @@ La configuración actual utiliza direcciones y constantes definidas en el códig
 - **API GraphQL del frontend en `deploy-render`:** `https://nexbite.onrender.com/graphql`, en [`nexbite-frontend/src/main.jsx`](nexbite-frontend/src/main.jsx).
 - **Stripe:** clave publicable de pruebas en [`nexbite-frontend/src/Carrito.jsx`](nexbite-frontend/src/Carrito.jsx). Debe pertenecer a la misma cuenta y modo que la clave secreta del servidor.
 - **Google:** identificador OAuth en [`nexbite-frontend/src/Auth.jsx`](nexbite-frontend/src/Auth.jsx). Configura el origen del frontend en tu cliente OAuth y utiliza el mismo identificador en el backend.
-- **Recuperación de contraseña:** enlace del frontend definido en [`graphql/resolvers.js`](graphql/resolvers.js), actualmente con el origen `http://localhost:5173`.
+- **Recuperación de contraseña:** utiliza `FRONTEND_URL`. En Render, si no se indica, apunta al frontend público de NexBite; en desarrollo local utiliza `http://localhost:5173`.
 
 Si cambias de puerto, dominio o cuenta de integración, actualiza estos valores. El frontend actual no los obtiene de variables `VITE_*`.
 
