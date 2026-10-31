@@ -19,6 +19,7 @@ import { protegerResolvers, exigirCuentaPropia, exigirLocalPropio } from './perm
 import { crearServicioCompras } from './compras.js';
 import { crearNotificacionesPedidos } from './notificacionesPedidos.js';
 import { crearActualizadorEstadoPedido } from './actualizarEstadoPedido.js';
+import { crearConsultaPedidosVendedor } from './pedidosVendedor.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const operacionesPago = crearOperacionesPago(pool, stripe);
@@ -154,7 +155,7 @@ const resolversBase = {
 
     obtenerRestaurantesSimilares: async (_, { id_restaurante }) => (await pool.query(`SELECT r2.* FROM Restaurantes r1 JOIN Restaurantes r2 ON r1.tipo = r2.tipo AND r1.id_restaurante != r2.id_restaurante WHERE r1.id_restaurante = $1 LIMIT 5;`, [id_restaurante])).rows,
 
-    obtenerPedidosVendedor: async (_, { id_restaurante }) => (await pool.query(`SELECT pe.*, c.estado AS estado_pago, c.motivo AS mensaje_pago, COALESCE(pe.nombre_producto, pl.nombre) AS nombre_plato, pl.imagen_url AS imagen_plato FROM Pedidos pe LEFT JOIN Platos pl ON pe.id_plato = pl.id_plato LEFT JOIN Compras c ON c.id_compra = pe.id_compra WHERE pe.id_restaurante = $1 ORDER BY pe.id_pedido DESC`, [id_restaurante])).rows,
+    obtenerPedidosVendedor: crearConsultaPedidosVendedor(pool),
 
     obtenerPedidosCliente: async (_, { id_usuario }) => {
       const res = await pool.query(`

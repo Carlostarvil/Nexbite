@@ -4,11 +4,15 @@ import { gql } from '@apollo/client/core/index.js';
 import ImagenPlato from './ImagenPlato';
 import MensajeAccion, { IconoEstado } from './MensajeAccion';
 import { IconoVendedor, TituloVendedor, MetricasVendedor, CargandoVendedor, ErrorVendedor, VacioVendedor, DialogoVendedor } from './VendedorUI';
-import { fechaVendedor } from './vendedorUtils';
+import { fechaVendedor, precioVendedor } from './vendedorUtils';
 import { coincidePedido } from './busquedaPedidos';
 
 const OBTENER_PEDIDOS = gql`query ObtenerPedidosVendedor($id_restaurante: ID!) {
-  obtenerPedidosVendedor(id_restaurante: $id_restaurante) { id_pedido nombre_plato estado metodo_pago direccion_envio fecha_pedido fecha_programada imagen_plato id_compra estado_pago mensaje_pago }
+  obtenerPedidosVendedor(id_restaurante: $id_restaurante) {
+    id_pedido nombre_plato estado metodo_pago direccion_envio fecha_pedido fecha_programada imagen_plato id_compra estado_pago mensaje_pago
+    cantidad_total subtotal envio total estados_mixtos
+    productos { id_plato nombre cantidad precio_unitario total imagen_url estado }
+  }
   obtenerRestaurantePorId(id_restaurante: $id_restaurante) { id_restaurante aceptando_pedidos tiempo_reactivacion }
 }`;
 
@@ -32,6 +36,7 @@ const ESTADOS = {
 };
 
 const ALIAS = { 'EN COCINA': 'PREPARANDO', 'EN CAMINO': 'ENVIADO', RECHAZADO: 'CANCELADO' };
+const ETAPAS = ['PENDIENTE', 'PREPARANDO', 'ENVIADO', 'ENTREGADO'];
 const estadoCanonico = estado => ALIAS[estado] || estado;
 const estadoPedido = estado => ESTADOS[estadoCanonico(estado)] || { texto: estado, tono: 'programado', icono: 'pedidos' };
 const motivoBloqueoEstado = pedido => {
@@ -103,7 +108,7 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
     try {
       const resultado = await actualizarEstado({ variables: { id_pedido: pedido.id_pedido, nuevo_estado: nuevoEstado, motivo_rechazo: esRechazo ? motivo : null, mensaje_personalizado: esRechazo ? mensajeExtra.trim() || null : null } });
       if (!resultado.data?.actualizarEstadoPedido) throw new Error('No se pudo confirmar el cambio.');
-      setDialogo(null); setMensaje({ tipo: 'exito', titulo: nuevoEstado === 'CANCELADO' ? 'Pedido cancelado' : 'Pedido actualizado', descripcion: (nuevoEstado === 'CANCELADO' && pedido.id_compra ? 'Se ha cancelado la compra completa de este local. ' : '') + 'El pedido #' + pedido.id_pedido + ' está ' + estadoPedido(nuevoEstado).texto.toLocaleLowerCase('es-ES') + '. ' + (resultado.data.actualizarEstadoPedido.mensaje_pago || '') }); await refrescar();
+      setDialogo(null); setMensaje({ tipo: 'exito', titulo: nuevoEstado === 'CANCELADO' ? 'Pedido cancelado' : 'Pedido actualizado', descripcion: 'El pedido #' + pedido.id_pedido + ', con todos sus productos, está ' + estadoPedido(resultado.data.actualizarEstadoPedido.estado).texto.toLocaleLowerCase('es-ES') + '. ' + (resultado.data.actualizarEstadoPedido.mensaje_pago || '') }); await refrescar();
     } catch (err) {
       const aviso = { tipo: 'error', titulo: 'No se pudo actualizar el pedido', descripcion: err.message };
       if (esRechazo) setErrorDialogo(aviso); else setMensaje(aviso);
@@ -225,7 +230,9 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
                         <div className="vendedor-pedido-detalle">
                           {pedido.imagen_plato ? <ImagenPlato plato={{ nombre: pedido.nombre_plato, imagen_url: pedido.imagen_plato }} className="vendedor-pedido-imagen" style={{ width: '60px', height: '60px', flexShrink: 0, borderRadius: '12px' }} /> : <span className="vendedor-pedido-dibujo"><IconoVendedor nombre="pedidos" tamano={25} /></span>}
                           <div style={{ minWidth: 0 }}>
-                            <h2>{pedido.estado_pago === 'AUTORIZADA' && <small>Confirmando el pago · </small>}{pedido.nombre_plato || 'Producto retirado'}</h2>
+                            <h2>{pedido.cantidad_total || 1} {(pedido.cantidad_total || 1) === 1 ? 'producto' : 'productos'} en este pedido</h2>
+                            <p className="vendedor-pedido-resumen">{pedido.nombre_plato || 'Producto retirado'}</p>
+                            {pedido.estado_pago === 'AUTORIZADA' && <p className="vendedor-ayuda-campo">Confirmando el pago</p>}
                             <div className="vendedor-pedido-meta">
                               
                               <p>
@@ -240,13 +247,46 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
                             </div>
                           </div>
                         </div>
+                        <details className="vendedor-pedido-productos">
+                          <summary>
+                            <span><IconoVendedor nombre="menu" tamano={18} />Ver productos del pedido</span>
+                            <span>{pedido.total != null && <strong>{precioVendedor(pedido.total)}</strong>}<IconoVendedor nombre="flecha" tamano={17} /></span>
+                          </summary>
+                          <div className="vendedor-pedido-contenido">
+                            {pedido.estados_mixtos && <p className="vendedor-ayuda-campo">Este pedido tenía productos en estados distintos. Al avanzar, los productos pendientes se actualizarán juntos; los ya entregados conservarán su estado.</p>}
+                            <ul className="vendedor-pedido-productos-lista" aria-label={'Productos del pedido ' + pedido.id_pedido}>
+                              {(pedido.productos || []).map((producto, indice) => (
+                                <li className="vendedor-pedido-producto" key={indice}>
+                                  <ImagenPlato plato={{ nombre: producto.nombre, imagen_url: producto.imagen_url }} className="vendedor-pedido-producto-imagen" style={{ height: '52px' }} />
+                                  <div className="vendedor-pedido-producto-info">
+                                    <strong>{producto.nombre}</strong>
+                                    <span>{producto.cantidad} {producto.cantidad === 1 ? 'unidad' : 'unidades'}{producto.precio_unitario != null && ' · ' + precioVendedor(producto.precio_unitario) + ' / unidad'}</span>
+                                    {pedido.estados_mixtos && <span>{estadoPedido(producto.estado).texto}</span>}
+                                  </div>
+                                  <span className="vendedor-pedido-producto-precio">{producto.total == null ? '—' : precioVendedor(producto.total)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            {pedido.total != null && <dl className="vendedor-pedido-importes">
+                              {pedido.subtotal != null && <div><dt>Productos</dt><dd>{precioVendedor(pedido.subtotal)}</dd></div>}
+                              {pedido.envio != null && <div><dt>{recogida ? 'Recogida' : 'Envío'}</dt><dd>{precioVendedor(pedido.envio)}</dd></div>}
+                              <div className="vendedor-pedido-total"><dt>Total del pedido</dt><dd>{precioVendedor(pedido.total)}</dd></div>
+                            </dl>}
+                          </div>
+                        </details>
                         <div className="vendedor-pedido-pie">
                           {motivoBloqueo && <p className="vendedor-ayuda-campo" role="status" style={{ flexBasis: '100%', margin: 0 }}>{motivoBloqueo}</p>}
                           <label className="vendedor-pedido-select">
                             <span>Estado</span>
                             <select aria-label={'Estado del pedido ' + pedido.id_pedido} title={motivoBloqueo || 'Selecciona el estado del pedido'} value={pedido.estado} disabled={ocupado || ['ENTREGADO','CANCELADO','RECHAZADO'].includes(pedido.estado)} onChange={e => e.target.value === 'CANCELADO' ? abrirDialogo('rechazo', pedido) : guardarEstado(pedido, e.target.value)}>
                               {!['PENDIENTE', 'PREPARANDO', 'ENVIADO', 'ENTREGADO', 'CANCELADO'].includes(pedido.estado) && <option value={pedido.estado}>{estado.texto}</option>}
-                              {['PENDIENTE', 'PREPARANDO', 'ENVIADO', 'ENTREGADO', 'CANCELADO'].map(valor => <option key={valor} value={valor} disabled={valor !== 'CANCELADO' && (pedido.estado === 'PROGRAMADO' || Boolean(pedido.id_compra && pedido.estado_pago !== 'CONFIRMADA'))}>{ESTADOS[valor].texto}</option>)}
+                              {[...ETAPAS, 'CANCELADO'].map(valor => (
+                                <option key={valor} value={valor} disabled={valor === 'CANCELADO'
+                                  ? !['PENDIENTE', 'PROGRAMADO'].includes(pedido.estado) || pedido.estados_mixtos
+                                  : Boolean(motivoBloqueo) || ETAPAS.indexOf(valor) < ETAPAS.indexOf(pedido.estado)}>
+                                  {valor === 'ENVIADO' && recogida ? 'Listo para recoger' : valor === 'ENTREGADO' && recogida ? 'Recogido' : ESTADOS[valor].texto}
+                                </option>
+                              ))}
                             </select>
                           </label>
                           {estado.siguiente && (
@@ -269,7 +309,7 @@ export default function GestorPedidos({ idRestaurante, nombreRestaurante, estado
       {dialogo && (
         <DialogoVendedor 
           titulo={dialogo.tipo === 'pausa' ? 'Un momento para tu negocio' : dialogo.tipo === 'rechazo' ? 'Cancelar este pedido' : '¿Eliminar del historial?'} 
-          descripcion={dialogo.tipo === 'pausa' ? 'Tu local se mostrará como cerrado hasta que lo reanudes o termine la pausa.' : dialogo.tipo === 'rechazo' ? 'Indica por qué no puedes atender el pedido #' + dialogo.pedido.id_pedido + '. Puedes añadir un mensaje para el cliente.' : 'El pedido #' + dialogo.pedido.id_pedido + ' se eliminará de forma permanente. Esta acción no se puede deshacer.'} 
+          descripcion={dialogo.tipo === 'pausa' ? 'Tu local se mostrará como cerrado hasta que lo reanudes o termine la pausa.' : dialogo.tipo === 'rechazo' ? 'Se cancelará el pedido #' + dialogo.pedido.id_pedido + ' completo, con todos sus productos. Indica el motivo y, si quieres, añade un mensaje para el cliente.' : 'El pedido #' + dialogo.pedido.id_pedido + ' se eliminará de forma permanente. Esta acción no se puede deshacer.'}
           icono={dialogo.tipo === 'pausa' ? 'pausa' : dialogo.tipo === 'rechazo' ? 'pedidos' : 'papelera'} 
           ocupado={ocupado} 
           onCerrar={cerrarDialogo} 

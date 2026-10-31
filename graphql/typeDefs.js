@@ -51,6 +51,16 @@ export const typeDefs = `#graphql
 
   type PlatoRecomendado { id_plato: ID!, nombre: String!, descripcion: String!, precio: Float!, restaurante: String!, coincidencias: Int! }
   
+  type ProductoPedido {
+    id_plato: ID
+    nombre: String!
+    cantidad: Int!
+    precio_unitario: Float
+    total: Float
+    imagen_url: String
+    estado: String!
+  }
+
   type Pedido { 
     id_pedido: ID!
     id_restaurante: ID!
@@ -71,6 +81,12 @@ export const typeDefs = `#graphql
     id_compra: ID
     estado_pago: String
     mensaje_pago: String
+    productos: [ProductoPedido!]
+    cantidad_total: Int
+    subtotal: Float
+    envio: Float
+    total: Float
+    estados_mixtos: Boolean
   }
 
   type Usuario {

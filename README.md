@@ -25,7 +25,9 @@ El proyecto utiliza React en el cliente y una API GraphQL con Node.js y PostgreS
 - **Administración de locales.** Registro y edición de información, imagen, ubicación, cobertura de reparto y horarios de recogida.
 - **Gestión del catálogo.** Creación y edición de productos, categorías, fotografías, menús y ofertas.
 - **Disponibilidad.** Cierre temporal del local y productos no disponibles, con opción de indicar una fecha de reactivación.
-- **Gestión de pedidos.** Búsqueda por número, filtros por estado y tipo de entrega, actualización de la preparación y cancelación con motivo.
+- **Gestión de pedidos.** Una tarjeta por compra del local, con detalle desplegable de productos, cantidades, fotos y precios. Búsqueda por número o producto, filtros por estado y entrega, y cambios de estado para todo el pedido.
+
+Las filas de `Pedidos` representan unidades de producto. El panel las agrupa por `id_compra`, conserva un número visible estable y actualiza el conjunto en una transacción. Las compras distintas y los pedidos antiguos sin `id_compra` permanecen separados. Cancelar un pedido cancela todos sus productos y conserva la gestión del pago y la devolución correspondiente.
 
 ### Compras y reservas
 

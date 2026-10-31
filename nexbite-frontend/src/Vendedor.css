@@ -236,6 +236,28 @@
 .vendedor-pedido-detalle { display: flex; align-items: center; gap: 15px; margin-bottom: 16px; }
 .vendedor-pedido-dibujo { width: 52px; height: 52px; display: grid; place-items: center; color: #82937f; border-radius: 14px; background: #f4f6ee; flex-shrink: 0; }
 .vendedor-pedido h2 { margin: 0 0 7px; font-size: 23px; font-weight: 750; }
+.vendedor-pedido-resumen { margin: 0 0 10px; color: var(--v-muted); font-size: 12px; overflow-wrap: anywhere; }
+.vendedor-pedido-productos { margin: 18px 0; border: 1px solid var(--v-line); border-radius: 12px; background: #fafbf8; overflow: hidden; }
+.vendedor-pedido-productos > summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 14px 16px; list-style: none; cursor: pointer; color: #355b40; font-size: 12px; font-weight: 650; }
+.vendedor-pedido-productos > summary::-webkit-details-marker { display: none; }
+.vendedor-pedido-productos > summary > span { display: inline-flex; align-items: center; gap: 10px; }
+.vendedor-pedido-productos > summary > span:last-child { margin-left: auto; }
+.vendedor-pedido-productos > summary > span:last-child > svg { transform: rotate(90deg); }
+.vendedor-pedido-productos[open] > summary > span:last-child > svg { transform: rotate(-90deg); }
+.vendedor-pedido-productos > summary:hover { background: #edf4e8; }
+.vendedor-pedido-productos > summary:focus-visible { outline: 2px solid #47734f; outline-offset: -3px; border-radius: 11px; }
+.vendedor-pedido-contenido { padding: 0 16px 16px; }
+.vendedor-pedido-productos-lista { list-style: none; padding: 0; margin: 0; }
+.vendedor-pedido-producto { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--v-line); }
+.vendedor-pedido .vendedor-pedido-producto-imagen { width: 52px; height: 52px; border-radius: 10px; }
+.vendedor-pedido-producto-info { display: flex; flex-direction: column; gap: 5px; overflow-wrap: anywhere; }
+.vendedor-pedido-producto-info strong { font-size: 13px; }
+.vendedor-pedido-producto-info span { font-size: 11px; color: var(--v-muted); }
+.vendedor-pedido-producto-precio { font-size: 12px; font-weight: 700; white-space: nowrap; }
+.vendedor-pedido-importes { max-width: 300px; margin: 8px 0 0 auto; border-top: 1px solid var(--v-line); padding-top: 10px; }
+.vendedor-pedido-importes > div { display: flex; justify-content: space-between; gap: 16px; padding: 5px 0; font-size: 12px; color: var(--v-muted); }
+.vendedor-pedido-importes dd { margin: 0; white-space: nowrap; }
+.vendedor-pedido-importes > .vendedor-pedido-total { color: #274832; font-size: 14px; font-weight: 750; }
 .vendedor-pedido-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11px; color: var(--v-muted); }
 .vendedor-pedido-meta p { display: flex; align-items: flex-start; gap: 6px; margin: 0; overflow-wrap: anywhere; }
 .vendedor-pedido-meta p span { min-width: 0; }

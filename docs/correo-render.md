@@ -39,7 +39,7 @@ La confirmación inicial de la compra y los cambios de estado son mensajes disti
 
 El envío se solicita justo después de guardar. Además, una tarea cada cinco segundos recupera los avisos pendientes mientras el servidor está activo. Un fallo del proveedor conserva el aviso para reintentarlo, con esperas crecientes. No hace esperar al cambio de estado ni utiliza el bloqueo del pago.
 
-Los avisos conservan el orden de cada compra. Repetir el mismo estado no genera otro aviso. Cancelar una compra completa genera un único correo que identifica todos sus pedidos e incluye el motivo. Para recogida se utilizan «Listo para recoger» y «Recogido», en lugar de «En camino».
+Los avisos conservan el orden de cada compra. Repetir el mismo estado no genera otro aviso. Cada cambio del pedido completo genera un único correo con el mismo número que muestra el panel del vendedor y el detalle de productos y cantidades; cancelar incluye también el motivo. Las unidades de producto no generan correos independientes. Para recogida se utilizan «Listo para recoger» y «Recogido», en lugar de «En camino».
 
 La tabla se crea al arrancar mediante la migración habitual. Se registran los cambios nuevos; no se generan correos retrospectivos de estados anteriores. La aceptación por Brevo y la llegada a la bandeja del destinatario son pasos diferentes.
 

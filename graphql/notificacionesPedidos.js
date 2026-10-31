@@ -1,29 +1,33 @@
-const canonico = estado => ({ 'EN COCINA': 'PREPARANDO', 'EN CAMINO': 'ENVIADO', RECHAZADO: 'CANCELADO' }[estado] || estado);
+import { estadoCanonico, agruparProductos } from './pedidosVendedor.js';
 
 export function crearNotificacionesPedidos(pool, enviarCorreo, { ahora = () => new Date() } = {}) {
   let enCurso = null;
   let programada = false;
   let repetir = false;
 
-  async function registrar(conexion, pedido, { motivo = '', mensaje = '', compraCompleta = false, pedidos = [pedido] } = {}) {
-    const estado = canonico(pedido.estado);
+  async function registrar(conexion, pedido, { motivo = '', mensaje = '', compraCompleta = false, pedidoCompleto = false, pedidos = [pedido] } = {}) {
+    const estado = estadoCanonico(pedido.estado);
     if (!['PREPARANDO', 'ENVIADO', 'ENTREGADO', 'CANCELADO'].includes(estado)) return;
     const nombres = (await conexion.query(`
       SELECT r.nombre AS local, pl.nombre AS producto FROM Restaurantes r
       LEFT JOIN Platos pl ON pl.id_plato = $2 AND pl.id_restaurante = r.id_restaurante
       WHERE r.id_restaurante = $1
     `, [pedido.id_restaurante, pedido.id_plato])).rows[0];
+    const conjunto = pedidoCompleto || compraCompleta;
+    const unidades = [...pedidos].sort((a, b) => Number(a.id_pedido) - Number(b.id_pedido));
+    const numeroPedido = conjunto ? unidades[0].id_pedido : pedido.id_pedido;
     const datos = {
       estado, local: nombres?.local || 'tu local', producto: pedido.nombre_producto || nombres?.producto || '',
       recogida: String(pedido.direccion_envio || '').toLowerCase().includes('recogida'),
-      motivo, mensaje, compraCompleta, pedidos: pedidos.map(p => p.id_pedido),
+      motivo, mensaje, compraCompleta, pedidoCompleto: conjunto, numeroPedido, pedidos: unidades.map(p => p.id_pedido),
+      productos: conjunto ? agruparProductos(unidades).map(p => p.cantidad + ' × ' + p.nombre).join(' · ') : '',
     };
-    const clave = compraCompleta && pedido.id_compra ? 'compra-' + pedido.id_compra + '-CANCELADO' : 'pedido-' + pedido.id_pedido + '-' + estado;
+    const clave = (compraCompleta || pedidoCompleto) && pedido.id_compra ? 'compra-' + pedido.id_compra + '-' + estado : 'pedido-' + pedido.id_pedido + '-' + estado;
     const canal = pedido.id_compra ? 'compra-' + pedido.id_compra : 'pedido-' + pedido.id_pedido;
     await conexion.query(`
       INSERT INTO Notificaciones_Pedido (clave, canal, id_pedido, id_usuario, datos, creada, proximo_intento)
       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $6) ON CONFLICT (clave) DO NOTHING
-    `, [clave, canal, pedido.id_pedido, pedido.id_usuario, JSON.stringify(datos), ahora()]);
+    `, [clave, canal, numeroPedido, pedido.id_usuario, JSON.stringify(datos), ahora()]);
   }
 
   async function enviarLote() {
@@ -46,18 +50,18 @@ export function crearNotificacionesPedidos(pool, enviarCorreo, { ahora = () => n
         const usuario = (await pool.query('SELECT nombre, email FROM Usuarios WHERE id_usuario = $1', [aviso.id_usuario])).rows[0];
         if (!usuario?.email) throw Object.assign(new Error('El destinatario no tiene correo.'), { code: 'CORREO_DESTINATARIO' });
         const datos = aviso.datos;
-        const referencia = datos.compraCompleta ? 'Tu compra en ' + datos.local : 'Tu pedido #' + datos.pedidos[0] + ' de ' + datos.local;
+        const referencia = datos.compraCompleta && !datos.pedidoCompleto ? 'Tu compra en ' + datos.local : 'Tu pedido #' + (datos.numeroPedido ?? datos.pedidos[0]) + ' de ' + datos.local;
         const textos = {
           PREPARANDO: ['En preparación', 'ya se está preparando.'],
           ENVIADO: datos.recogida ? ['Listo para recoger', 'ya está listo para recoger en el local.'] : ['En camino', 'ya está en camino a tu dirección.'],
           ENTREGADO: datos.recogida ? ['Recogido', 'se ha marcado como recogido.'] : ['Entregado', 'se ha marcado como entregado.'],
-          CANCELADO: [datos.compraCompleta ? 'Compra cancelada' : 'Pedido cancelado', 'se ha cancelado.'],
+          CANCELADO: [datos.compraCompleta && !datos.pedidoCompleto ? 'Compra cancelada' : 'Pedido cancelado', 'se ha cancelado.'],
         };
         const [titulo, descripcion] = textos[datos.estado];
         const texto = [
           'Hola ' + (usuario.nombre || '') + ',', '', referencia + ' ' + descripcion,
-          datos.producto && !datos.compraCompleta ? 'Producto: ' + datos.producto : '',
-          datos.compraCompleta ? 'Pedidos incluidos: ' + datos.pedidos.map(id => '#' + id).join(', ') + '.' : '',
+          datos.productos ? 'Productos: ' + datos.productos : datos.producto && !datos.compraCompleta ? 'Producto: ' + datos.producto : '',
+          datos.compraCompleta && !datos.pedidoCompleto ? 'Pedidos incluidos: ' + datos.pedidos.map(id => '#' + id).join(', ') + '.' : '',
           datos.motivo ? 'Motivo: ' + datos.motivo : '',
           datos.mensaje ? 'Mensaje del local: ' + datos.mensaje : '',
           datos.estado === 'CANCELADO' ? 'Consulta el estado del pago o de su devolución en Mis pedidos.' : 'Puedes consultar el pedido desde tu perfil de NexBite.',

@@ -4,6 +4,7 @@ import { recogidaDisponible, validarFechaRecogida } from '../shared/horariosReco
 import { validarZonaEntrega } from '../shared/zonaEntrega.js';
 import { exigirUsuario, exigirLocalPropio } from './permisos.js';
 import { detalleErrorCompra, registrarErrorCompra } from '../shared/erroresCompra.js';
+import { leerUnidadesPedido, estadoDelConjunto, estadoCanonico, etapasPedido, pedidoFinalizado } from './pedidosVendedor.js';
 
 const errorCompra = (mensaje, code = 'COMPRA_NO_VALIDA') => new GraphQLError(mensaje, { extensions: { code } });
 const fechaISO = fecha => fecha ? new Date(fecha).toISOString() : null;
@@ -355,13 +356,13 @@ export function crearServicioCompras(pool, stripe, { ahora = () => new Date(), n
   async function validarCambioPedido(idPedido, estado, conexion = pool) {
     const permitidos = ['PENDIENTE', 'EN COCINA', 'PREPARANDO', 'EN CAMINO', 'ENVIADO', 'ENTREGADO', 'CANCELADO', 'RECHAZADO'];
     if (!permitidos.includes(estado)) throw errorCompra('El estado del pedido no es válido.');
-    const pedido = (await conexion.query('SELECT p.*, c.estado AS estado_compra FROM Pedidos p LEFT JOIN Compras c ON p.id_compra = c.id_compra WHERE p.id_pedido = $1', [idPedido])).rows[0];
-    if (!pedido) throw errorCompra('El pedido no existe.');
-    if (['ENTREGADO', 'CANCELADO', 'RECHAZADO'].includes(pedido.estado)) throw errorCompra('Este pedido ya ha finalizado.');
-    if (!['CANCELADO', 'RECHAZADO'].includes(estado) && (pedido.fecha_programada && new Date(pedido.fecha_programada) > ahora() || pedido.estado === 'PROGRAMADO' || pedido.id_compra && pedido.estado_compra !== 'CONFIRMADA')) throw errorCompra('El pedido aún está reservado o pendiente de confirmar el pago.');
-    const etapas = { PENDIENTE: 0, PREPARANDO: 1, 'EN COCINA': 1, ENVIADO: 2, 'EN CAMINO': 2, ENTREGADO: 3 };
-    if (etapas[estado] < etapas[pedido.estado]) throw errorCompra('Un pedido no puede volver a un estado anterior.');
-    return pedido;
+    const unidades = await leerUnidadesPedido(conexion, idPedido);
+    if (!unidades.length) throw errorCompra('El pedido no existe.');
+    const activas = unidades.filter(p => !pedidoFinalizado(p));
+    if (!activas.length) throw errorCompra('Este pedido ya ha finalizado.');
+    if (!['CANCELADO', 'RECHAZADO'].includes(estado) && activas.some(pedido => pedido.fecha_programada && new Date(pedido.fecha_programada) > ahora() || pedido.estado === 'PROGRAMADO' || pedido.id_compra && pedido.estado_compra !== 'CONFIRMADA')) throw errorCompra('El pedido aún está reservado o pendiente de confirmar el pago.');
+    if (etapasPedido[estadoCanonico(estado)] < etapasPedido[estadoDelConjunto(unidades)]) throw errorCompra('Un pedido no puede volver a un estado anterior.');
+    return { ...unidades[0], estado: estadoDelConjunto(unidades) };
   }
 
   async function cancelarPedido(idPedido, contexto, motivo = 'Cancelado por el cliente', mensaje = '') {

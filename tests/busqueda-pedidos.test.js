@@ -8,3 +8,9 @@ test('busca por número con almohadilla, título y espacios sin confundir la dir
   for (const texto of ['#999', '45', 'pedido #999']) assert.equal(coincidePedido(pedido, texto), false, texto);
   for (const texto of [' PIZZA ', 'calle mayor 45']) assert.equal(coincidePedido(pedido, texto), true, texto);
 });
+
+test('buscar un producto encuentra el pedido completo aunque no sea su primer plato', () => {
+  const pedido = { id_pedido: '123', nombre_plato: 'Pizza', productos: [{ nombre: 'Pizza' }, { nombre: 'Limonada' }] };
+  assert.equal(coincidePedido(pedido, ' LIMONADA '), true);
+  assert.equal(coincidePedido(pedido, 'Sushi'), false);
+});
