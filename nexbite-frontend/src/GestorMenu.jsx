@@ -58,6 +58,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
   const [tiempoPausa, setTiempoPausa] = useState('1 hora');
   const [accionOcupada, setAccionOcupada] = useState(null);
   const [leyendoImagen, setLeyendoImagen] = useState(false);
+  const [recomendacionImagen, setRecomendacionImagen] = useState(null);
   const fileInputRef = useRef(null);
   const errorRef = useRef(null);
   const guardandoRef = useRef(false);
@@ -82,7 +83,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
     requestAnimationFrame(() => { errorRef.current?.focus(); errorRef.current?.scrollIntoView({ block: 'center' }); });
   };
   const cambiar = (campo, valor) => { setFormData(prev => ({ ...prev, [campo]: valor })); setErrorFormulario(null); };
-  const limpiarFormulario = () => { setFormData(datosVacios()); setIdEdicion(null); setPlatosSeleccionados([]); setInputValueTag(''); setErrorFormulario(null); if (fileInputRef.current) fileInputRef.current.value = ''; };
+  const limpiarFormulario = () => { setFormData(datosVacios()); setIdEdicion(null); setPlatosSeleccionados([]); setInputValueTag(''); setErrorFormulario(null); setRecomendacionImagen(null); if (fileInputRef.current) fileInputRef.current.value = ''; };
   const abrirFormulario = plato => {
     limpiarFormulario(); setMensaje(null);
     if (plato) {
@@ -126,7 +127,11 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
       const imagen = new Image();
       imagen.onerror = () => fallo('No se puede abrir este archivo como imagen.');
       imagen.onload = () => {
-        if (imagen.width < 400 || imagen.height < 400) return fallo('La imagen debe tener al menos 400 × 400 píxeles para verse bien.');
+        setRecomendacionImagen(imagen.width < 400 || imagen.height < 400 ? {
+          tipo: 'info',
+          titulo: 'Imagen aceptada',
+          descripcion: `Tu imagen tiene ${imagen.width} × ${imagen.height} px. Para una foto más nítida, recomendamos al menos 400 px de ancho y de alto. Puedes guardar el producto con esta imagen.`,
+        } : null);
         cambiar('imagen_url', lector.result); setLeyendoImagen(false);
       };
       imagen.src = lector.result;
@@ -206,7 +211,7 @@ export default function GestorMenu({ idRestaurante, nombreRestaurante }) {
           {esMenu && <section className="vendedor-panel"><div className="vendedor-panel-titulo"><span><IconoVendedor nombre="menu" /></span><div><h2>Un menú a tu medida</h2><p>Elige productos de tu carta. Sus fotos se añadirán automáticamente.</p></div></div><p className="vendedor-ayuda-campo">Al seleccionar productos, se calcula el precio con un 15 % de descuento. Puedes ajustarlo después.</p><div className="vendedor-menu-seleccion">{elegibles.length ? elegibles.map(p => <label key={p.id_plato}><input type="checkbox" aria-label={p.nombre} checked={platosSeleccionados.includes(String(p.id_plato))} onChange={() => seleccionarPlato(p.id_plato)} /><ImagenPlato plato={p} /><span>{p.nombre}<small>{p.disponible === false ? 'No disponible ahora' : 'Producto de tu carta'}</small></span><strong>{precioVendedor(p.precio)}</strong></label>) : <p className="vendedor-ayuda-campo">Crea primero productos individuales para poder combinarlos en un menú.</p>}</div>
             <section className="vendedor-oferta"><div><IconoVendedor nombre="etiqueta" tamano={23} /><h3>¿Lo destacamos como oferta?</h3></div><p>El descuento se calcula automáticamente. Tú decides si aparece también en «Ofertas especiales».</p><label><input type="checkbox" role="switch" aria-label="Añadir este menú a ofertas" aria-checked={esOferta} checked={esOferta} onChange={() => toggleCategoria('OFERTA')} /><span>Añadir este menú a ofertas</span></label><small role="status">{esOferta ? 'Se mostrará en MENÚ y en Ofertas especiales.' : 'Se publicará en MENÚ, sin marcarlo como oferta.'}</small></section>
           </section>}
-          <section className="vendedor-panel"><div className="vendedor-panel-titulo"><span><IconoVendedor nombre="imagen" /></span><div><h2>Su mejor cara</h2><p>{esMenu ? 'Conserva las fotos de los productos o añade una portada propia.' : 'Una foto apetecible marca la diferencia.'}</p></div></div><div className="vendedor-carga-imagen"><div className="vendedor-carga-imagen-cabecera"><IconoVendedor nombre="subir" tamano={27} /><div><strong>{formData.imagen_url ? 'Cambiar foto' : 'Añadir una foto'}</strong><p>JPG, PNG, WEBP o GIF · mínimo 400 × 400 px.</p></div></div><input type="file" aria-label="Imagen del producto" accept="image/jpeg,image/png,image/webp,image/gif" ref={fileInputRef} onChange={handleImageChange} />{leyendoImagen && <span role="status">Preparando tu imagen...</span>}</div></section>
+          <section className="vendedor-panel"><div className="vendedor-panel-titulo"><span><IconoVendedor nombre="imagen" /></span><div><h2>Su mejor cara</h2><p>{esMenu ? 'Conserva las fotos de los productos o añade una portada propia.' : 'Una foto apetecible marca la diferencia.'}</p></div></div><div className="vendedor-carga-imagen"><div className="vendedor-carga-imagen-cabecera"><IconoVendedor nombre="subir" tamano={27} /><div><strong>{formData.imagen_url ? 'Cambiar foto' : 'Añadir una foto'}</strong><p>JPG, PNG, WEBP o GIF · recomendamos al menos 400 × 400 px.</p></div></div><input type="file" aria-label="Imagen del producto" accept="image/jpeg,image/png,image/webp,image/gif" ref={fileInputRef} onChange={handleImageChange} />{leyendoImagen && <span role="status">Preparando tu imagen...</span>}<MensajeAccion mensaje={recomendacionImagen} /></div></section>
           <div className="vendedor-form-acciones"><span>{idEdicion ? 'Actualiza el producto cuando esté listo.' : 'Listo para formar parte de tu carta.'}</span><button type="button" className="vendedor-btn vendedor-btn-secundario" onClick={cerrarFormulario}>Cancelar</button><button type="submit" className="vendedor-btn vendedor-btn-primario" aria-busy={guardando}>{guardando ? <IconoEstado tipo="cargando" tamano={18} /> : <IconoVendedor nombre="guardar" tamano={18} />}{guardando ? 'Guardando...' : idEdicion ? 'Guardar cambios' : 'Guardar producto'}</button></div>
         </div>
         <aside className="vendedor-preview" aria-label="Vista previa del producto"><p className="vendedor-preview-titulo"><IconoVendedor nombre="imagen" tamano={16} />Así lo verán tus clientes</p><article className="vendedor-producto vendedor-preview-producto"><ImagenPlato plato={vistaPrevia} loading="eager" /><div className="vendedor-producto-body"><EtiquetasProducto categorias={formData.categoria} /><h2>{formData.nombre || 'Tu próximo favorito'}</h2><p>{formData.descripcion || 'La descripción de tu producto aparecerá aquí.'}</p><div className="vendedor-producto-precio"><strong>{precioVendedor(formData.precio)}</strong>{esOferta && Number(formData.precioAnterior) > 0 && <del>{precioVendedor(formData.precioAnterior)}</del>}</div></div></article><p className="vendedor-preview-nota">{esMenu ? 'Las fotografías de los productos incluidos se conservan también cuando tus clientes abren el menú.' : 'Puedes editar este producto siempre que quieras.'}</p></aside>
